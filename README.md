@@ -1,6 +1,6 @@
 # RPG Tracker (SillyTavern Extension)
 
-RPG Tracker is an extension for SillyTavern designed to seamlessly extract and maintain RPG states (character stats, party status, combat states, inventory, abilities, and spells) from your roleplay narrative. It operates as a distinct "State Model" pass in a two-model simulation pipeline, decoupling creative narrative generation from rigorous, mechanical state management.
+RPG Tracker is an extension for SillyTavern designed to seamlessly extract and maintain RPG states (character stats, party status, combat states, inventory, abilities, spells, and anything else through custom fields) from your roleplay narrative. It operates as a distinct "State Model" pass in a two-model simulation pipeline, decoupling creative narrative generation from rigorous, mechanical state management.
 
 The State Model functions both as a "cheat sheet" for the AI as well as a UI for the user. It decouples the narrative AI from having to keep track of the user's inventory and other variables.
 
