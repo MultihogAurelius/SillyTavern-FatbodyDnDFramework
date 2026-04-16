@@ -271,7 +271,11 @@
 
             if (typeof result === 'string') return result;
             const r = /** @type {any} */ (result);
-            return r?.content || r?.message?.content || JSON.stringify(result);
+            return r?.choices?.[0]?.message?.content || 
+                   r?.choices?.[0]?.text || 
+                   r?.message?.content || 
+                   r?.content || 
+                   JSON.stringify(result);
 
         } catch (err) {
             console.error("[RPG Tracker] Request failed:", err);
@@ -296,6 +300,8 @@
      * replaces the memo (full-replacement fallback).
      */
     function mergeMemo(currentMemo, aiOutput) {
+        const settings = getSettings();
+
         // Find all [TAG]...[/TAG] pairs in the AI's output (case-insensitive, whitespace-tolerant)
         const tagPattern = /\[([^\]\/][^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
         const matches = [...aiOutput.matchAll(tagPattern)];
@@ -308,30 +314,41 @@
             return currentMemo;
         }
 
+        if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: found ${matches.length} tag(s):`, matches.map(m => m[1]));
+
         let memo = currentMemo;
 
         for (const match of matches) {
-            const tag = match[1].trim();         // e.g. "HP"
+            const tag = match[1].trim();         // e.g. "CHARACTER"
             const newContent = match[2].trim();  // new content for that section
 
             // Handle removal keywords
             const isRemoval = /^REMOVED|EXPIRED|CLEARED|NONE$/i.test(newContent);
 
-            // Try to replace the existing section (case-insensitive tag match)
+            // Build pattern to find existing section in memo
+            const escapedTag = escapeRegex(tag);
             const existingPattern = new RegExp(
-                `\\s*\\[${escapeRegex(tag)}\\][\\s\\S]*?\\[\\/${escapeRegex(tag)}\\]`,
+                `\\s*\\[${escapedTag}\\][\\s\\S]*?\\[\\/${escapedTag}\\]`,
                 'i'
             );
 
+            if (settings.debugMode) {
+                console.log(`[RPG Tracker] mergeMemo: processing [${tag}], pattern: ${existingPattern}`);
+            }
+
             if (isRemoval) {
                 memo = memo.replace(existingPattern, "").trim();
+                if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REMOVED`);
             } else {
                 const fullBlock = `[${tag}]\n${newContent}\n[/${tag}]`;
-                if (existingPattern.test(memo)) {
-                    memo = memo.replace(existingPattern, '\n\n' + fullBlock);
+                const before = memo;
+                memo = memo.replace(existingPattern, () => '\n\n' + fullBlock);
+                if (memo !== before) {
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REPLACED`);
                 } else {
                     // Section doesn't exist yet — append it
                     memo = memo.trimEnd() + '\n\n' + fullBlock;
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] APPENDED (new section)`);
                 }
             }
         }
