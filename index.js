@@ -1,9 +1,17 @@
 (function () {
     "use strict";
 
-    // Capture the folder name dynamically so the extension doesn't break if users rename the folder
-    const myScript = document.currentScript || document.querySelector('script[src*="RPG Tracker"]');
-    const FOLDER_NAME = myScript && myScript.src ? decodeURIComponent(myScript.src.match(/extensions\/third-party\/([^\/]+)\//)?.[1] || 'RPG Tracker') : 'RPG Tracker';
+    // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
+    const FOLDER_NAME = (function() {
+        try {
+            const match = import.meta.url.match(/third-party\/([^\/]+)\//);
+            if (match) return decodeURIComponent(match[1]);
+        } catch (e) {}
+        
+        // Fallback for non-module contexts (which ST extensions normally wouldn't be)
+        const myScript = document.currentScript || document.querySelector('script[src*="RPG Tracker"]');
+        return myScript && myScript.src ? decodeURIComponent(myScript.src.match(/third-party\/([^\/]+)\//)?.[1] || 'RPG Tracker') : 'RPG Tracker';
+    })();
 
     const MODULE_NAME = "rpg_tracker";
     let _stateModelRunning = false;
