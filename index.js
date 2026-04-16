@@ -323,7 +323,7 @@
             const newContent = match[2].trim();  // new content for that section
 
             // Handle removal keywords
-            const isRemoval = /^REMOVED|EXPIRED|CLEARED|NONE$/i.test(newContent);
+            const isRemoval = /^(?:REMOVED|EXPIRED|CLEARED|NONE)$/i.test(newContent);
 
             // Build pattern to find existing section in memo
             const escapedTag = escapeRegex(tag);
