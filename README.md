@@ -39,7 +39,7 @@ This extension is designed to work as one half of a two-part simulation system. 
 
 ## System Prompt Customization
 
-By default, the RPG Tracker comes with a generalized prompt that tries to parse standard roleplay logs. It may or may not work out of the box for your particular setup, but if you do anything D&D-adjacent, it probably will.
+By default, the RPG Tracker comes with a generalized prompt that tries to parse standard roleplay logs. It may or may not work out of the box for your particular setup, but if you do anything D&D-adjacent, it probably will. You can always edit the prompt from the extension's settings page to fit your particular case.
 
 ## License
 MIT
