@@ -104,7 +104,7 @@
         // Find the last user message to prepend the memo
         let idx = -1;
         for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i].role === "user" || chat[i].is_user) {
+            if (chat[i]['role'] === "user" || chat[i].is_user) {
                 idx = i;
                 break;
             }
@@ -113,7 +113,7 @@
         if (idx === -1) return;
 
         const msg = chat[idx];
-        const content = msg.content || msg.mes;
+        const content = msg['content'] || msg.mes;
 
         // Prevent double injection
         if (content && typeof content === "string" && content.includes("### STATE MEMO (DO NOT REPEAT)")) {
@@ -356,8 +356,8 @@
 
         let raw = '';
         for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i].is_user || chat[i].role === 'user') {
-                raw = chat[i].mes || chat[i].content || '';
+            if (chat[i].is_user || chat[i]['role'] === 'user') {
+                raw = chat[i].mes || chat[i]['content'] || '';
                 break;
             }
         }
