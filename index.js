@@ -1,6 +1,10 @@
 (function () {
     "use strict";
 
+    // Capture the folder name dynamically so the extension doesn't break if users rename the folder
+    const myScript = document.currentScript || document.querySelector('script[src*="RPG Tracker"]');
+    const FOLDER_NAME = myScript && myScript.src ? decodeURIComponent(myScript.src.match(/extensions\/third-party\/([^\/]+)\//)?.[1] || 'RPG Tracker') : 'RPG Tracker';
+
     const MODULE_NAME = "rpg_tracker";
     let _stateModelRunning = false;
 
@@ -1366,7 +1370,7 @@
                         <input type="checkbox" id="rt_cf_en_${index}" ${field.enabled ? 'checked' : ''} title="Enable">
                         <input type="text" id="rt_cf_icon_${index}" class="text_pole" value="${escapeHtml(field.icon)}" style="width: 40px; text-align: center;" title="Icon (Emoji)">
                         <input type="text" id="rt_cf_tag_${index}" class="text_pole" value="${escapeHtml(field.tag)}" placeholder="TAG" style="width: 120px; font-family: monospace;" title="Tag Name (e.g. QUESTS)">
-                        <input type="text" id="rt_cf_label_${index}" class="text_pole" value="${escapeHtml(field.label)}" placeholder="Display Label" style="flex: 1;" title="Display Name">
+                        <input type="text" id="rt_cf_label_${index}" class="text_pole" value="${escapeHtml(field.label)}" placeholder="Display Label" style="flex: 1; min-width: 120px;" title="Display Name">
                         <select id="rt_cf_rt_${index}" class="text_pole" style="width: 180px;" title="Render Style">
                             ${Object.entries(RENDER_TYPES).map(([k, v]) => `<option value="${k}" ${field.renderType === k ? 'selected' : ''}></option>`).join('')}
                         </select>
@@ -1479,13 +1483,13 @@
         createPanel();
 
         try {
-            // Load Settings UI
-            const html = await renderExtensionTemplateAsync('third-party/RPG Tracker', 'settings', {});
-            // Check if extensions_settings container currently exists and append
-            if ($('#extensions_settings').length) {
-                $('#extensions_settings').append(html);
-            } else {
+            // Load Settings UI using the dynamic folder name
+            const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', {});
+            // Third-party plugins should go to extensions_settings2 (right column) if available
+            if ($('#extensions_settings2').length) {
                 $('#extensions_settings2').append(html);
+            } else {
+                $('#extensions_settings').append(html);
             }
 
             const settings = getSettings();
