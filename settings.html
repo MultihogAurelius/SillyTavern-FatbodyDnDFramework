@@ -75,85 +75,14 @@
                 </div>
 
                 <hr>
-                <b>Active Modules</b>
-                <small>Select which state elements the LLM should track.</small>
-                
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_character" type="checkbox" />
-                        <span>Character Status</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="character" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-                
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_party" type="checkbox" />
-                        <span>Party Status</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="party" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_combat" type="checkbox" />
-                        <span>Combat Tracker</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="combat" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_inventory" type="checkbox" />
-                        <span>Inventory & Items</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="inventory" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_abilities" type="checkbox" />
-                        <span>Abilities & Features</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="abilities" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_spells" type="checkbox" />
-                        <span>Spells & Magic</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="spells" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-                
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_time" type="checkbox" />
-                        <span>Time Tracking</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="time" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
-                <div class="flex-container gap-1 alignitemscenter">
-                    <label class="checkbox_label" style="flex: 1;">
-                        <input id="rpg_tracker_mod_xp" type="checkbox" />
-                        <span>Experience Points</span>
-                    </label>
-                    <button class="menu_button interactable rt-view-stock-prompt" data-mod="xp" title="View Default Prompt"><i class="fa-solid fa-lightbulb"></i></button>
-                </div>
-
                 <hr>
-                <b>Module Order</b>
-                <small>Change the order in which sections appear in the tracker view.</small>
+                <b>Modules</b>
+                <small>Enable modules, edit their prompts, and change their display order.</small>
                 <div id="rpg_tracker_order_list" class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
                     <!-- Populated by JS -->
                 </div>
-
-                <hr>
-                <b>Custom Fields</b>
-                <small>Define custom tracking sections for the model to parse.</small>
-                <button id="rpg_tracker_manage_custom_fields" class="menu_button interactable">
-                    <i class="fa-solid fa-layer-group"></i> Manage Custom Fields
+                <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fa-solid fa-plus"></i> <span>Add Custom Field</span>
                 </button>
                 
                 <hr>

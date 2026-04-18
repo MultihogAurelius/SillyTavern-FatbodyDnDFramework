@@ -1228,7 +1228,10 @@
                     <span class="rpg-tracker-nav-label" id="rpg-tracker-nav-label">Live</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
                 </div>
-                <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
+                <div class="flex-container gap-1 alignitemscenter">
+                    <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
+                    <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
+                </div>
             </div>
         `;
 
@@ -1401,7 +1404,23 @@
             _historyViewIndex = -1;
             SillyTavern.getContext().saveSettingsDebounced();
             syncMemoView();
-            toastr['success']('Memo restored to snapshot.', 'RPG Tracker');
+        });
+        
+        // Clear memo button
+        panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
+            if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
+                settings.currentMemo = "";
+                settings.prevMemo1 = "";
+                settings.prevMemo2 = "";
+                settings.memoHistory = [];
+                settings.lastDelta = "";
+                _historyViewIndex = -1;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncMemoView();
+                const dp = document.getElementById('rpg-tracker-delta-content');
+                if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+                toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+            }
         });
 
         syncMemoView();
@@ -1552,120 +1571,132 @@
         }
     }
 
-    function openCustomFieldsModal() {
+    function openCustomFieldEditor(index) {
         const s = getSettings();
-        if (!s.customFields) s.customFields = [];
+        const field = s.customFields[index];
+        if (!field) return;
 
-        let overlay = document.getElementById('rt_cf_overlay');
+        let overlay = document.getElementById('rt_cfe_overlay');
         if (!overlay) {
             overlay = document.createElement('div');
-            overlay.id = 'rt_cf_overlay';
+            overlay.id = 'rt_cfe_overlay';
             overlay.style.position = 'fixed';
-            overlay.style.top = '0'; overlay.style.left = '0';
-            overlay.style.width = '100vw'; overlay.style.height = '100vh';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
             overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-            overlay.style.zIndex = '9999999';
+            overlay.style.zIndex = '10000000';
             overlay.style.display = 'flex';
-            overlay.style.justifyContent = 'center';
             overlay.style.alignItems = 'center';
-
+            overlay.style.justifyContent = 'center';
             overlay.innerHTML = `
-                <div class="popup shadowBase" style="min-width: 500px; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column;">
+                <div class="popup shadowBase" style="min-width: 400px; max-width: 550px;">
                     <div class="popup-header">
-                        <h3 class="margin0">Manage Custom Tracker Fields</h3>
-                        <div id="rt_cf_close" class="popup-close interactable" title="Close"><i class="fa-solid fa-times"></i></div>
+                        <h3 class="margin0">Edit Custom Field</h3>
+                        <div id="rt_cfe_close" class="popup-close interactable"><i class="fa-solid fa-times"></i></div>
                     </div>
-                    <div class="popup-body flex-container flexFlowColumn gap-1" id="rt_cf_list" style="overflow-y: auto; flex: 1; padding: 10px;">
-                    </div>
-                    <div class="popup-footer" style="padding: 10px; border-top: 1px solid var(--SmartThemeBorderColor);">
-                        <button id="rt_cf_add" class="menu_button interactable"><i class="fa-solid fa-plus"></i> Add New Field</button>
+                    <div class="popup-body flex-container flexFlowColumn gap-1" style="padding: 10px;">
+                        <div class="flex-container gap-1 alignitemscenter">
+                            <input type="text" id="rt_cfe_icon" class="text_pole" style="width: 50px; text-align: center;" title="Icon (Emoji)">
+                            <input type="text" id="rt_cfe_tag" class="text_pole" style="width: 140px; font-family: monospace;" placeholder="TAG">
+                            <input type="text" id="rt_cfe_label" class="text_pole" style="flex: 1;" placeholder="Label">
+                        </div>
+                        <label for="rt_cfe_rt">Render Style</label>
+                        <select id="rt_cfe_rt" class="text_pole">
+                             <option value="CHARACTER">Standard (Key-Value / Lines)</option>
+                             <option value="COMBAT">HP Bars</option>
+                             <option value="SPELLS">Spell Pips</option>
+                             <option value="INVENTORY">Bullet Points</option>
+                             <option value="ABILITIES">Oval Pills</option>
+                        </select>
+                        <label for="rt_cfe_prompt">System Prompt / Instructions</label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;"></textarea>
+                        
+                        <div class="flex-container gap-1 justifycontentend" style="margin-top: 10px;">
+                            <button id="rt_cfe_delete" class="menu_button interactable" style="color: var(--dangerColor); margin-right: auto;"><i class="fa-solid fa-trash"></i> Delete</button>
+                            <button id="rt_cfe_cancel" class="menu_button interactable">Cancel</button>
+                            <button id="rt_cfe_save" class="menu_button interactable">Save Changes</button>
+                        </div>
                     </div>
                 </div>
             `;
             document.body.appendChild(overlay);
-
-            document.getElementById('rt_cf_close').addEventListener('click', () => {
-                overlay.style.display = 'none';
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
-            });
-
-            document.getElementById('rt_cf_add').addEventListener('click', () => {
-                s.customFields.push({
-                    tag: 'NEW_FIELD', label: 'New Field', icon: '📝',
-                    prompt: 'Extract details for NEW_FIELD.',
-                    renderType: 'CHARACTER', enabled: true
-                });
-                renderCustomFieldsList();
-            });
         }
+
+        const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
+        const tagEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_tag'));
+        const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
+        const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
+        const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
+        
+        iconEl.value = field.icon;
+        tagEl.value = field.tag;
+        labelEl.value = field.label;
+        rtEl.value = field.renderType;
+        promptEl.value = field.prompt;
 
         overlay.style.display = 'flex';
-        renderCustomFieldsList();
 
-        function renderCustomFieldsList() {
-            const list = document.getElementById('rt_cf_list');
-            if (!list) return;
-            list.innerHTML = '';
+        const save = () => {
+            field.icon = iconEl.value;
+            field.tag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+            field.label = labelEl.value;
+            field.renderType = rtEl.value;
+            field.prompt = promptEl.value;
+            
+            overlay.style.display = 'none';
+            cleanup();
+            SillyTavern.getContext().saveSettingsDebounced();
+            refreshOrderList();
+            refreshRenderedView();
+        };
 
-            const RENDER_TYPES = {
-                'CHARACTER': 'Standard (Key-Value / Lines)',
-                'COMBAT': 'HP Bars',
-                'SPELLS': 'Spell Pips',
-                'INVENTORY': 'Bullet Points',
-                'ABILITIES': 'Oval Pills'
-            };
+        const del = () => {
+            const tagToDelete = field.tag.toUpperCase();
+            if (confirm(`Delete custom field [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
+                // 1. Remove from custom fields array
+                s.customFields.splice(index, 1);
+                
+                // 2. Remove from block reordering list
+                if (s.blockOrder) {
+                    s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
+                }
 
-            s.customFields.forEach((field, index) => {
-                const item = document.createElement('div');
-                item.style.border = '1px solid var(--SmartThemeBorderColor)';
-                item.style.padding = '10px';
-                item.style.borderRadius = '5px';
-                item.style.marginBottom = '10px';
-                item.style.backgroundColor = 'var(--black50)';
+                // 3. Strip the data block from the current memo
+                const memoBlocks = parseMemoBlocks(s.currentMemo || "");
+                if (memoBlocks[tagToDelete] !== undefined) {
+                    delete memoBlocks[tagToDelete];
+                    // Reconstruct memo from remaining blocks
+                    s.currentMemo = Object.entries(memoBlocks)
+                        .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
+                        .join('\n\n');
+                    
+                    // Update UI components
+                    updateUIMemo(s.currentMemo);
+                }
 
-                item.innerHTML = `
-                    <div class="flex-container gap-1 alignitemscenter margin-bot-5">
-                        <input type="checkbox" id="rt_cf_en_${index}" ${field.enabled ? 'checked' : ''} title="Enable">
-                        <input type="text" id="rt_cf_icon_${index}" class="text_pole" value="${escapeHtml(field.icon)}" style="width: 40px; text-align: center;" title="Icon (Emoji)">
-                        <input type="text" id="rt_cf_tag_${index}" class="text_pole" value="${escapeHtml(field.tag)}" placeholder="TAG" style="width: 120px; font-family: monospace;" title="Tag Name (e.g. QUESTS)">
-                        <input type="text" id="rt_cf_label_${index}" class="text_pole" value="${escapeHtml(field.label)}" placeholder="Display Label" style="flex: 1; min-width: 120px;" title="Display Name">
-                        <select id="rt_cf_rt_${index}" class="text_pole" style="width: 180px;" title="Render Style">
-                            ${Object.entries(RENDER_TYPES).map(([k, v]) => `<option value="${k}" ${field.renderType === k ? 'selected' : ''}></option>`).join('')}
-                        </select>
-                        <button id="rt_cf_del_${index}" class="menu_button interactable" style="color: var(--dangerColor);" title="Delete"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                    <textarea id="rt_cf_prompt_${index}" class="text_pole" style="resize: vertical;" rows="2" placeholder="System prompt instructions for what to track...">${escapeHtml(field.prompt)}</textarea>
-                `;
-
-                // Add option text manually to avoid template literal weirdness with quotes
-                Object.entries(RENDER_TYPES).forEach(([k, v]) => {
-                    const opt = item.querySelector(`option[value="${k}"]`);
-                    if (opt) opt.textContent = v;
-                });
-
-                list.appendChild(item);
-
-                const getEl = (id) => document.getElementById(id);
-                getEl(`rt_cf_en_${index}`).addEventListener('change', (e) => { field.enabled = /** @type {HTMLInputElement} */ (e.target).checked; });
-                getEl(`rt_cf_icon_${index}`).addEventListener('input', (e) => { field.icon = /** @type {HTMLInputElement} */ (e.target).value; });
-                getEl(`rt_cf_tag_${index}`).addEventListener('input', (e) => { field.tag = /** @type {HTMLInputElement} */ (e.target).value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase(); });
-                getEl(`rt_cf_label_${index}`).addEventListener('input', (e) => { field.label = /** @type {HTMLInputElement} */ (e.target).value; });
-                getEl(`rt_cf_rt_${index}`).addEventListener('change', (e) => { field.renderType = /** @type {HTMLSelectElement} */ (e.target).value; });
-                getEl(`rt_cf_prompt_${index}`).addEventListener('input', (e) => { field.prompt = /** @type {HTMLTextAreaElement} */ (e.target).value; });
-
-                getEl(`rt_cf_del_${index}`).addEventListener('click', () => {
-                    if (confirm(`Delete custom field [${field.tag}]?`)) {
-                        s.customFields.splice(index, 1);
-                        renderCustomFieldsList();
-                    }
-                });
-            });
-
-            if (s.customFields.length === 0) {
-                list.innerHTML = '<div style="opacity: 0.7; text-align: center; padding: 20px;">No custom fields created yet.</div>';
+                overlay.style.display = 'none';
+                cleanup();
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
             }
-        }
+        };
+
+        const close = () => { overlay.style.display = 'none'; cleanup(); };
+
+        const cleanup = () => {
+             document.getElementById('rt_cfe_save').onclick = null;
+             document.getElementById('rt_cfe_delete').onclick = null;
+             document.getElementById('rt_cfe_cancel').onclick = null;
+             document.getElementById('rt_cfe_close').onclick = null;
+        };
+
+        document.getElementById('rt_cfe_save').onclick = save;
+        document.getElementById('rt_cfe_delete').onclick = del;
+        document.getElementById('rt_cfe_cancel').onclick = close;
+        document.getElementById('rt_cfe_close').onclick = close;
     }
 
     function openPromptEditor(title, currentText, defaultText, onSave) {
@@ -1673,11 +1704,16 @@
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'rt_pe_overlay';
-            overlay.className = 'flex-container flexFlowColumn alignitemscenter justifycontentcenter';
-            overlay.style.position = 'fixed'; overlay.style.top = '0'; overlay.style.left = '0';
-            overlay.style.width = '100vw'; overlay.style.height = '100vh';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
             overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
             overlay.style.zIndex = '10000000';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
             overlay.innerHTML = `
                 <div class="popup shadowBase" style="min-width: 400px; max-width: 600px;">
                     <div class="popup-header">
@@ -1738,45 +1774,93 @@
 
         list.innerHTML = '';
         
-        // Fallback for icons not in BLOCK_ICONS (custom fields)
         const getIcon = (tag) => {
             if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
             const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
             return custom?.icon || '📄';
         };
 
-        // Ensure blockOrder is initialized
         if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
         
-        // Merge in any custom tags that aren't in the order yet
-        (s.customFields || []).forEach(f => {
-            const tag = f.tag.toUpperCase();
-            if (f.enabled && !s.blockOrder.includes(tag)) {
-                s.blockOrder.push(tag);
-            }
+        // Add any missing tags to blockOrder
+        const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
+        [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
+            if (!s.blockOrder.includes(tag)) s.blockOrder.push(tag);
         });
 
-        // Filter out tags that are neither stock nor active custom fields
-        const activeCustomTags = new Set((s.customFields || []).filter(f => f.enabled).map(f => f.tag.toUpperCase()));
-        const order = s.blockOrder.filter(tag => BLOCK_ORDER.includes(tag) || activeCustomTags.has(tag));
+        // Current order, filtered for validity
+        const validCustomTags = new Set(allCustomTags);
+        const order = s.blockOrder.filter(tag => BLOCK_ORDER.includes(tag) || validCustomTags.has(tag));
         s.blockOrder = order;
 
         order.forEach((tag, index) => {
+            const isStock = BLOCK_ORDER.includes(tag);
+            const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
+            const field = isStock ? null : s.customFields[customIndex];
+            
+            const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
+
             const item = document.createElement('div');
             item.className = 'flex-container gap-1 alignitemscenter rt-order-item';
             item.style.padding = '5px';
-            item.style.background = 'var(--black30a)';
+            item.style.background = isEnabled ? 'var(--black30a)' : 'transparent';
+            item.style.opacity = isEnabled ? '1' : '0.6';
             item.style.borderRadius = '4px';
             item.style.border = '1px solid var(--smartThemeBorderColor)';
 
+            // 1. Checkbox
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = isEnabled;
+            cb.style.margin = '0 5px';
+            cb.onchange = () => {
+                if (isStock) {
+                    s.modules[tag.toLowerCase()] = cb.checked;
+                } else {
+                    field.enabled = cb.checked;
+                }
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
+            };
+
+            // 2. Label
             const label = document.createElement('span');
             label.style.flex = '1';
             label.style.fontSize = '12px';
+            label.style.cursor = 'default';
             label.textContent = `${getIcon(tag)} ${tag}`;
             
+            // 3. Button Group
             const btnGroup = document.createElement('div');
             btnGroup.className = 'flex-container gap-1';
 
+            // Edit Button
+            const editBtn = document.createElement('button');
+            editBtn.className = 'menu_button interactable rt-order-btn';
+            editBtn.style.padding = '2px 6px';
+            editBtn.title = isStock ? 'Edit Prompt' : 'Edit Custom Field';
+            editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+            editBtn.onclick = () => {
+                if (isStock) {
+                    const mod = tag.toLowerCase();
+                    if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
+                    openPromptEditor(
+                        `Edit Default [${tag}] Prompt`,
+                        s.stockPrompts[mod],
+                        DEFAULT_STOCK_PROMPTS[mod],
+                        (newVal) => {
+                            s.stockPrompts[mod] = newVal;
+                            SillyTavern.getContext().saveSettingsDebounced();
+                            toastr['success'](`[${tag}] prompt updated.`, 'RPG Tracker');
+                        }
+                    );
+                } else {
+                    openCustomFieldEditor(customIndex);
+                }
+            };
+
+            // Up/Down Arrows
             const upBtn = document.createElement('button');
             upBtn.className = 'menu_button interactable rt-order-btn';
             upBtn.style.padding = '2px 6px';
@@ -1805,9 +1889,11 @@
                 refreshRenderedView();
             };
 
+            item.appendChild(cb);
+            item.appendChild(label);
+            btnGroup.appendChild(editBtn);
             btnGroup.appendChild(upBtn);
             btnGroup.appendChild(downBtn);
-            item.appendChild(label);
             item.appendChild(btnGroup);
             list.appendChild(item);
         });
@@ -1925,38 +2011,21 @@
             // Initial order list refresh
             refreshOrderList();
 
-            const modPrefix = '#rpg_tracker_mod_';
-            ['character', 'party', 'combat', 'inventory', 'abilities', 'spells', 'time', 'xp'].forEach(mod => {
-                $(modPrefix + mod).prop('checked', settings.modules[mod]).on('change', function () {
-                    settings.modules[mod] = !!$(this).prop('checked');
-                    ctx.saveSettingsDebounced();
+            $('#rpg_tracker_add_custom_field').on('click', function () {
+                const settings = getSettings();
+                if (!settings.customFields) settings.customFields = [];
+                settings.customFields.push({
+                    tag: 'NEW_FIELD', label: 'New Field', icon: '📝',
+                    prompt: 'Extract details for NEW_FIELD.',
+                    renderType: 'CHARACTER', enabled: true
                 });
+                refreshOrderList();
+                ctx.saveSettingsDebounced();
             });
 
             $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
                 settings.systemPromptTemplate = $(this).val();
                 ctx.saveSettingsDebounced();
-            });
-
-            $('.rt-view-stock-prompt').on('click', function () {
-                const mod = $(this).data('mod');
-                const settings = getSettings();
-                if (!settings.stockPrompts) settings.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
-
-                openPromptEditor(
-                    `Edit Default [${mod.toUpperCase()}] Prompt`,
-                    settings.stockPrompts[mod],
-                    DEFAULT_STOCK_PROMPTS[mod],
-                    (newVal) => {
-                        settings.stockPrompts[mod] = newVal;
-                        ctx.saveSettingsDebounced();
-                        toastr['success'](`[${mod.toUpperCase()}] prompt updated.`, 'RPG Tracker');
-                    }
-                );
-            });
-
-            $('#rpg_tracker_manage_custom_fields').on('click', function () {
-                openCustomFieldsModal();
             });
 
             $('#rpg_tracker_btn_reset_prompt').on('click', function () {
