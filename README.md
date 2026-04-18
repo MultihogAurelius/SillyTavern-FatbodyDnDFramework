@@ -23,6 +23,8 @@ This extension is designed to work as one half of a two-part simulation system. 
 
 - **[Prompt Injection RNG](https://github.com/MultihogAurelius/Context-Injection-RNG-for-DnD):** This extension injects a deterministic queue of pre-rolled dice (D20, D4, D6, etc.) into the prompt. While **RPG Tracker** maintains the results (your HP, level, and items), **Prompt Injection RNG** provides the "luck" required for the narrative engine to decide those outcomes without manual player intervention.
 
+**My System Prompt**: I recommend using at least parts of the sysprompt.txt. It contains a lot of the logic/output this extension relies on to work properly, such as the time/status footer and the buff temporal logic.
+
 ## Installation
 
 1. Copy the `RPG Tracker` folder into your `SillyTavern/public/scripts/extensions/third-party/` directory.
@@ -36,10 +38,6 @@ This extension is designed to work as one half of a two-part simulation system. 
 2. **Auto-Tracking:** As you roleplay, the extension intelligently parses the assistant's responses. It detects things like losing HP, gaining items, or entering combat, triggering a background Generation Pass to update the State Memo.
 3. **Prompt Injection:** The meticulously tracked State Memo is injected seamlessly into the outgoing prompt as prior context. It acts as the "source of truth", assuring the narrative model accurately "remembers" HP, inventory, statuses, and other factors (depending on the active fields.)
 4. **Validation:** Use the Delta Log (δ) to verify what the system changed. If the underlying State Model hallucinates or makes an error, you can use the Snapshot Navigation arrows at the bottom left of the HUD to step backwards and restore the previous state.
-
-## System Prompt Customization
-
-By default, the RPG Tracker comes with a generalized prompt that tries to parse standard roleplay logs. It may or may not work out of the box for your particular setup, but if you do anything D&D-adjacent, it probably will. You can always edit the prompt from the extension's settings page to fit your particular case.
 
 ## License
 MIT
