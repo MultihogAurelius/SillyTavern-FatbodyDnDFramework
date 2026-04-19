@@ -2,12 +2,12 @@
     "use strict";
 
     // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
-    const FOLDER_NAME = (function() {
+    const FOLDER_NAME = (function () {
         try {
             const match = import.meta.url.match(/third-party\/([^\/]+)\//);
             if (match) return decodeURIComponent(match[1]);
-        } catch (e) {}
-        
+        } catch (e) { }
+
         // Fallback for non-module contexts (which ST extensions normally wouldn't be)
         const myScript = document.currentScript || document.querySelector('script[src*="RPG Tracker"]');
         return myScript && myScript.src ? decodeURIComponent(myScript.src.match(/third-party\/([^\/]+)\//)?.[1] || 'RPG Tracker') : 'RPG Tracker';
@@ -17,8 +17,8 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: "Main character's core stats, current Level, current HP, active statuses/buffs (with durations). Buffs/debuffs should be reported as time remaining, (e.g. Sick, 2 hours.) Round-based buffs/debuffs should be reported as \"X rounds.\" This remaining time should then tick down based on elapsed time or rounds.",
-        party: "Companion/Party members, their current HP, and active statuses/buffs.",
+        character: "Main character's core stats, class (and possible subclass), current Level, current HP, active statuses/buffs (with durations). Buffs/debuffs should be reported as time remaining, (e.g. Sick, 2 hours.) Round-based buffs/debuffs should be reported as \"X rounds.\" This remaining time should then tick down based on elapsed time or rounds.\n\nExample block: [CHARACTER]\nValerius (Fighter — Echo Knight): 22/28 HP | AC: 16\nLevel 3 | STR 16, DEX 12, CON 14, INT 10, WIS 12, CHA 10\nSkills: Sleight of Hand +4\n[/CHARACTER]",
+        party: "Companion/Party members, their current HP, and active statuses/buffs.\n\nOnly add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n\nExample party: [PARTY]Elara: 26/45 HP | AC: 15 Status: Bleeding (2 turns)\nSkills: Athletics +3, Intimidation +6\n\nMara: 12/44 HP | AC 23, Status: Strong (54 minutes)\nSkills: Sleight of Hand +2[/PARTY]",
         combat: "Active enemies/NPCs in combat, their HP, and current statuses/debuffs (with durations). Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. When combat starts, capture each combatant as: `Name: X/Y HP | AC: Z | Status: ...`. Update HP inline. You MUST output `[COMBAT]REMOVED[/COMBAT]` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].",
         inventory: "Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.",
         abilities: "Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells.",
@@ -293,11 +293,11 @@
 
             if (typeof result === 'string') return result;
             const r = /** @type {any} */ (result);
-            return r?.choices?.[0]?.message?.content || 
-                   r?.choices?.[0]?.text || 
-                   r?.message?.content || 
-                   r?.content || 
-                   JSON.stringify(result);
+            return r?.choices?.[0]?.message?.content ||
+                r?.choices?.[0]?.text ||
+                r?.message?.content ||
+                r?.content ||
+                JSON.stringify(result);
 
         } catch (err) {
             console.error("[RPG Tracker] Request failed:", err);
@@ -810,28 +810,52 @@
 
         switch (renderType) {
             case 'COMBAT':
-            case 'PARTY':
-                return lines.map(line => {
+            case 'PARTY': {
+                const results = [];
+                let lastEntityIdx = -1;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+
                     // Check for Combat Round header
                     if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
-                        return `<div class="rt-combat-round">${escapeHtml(line)}</div>`;
+                        results.push(`<div class="rt-combat-round">${escapeHtml(line)}</div>`);
+                        lastEntityIdx = -1;
+                        continue;
                     }
 
-                    const hpMatch = line.match(/^(.+?):\s*(\d+)\/(\d+)\s*HP\s*[:|]?\s*(.*)$/i);
-                    if (!hpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                    const [, name, cur, max, rest] = hpMatch;
-                    const pct = Math.max(0, Math.min(100, (Number(cur) / Number(max)) * 100));
-                    const hpColor = pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
-                    const status = rest.trim();
-                    return `<div class="rt-entity-row">
-                        <div class="rt-entity-name">${escapeHtml(name.trim())}</div>
-                        <div class="rt-hp-bar-wrap" title="${cur}/${max} HP">
-                            <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
-                        </div>
-                        <span class="rt-hp-label">${cur}/${max}</span>
-                        ${status ? `<span class="rt-status">${escapeHtml(status)}</span>` : ''}
-                    </div>`;
-                });
+                    const hpMatch = line.match(/^(.+?):\s*(\d+)(?:\/(\d+))?\s*HP\s*[:|,]?\s*(.*)$/i);
+                    if (hpMatch) {
+                        const [, name, cur, max, rest] = hpMatch;
+                        const hasMax = max !== undefined;
+                        const pct = hasMax ? Math.max(0, Math.min(100, (Number(cur) / Number(max)) * 100)) : 100;
+                        const hpColor = !hasMax ? '#00ffaa' : pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
+                        const status = rest.trim();
+                        const label = hasMax ? `${cur}/${max}` : `${cur}`;
+
+                        lastEntityIdx = results.length;
+                        results.push(`<div class="rt-entity-row">
+                            <div class="rt-entity-name">${escapeHtml(name.trim())}</div>
+                            <div class="rt-hp-bar-wrap" title="${label} HP">
+                                <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
+                            </div>
+                            <span class="rt-hp-label">${label}</span>
+                            ${status ? `<span class="rt-status">${escapeHtml(status)}</span>` : ''}
+                        </div>`);
+                    } else if (line.toLowerCase().startsWith('skills:') && lastEntityIdx !== -1) {
+                        // Append bundled skills below the entity row
+                        const skillsText = line.substring(7).trim();
+                        const skillsHtml = `<div class="rt-card-line" style="font-size: 10px; opacity: 0.8; padding-left: 5px; margin-top: -3px; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 2px;">
+                            <span style="color: var(--rt-text-muted)">Skills:</span> ${escapeHtml(skillsText)}
+                        </div>`;
+                        results[lastEntityIdx] += skillsHtml;
+                    } else {
+                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
+                        lastEntityIdx = -1;
+                    }
+                }
+                return results;
+            }
             case 'TIME':
                 return lines.map(line => `<div class="rt-card-line">${escapeHtml(line)}</div>`);
             case 'XP':
@@ -922,7 +946,7 @@
                 return `<div class="rt-empty">Waiting for ${tag} data...</div>`;
             }
             if (content === undefined) return '';
-            
+
             // If main panel context, filter out detached windows
             if (!arguments[1] && detached.has(tag)) {
                 return `<div class="rt-detached-placeholder" data-tag="${tag}">
@@ -989,7 +1013,7 @@
             const oldHeader = header;
             const newHeader = oldHeader.cloneNode(true);
             oldHeader.parentNode.replaceChild(newHeader, oldHeader);
-            
+
             newHeader.addEventListener('click', (e) => {
                 // Prevent toggle if clicking on a button
                 if (e.target.closest('button')) return;
@@ -1010,11 +1034,11 @@
                 if (!tag) return;
                 const curBlocks = parseMemoBlocks(memo);
                 const items = blockToItems(tag, curBlocks[tag] ?? '');
-                
+
                 const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
                 const renderType = customField?.renderType || tag;
                 const localPageSize = getPageSize(renderType);
-                
+
                 const totalPages = Math.ceil(items.length / localPageSize);
                 const cur = _sectionPages[tag] ?? 0;
                 _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
@@ -1125,10 +1149,10 @@
         if (header instanceof HTMLElement) {
             makeDraggable(panel, header, `rpg_tracker_geometry_${tag}`);
         }
-        
+
         // Setup specialized geometry keys
         const geoKey = `rpg_tracker_geometry_${tag}`;
-        
+
         try {
             const saved = JSON.parse(localStorage.getItem(geoKey));
             if (saved && saved.left !== undefined) {
@@ -1193,7 +1217,7 @@
         panel.innerHTML = `
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
-                    <span>RPG TRACKER</span>
+                    <span>RPG State Tracker</span>
                     <div class="rpg-tracker-status-indicator active" id="rpg-tracker-status"></div>
                     <button class="rpg-tracker-stop-btn" id="rpg-tracker-stop-btn" title="Stop Generation" style="display:none;">■</button>
                 </div>
@@ -1365,7 +1389,7 @@
         panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
         });
-        
+
         // Manual update from panel button
         const manualUpdate = async () => {
             const { chat } = SillyTavern.getContext();
@@ -1405,7 +1429,7 @@
             SillyTavern.getContext().saveSettingsDebounced();
             syncMemoView();
         });
-        
+
         // Clear memo button
         panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
             if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
@@ -1502,8 +1526,8 @@
         });
 
         document.addEventListener('mouseup', () => {
-            if (isDragging) { 
-                isDragging = false; 
+            if (isDragging) {
+                isDragging = false;
                 if (customKey) {
                     const rect = panel.getBoundingClientRect();
                     localStorage.setItem(customKey, JSON.stringify({
@@ -1511,7 +1535,7 @@
                         width: rect.width, height: rect.height
                     }));
                 } else {
-                    savePanelGeometry(panel); 
+                    savePanelGeometry(panel);
                 }
             }
         });
@@ -1610,9 +1634,9 @@
                              <option value="INVENTORY">Bullet Points</option>
                              <option value="ABILITIES">Oval Pills</option>
                         </select>
-                        <label for="rt_cfe_prompt">System Prompt / Instructions</label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;"></textarea>
-                        
+                        <label for="rt_cfe_prompt">AI Instructions (What should the model track for this field?)</label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;" placeholder="Describe what information the AI should track and how to format it (e.g. 'Track the current weather and local time.')."></textarea>
+
                         <div class="flex-container gap-1 justifycontentend" style="margin-top: 10px;">
                             <button id="rt_cfe_delete" class="menu_button interactable" style="color: var(--dangerColor); margin-right: auto;"><i class="fa-solid fa-trash"></i> Delete</button>
                             <button id="rt_cfe_cancel" class="menu_button interactable">Cancel</button>
@@ -1629,7 +1653,7 @@
         const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
         const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
         const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
-        
+
         iconEl.value = field.icon;
         tagEl.value = field.tag;
         labelEl.value = field.label;
@@ -1644,7 +1668,7 @@
             field.label = labelEl.value;
             field.renderType = rtEl.value;
             field.prompt = promptEl.value;
-            
+
             overlay.style.display = 'none';
             cleanup();
             SillyTavern.getContext().saveSettingsDebounced();
@@ -1657,7 +1681,7 @@
             if (confirm(`Delete custom field [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
                 // 1. Remove from custom fields array
                 s.customFields.splice(index, 1);
-                
+
                 // 2. Remove from block reordering list
                 if (s.blockOrder) {
                     s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
@@ -1671,7 +1695,7 @@
                     s.currentMemo = Object.entries(memoBlocks)
                         .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
                         .join('\n\n');
-                    
+
                     // Update UI components
                     updateUIMemo(s.currentMemo);
                 }
@@ -1687,10 +1711,10 @@
         const close = () => { overlay.style.display = 'none'; cleanup(); };
 
         const cleanup = () => {
-             document.getElementById('rt_cfe_save').onclick = null;
-             document.getElementById('rt_cfe_delete').onclick = null;
-             document.getElementById('rt_cfe_cancel').onclick = null;
-             document.getElementById('rt_cfe_close').onclick = null;
+            document.getElementById('rt_cfe_save').onclick = null;
+            document.getElementById('rt_cfe_delete').onclick = null;
+            document.getElementById('rt_cfe_cancel').onclick = null;
+            document.getElementById('rt_cfe_close').onclick = null;
         };
 
         document.getElementById('rt_cfe_save').onclick = save;
@@ -1773,7 +1797,7 @@
         if (!list) return;
 
         list.innerHTML = '';
-        
+
         const getIcon = (tag) => {
             if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
             const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
@@ -1781,7 +1805,7 @@
         };
 
         if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
-        
+
         // Add any missing tags to blockOrder
         const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
         [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
@@ -1797,7 +1821,7 @@
             const isStock = BLOCK_ORDER.includes(tag);
             const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
             const field = isStock ? null : s.customFields[customIndex];
-            
+
             const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
 
             const item = document.createElement('div');
@@ -1830,7 +1854,7 @@
             label.style.fontSize = '12px';
             label.style.cursor = 'default';
             label.textContent = `${getIcon(tag)} ${tag}`;
-            
+
             // 3. Button Group
             const btnGroup = document.createElement('div');
             btnGroup.className = 'flex-container gap-1';
@@ -2016,7 +2040,7 @@
                 if (!settings.customFields) settings.customFields = [];
                 settings.customFields.push({
                     tag: 'NEW_FIELD', label: 'New Field', icon: '📝',
-                    prompt: 'Extract details for NEW_FIELD.',
+                    prompt: 'What should the AI track for this new field? Describe it here.',
                     renderType: 'CHARACTER', enabled: true
                 });
                 refreshOrderList();
@@ -2132,12 +2156,12 @@
         const btn = document.createElement('div');
         btn.id = 'toggle_rpg_tracker_wand_button';
         btn.classList.add('list-group-item', 'flex-container', 'flexGap5');
-        
+
         btn.innerHTML = `
             <div class="fa-solid fa-clipboard-list extensionsMenuExtensionButton"></div>
             <span>RPG Tracker</span>
         `;
-        
+
         btn.addEventListener('click', () => {
             const panel = document.getElementById('rpg-tracker-panel');
             if (panel) {
