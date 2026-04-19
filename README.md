@@ -1,3 +1,5 @@
+(NOTE: if you're updating, reset all prompts to default in the settings, or they won't update.)
+
 # RPG Tracker (SillyTavern Extension)
 
 RPG Tracker is an extension for SillyTavern designed to seamlessly extract and maintain RPG states (character stats, party status, combat states, inventory, abilities, spells, and anything else through custom fields) from your roleplay narrative. It operates as a distinct "State Model" pass in a two-model simulation pipeline, decoupling creative narrative generation from rigorous, mechanical state management.
