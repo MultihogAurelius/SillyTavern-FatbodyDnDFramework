@@ -1,4 +1,4 @@
-(NOTE: if you're updating, reset all prompts to default in the settings, or they won't update.)
+**(NOTE: if you're updating, reset all prompts to default in the settings, or they won't update.)**
 
 # RPG Tracker (SillyTavern Extension)
 
