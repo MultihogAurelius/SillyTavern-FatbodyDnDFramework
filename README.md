@@ -17,6 +17,8 @@ The State Model functions both as a "cheat sheet" for the AI as well as a UI for
 - **Direct Prompt (💬):** Input custom instructions to directly manipulate the state (e.g., initial character creation or manual additions) without feeding the command into the narrative context.
 - **Connection Integration:** Leverages SillyTavern's connection profiles and presets system. It can automatically switch to a different model/preset just for the state extraction pass, and revert back to your preferred creative model for the next narrative response. Useful, since many prefer using a non-reasoning model for narrative output, but a reasoning model will likely be more reliable when extracting the state/memo information from the output.
 
+<img width="602" height="1032" alt="image" src="https://github.com/user-attachments/assets/81c739d9-9378-4c9d-b302-240f409bcbe0" />
+
 ## Suggested Companions
 
 This extension is designed to work as one half of a two-part simulation system. For the complete experience, it is highly recommended to use:
