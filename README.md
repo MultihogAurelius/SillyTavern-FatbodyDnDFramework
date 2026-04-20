@@ -18,6 +18,7 @@ The State Model functions both as a "cheat sheet" for the AI as well as a UI for
 - **Delta Change Log:** A resizeable logging panel showing a line-by-line diff (`+`/`-`) of what the Model modified in the most recent turn.
 - **Direct Prompt (💬):** Input custom instructions to directly manipulate the state (e.g., initial character creation or manual additions) without feeding the command into the narrative context.
 - **Connection Integration:** Leverages SillyTavern's connection profiles and presets system. It can automatically switch to a different model/preset just for the state extraction pass, and revert back to your preferred creative model for the next narrative response. Useful, since many prefer using a non-reasoning model for narrative output, but a reasoning model will likely be more reliable when extracting the state/memo information from the output.
+- **Manual Update (🔄️):** Request a state update at any time, either a regular one or a full context parsing.
 
 <img width="602" height="1032" alt="image" src="https://github.com/user-attachments/assets/81c739d9-9378-4c9d-b302-240f409bcbe0" />
 
