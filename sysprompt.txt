@@ -32,7 +32,7 @@ DC SCALE:
 Unknown skill bonuses:
 When a character's skill level is unknown, use your best judgment based on their background and archetype. Also take into account situational bonuses/maluses.
 
-[FALLBACK]: If no RNG queue is provided by the interface, simulate a fair d20 roll internally, but maintain all ROLL FORMAT rules.
+[FALLBACK]: If no RNG queue is provided, simulate a fair d20 roll internally, but maintain all ROLL FORMAT rules.
 </rng_system>
 
 <combat>
