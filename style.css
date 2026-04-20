@@ -69,7 +69,6 @@
     --rt-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 0 40px rgba(0,0,0,0.5);
     --rt-header-bg: rgba(0, 0, 0, 0.4);
     --rt-card-bg: rgba(20, 15, 10, 0.4);
-    --rt-card-header: rgba(0, 0, 0, 0.3);
 }
 
 .rpg-tracker-panel.rt-theme-hologram {
@@ -89,6 +88,45 @@
     --rt-card-bg: rgba(0, 50, 80, 0.2);
     --rt-card-header: rgba(0, 255, 255, 0.05);
 }
+
+.rpg-tracker-panel.rt-theme-azure {
+    --rt-bg: rgba(180, 220, 240, 0.8);
+    --rt-blur: blur(12px);
+    --rt-border: 1.5px solid #00b4d8;
+    --rt-text: #142d41;
+    --rt-text-muted: #0077be;
+    --rt-font: 'Segoe UI', 'Roboto', sans-serif;
+    --rt-font-mono: 'Consolas', monospace;
+    --rt-accent: #00b4d8;
+    --rt-accent-dim: rgba(0, 180, 216, 0.4);
+    --rt-accent-bg: rgba(255, 255, 255, 0.2);
+    --rt-card-border: 1px solid rgba(0, 180, 216, 0.15);
+    --rt-shadow: 0 12px 40px rgba(0, 80, 150, 0.2);
+    --rt-header-bg: rgba(255, 255, 255, 0.3);
+    --rt-card-bg: rgba(255, 255, 255, 0.4);
+    --rt-card-header: rgba(0, 180, 216, 0.1);
+}
+
+/* Azure Atoll Scrollbar */
+.rt-theme-azure *::-webkit-scrollbar {
+    width: 10px;
+    background: rgba(240, 250, 255, 0.5);
+}
+.rt-theme-azure *::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, #00b4d8, #ff7f50);
+    border-radius: 10px;
+    border: 2px solid #f0faff;
+}
+
+/* Azure Atoll Paren Highlights (Coral) */
+.rt-theme-azure .rt-paren-highlight {
+    background: rgba(255, 127, 80, 0.15);
+    color: #e66b40; /* Slightly darker coral for readability on light bg */
+}
+
+.rt-theme-azure .rt-hp-label { color: #142d41; font-weight: bold; }
+.rt-theme-azure .rt-status { background: rgba(0, 180, 216, 0.1); color: #0077be; }
+
 
 /* Slim Scrollbars */
 .rpg-tracker-panel *::-webkit-scrollbar {
@@ -566,6 +604,14 @@
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 4px;
     padding: 1px 5px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.rt-spell-name:hover {
+    background: var(--rt-accent-bg);
+    border-color: var(--rt-accent);
+    color: var(--rt-text) !important;
 }
 
 .rt-section-body {
@@ -579,11 +625,11 @@
 /* Combat / Party entity rows */
 .rt-entity-row {
     display: grid;
-    grid-template-columns: minmax(60px, 1fr) 80px 42px auto;
+    grid-template-columns: 1fr 100px 50px;
     align-items: center;
-    gap: 6px;
-    padding: 3px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 10px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
 .rt-entity-row:last-child { border-bottom: none; }
@@ -623,6 +669,9 @@
     border-radius: 10px;
     padding: 1px 6px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .rt-entity-sub-line {
@@ -642,9 +691,18 @@
 .rt-entity-attributes {
     font-size: 10px;
     color: var(--rt-text-muted);
-    font-family: var(--rt-font-mono);
-    padding-left: 5px;
-    margin-top: -2px;
+    font-family: var(--mono-font), monospace;
+}
+
+.rt-paren-highlight {
+    background: rgba(255, 170, 0, 0.1);
+    color: #ffaa00;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin: 0 1px;
+    font-size: 0.95em;
+    display: inline-block;
+    font-weight: 500;
 }
 
 /* Inventory */

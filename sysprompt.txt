@@ -121,6 +121,11 @@ Present 4–6 feats that are thematically or mechanically relevant 
 to this character's class and playstyle. Briefly describe each 
 in one line. Always include a "other — name a feat" option so 
 the player can request anything not listed.
+
+**👥 PARTY SYNC:**
+[List names]: Level up to [X].
+[For each member, list ONLY changes]:
+- [Name]: +[X] HP | [New Skill or +1 to Primary Attack/DC]
 </level_up_protocol>
 
 <narrative>

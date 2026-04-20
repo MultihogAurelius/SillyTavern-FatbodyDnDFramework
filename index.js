@@ -17,10 +17,10 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: "Main character's core stats. Use this format:\n[CHARACTER]\nName (Class - Possible Subclass): current/max HP | AC: Z | Primary Weapon (stats)\nAttributes: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSkills: Skill1 +X, Skill2 +X\nStatus: Effect (duration)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.",
-        party: "Companion/Party members. Use this format for each member:\nName: current/max HP | AC: Z | Primary Weapon (stats)\nAttributes: STR X... (etc)\nSkills: Skill1 +X... (etc)\nStatus: Effect (duration)\n\nOnly add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n\nExample party: [PARTY]Elara: 26/45 HP | AC: 15 | Shortbow (+5 / 1d6+3 / Piercing)\nAttributes: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSkills: Athletics +3, Perception +5\nStatus: Bleeding (-2HP/turn, 2 turns)\n\nMara: 12/44 HP | AC 23 | Mace (+4 / 1d6+2 / Bludgeoning)\nAttributes: STR 18, DEX 10, CON 16, INT 8, WIS 10, CHA 8\nSkills: Intimidation +4\nStatus: Strong (+3 attack, 54 minutes)[/PARTY]",
-        combat: "Active enemies/NPCs in combat, their HP, and current statuses/debuffs (with durations). Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. When combat starts, capture each combatant as: `Name: X/Y HP | AC: Z | Status: ...`. Update HP inline. You MUST output `[COMBAT]REMOVED[/COMBAT]` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].",
-        inventory: "Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.",
+        character: "Main character's core stats. Use this format:\n[CHARACTER]\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nStatus: Effect (duration Xh Xm)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.",
+        party: "Companion/Party members. Use this format for each member:\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nStatus: Effect (duration Xh Xm)\n\nOnly add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n\nExample party: [PARTY]Elara (Ranger): 26/45 HP\nAtt/def: Shortbow (+5 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain), Archery Style (+2 attack with ranged)\nStatus: Healthy\n[/PARTY]",
+        combat: "Active enemies/NPCs in combat, their HP, and current statuses/debuffs (with durations). Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. When combat starts, capture each combatant as: `Name: X/Y HP | AC: Z | Status: ...`. Update HP inline. You MUST output `[COMBAT]END_COMBAT[/COMBAT]` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].",
+        inventory: "Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n[/INVENTORY]",
         abilities: "Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells.",
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
         time: "Current time and day (e.g. '8:43 AM, Day 1'). The model uses this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.",
@@ -353,7 +353,7 @@
             const newContent = match[2].trim();  // new content for that section
 
             // Handle removal keywords
-            const isRemoval = /^(?:REMOVED|EXPIRED|CLEARED|NONE)$/i.test(newContent);
+            const isRemoval = /^(?:REMOVED|EXPIRED|CLEARED|NONE|END_COMBAT)$/i.test(newContent);
 
             // Build pattern to find existing section in memo
             const escapedTag = escapeRegex(tag);
@@ -842,9 +842,14 @@
             renderType = customField.renderType;
         }
 
+        const highlightParens = (text) => {
+            return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
+        };
+
         switch (renderType) {
             case 'COMBAT':
-            case 'PARTY': {
+            case 'PARTY':
+            case 'CHARACTER': {
                 const results = [];
                 let lastEntityIdx = -1;
 
@@ -874,12 +879,19 @@
                                 <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
                             </div>
                             <span class="rt-hp-label">${label}</span>
-                            ${status ? `<span class="rt-status">${escapeHtml(status)}</span>` : ''}
                         </div>`);
-                    } else if (line.toLowerCase().startsWith('attributes:') && lastEntityIdx !== -1) {
-                        const attrText = line.substring(11).trim();
+                        
+                        if (status) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line">
+                                <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtml(status))}
+                            </div>`;
+                        }
+                    } else if ((line.toLowerCase().startsWith('attributes:') || line.toLowerCase().startsWith('attr:')) && lastEntityIdx !== -1) {
+                        const label = line.toLowerCase().startsWith('attr:') ? 'Attr:' : 'Attr:';
+                        const startIdx = line.indexOf(':') + 1;
+                        const attrText = line.substring(startIdx).trim();
                         const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
-                            <span class="rt-entity-sub-label">Attr:</span> ${escapeHtml(attrText)}
+                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtml(attrText)}
                         </div>`;
                         results[lastEntityIdx] += attrHtml;
                     } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
@@ -893,15 +905,23 @@
                     } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
                         const statusText = line.substring(7).trim();
                         const statusHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label" style="color: #ffaa00">Status:</span> <span style="color: #ffaa00; font-weight: 600;">${escapeHtml(statusText)}</span>
+                            <span class="rt-entity-sub-label">Status:</span> <span>${highlightParens(escapeHtml(statusText))}</span>
                         </div>`;
                         results[lastEntityIdx] += statusHtml;
-                    } else if (line.toLowerCase().startsWith('primary weapon:') && lastEntityIdx !== -1) {
-                        const weaponText = line.substring(15).trim();
+                    } else if ((line.toLowerCase().startsWith('primary weapon:') || line.toLowerCase().startsWith('att/def:')) && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        const label = line.toLowerCase().startsWith('att/def:') ? 'Combat:' : 'Weapon:';
+                        const weaponText = line.substring(startIdx).trim();
                         const weaponHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Weapon:</span> ${escapeHtml(weaponText)}
+                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtml(weaponText))}
                         </div>`;
                         results[lastEntityIdx] += weaponHtml;
+                    } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
+                        const traitsText = line.substring(7).trim();
+                        const traitsHtml = `<div class="rt-entity-sub-line">
+                            <span class="rt-entity-sub-label">Traits:</span> <span class="rt-entity-traits">${highlightParens(escapeHtml(traitsText))}</span>
+                        </div>`;
+                        results[lastEntityIdx] += traitsHtml;
                     } else {
                         results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
                         lastEntityIdx = -1;
@@ -939,7 +959,14 @@
                         ).join('');
                         pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
                     }
-                    const spells = spellList.split(',').map(s => `<span class="rt-spell-name">${escapeHtml(s.trim())}</span>`).join('');
+                    const spells = spellList.split(',').map(s => {
+                        const name = s.trim();
+                        const slug = name.toLowerCase()
+                            .replace(/'/g, '')
+                            .replace(/[^a-z0-9]+/g, '-');
+                        const url = `https://dnd5e.wikidot.com/spell:${slug}`;
+                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                    }).join('');
                     return `<div class="rt-spell-row">
                         <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
                         ${pipsHtml}
@@ -948,16 +975,27 @@
                 });
             }
             case 'INVENTORY': {
-                const allItems = lines.flatMap(line => line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean));
+                const allItems = lines.flatMap(line => {
+                    // If the line starts with a bullet point, treat it as a single item
+                    if (line.trim().match(/^[-*]\s+/)) {
+                        return [line.trim()];
+                    }
+                    // Otherwise split by commas that aren't inside parentheses
+                    return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
+                });
                 return allItems.map(l => l.replace(/^[-*]\s*/, ''))
                     .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
             }
             case 'ABILITIES': {
-                const allAbilities = lines.flatMap(line => line.split(/,(?![^(]*\))/).map(a => a.trim()).filter(Boolean));
+                const allAbilities = lines.flatMap(line => {
+                    if (line.trim().match(/^[-*]\s+/)) {
+                        return [line.trim()];
+                    }
+                    return line.split(/,(?![^(]*\))/).map(a => a.trim()).filter(Boolean);
+                });
                 return allAbilities.map(l => l.replace(/^[-*]\s*/, ''))
                     .map(a => `<span class="rt-ability-pill">${escapeHtml(a)}</span>`);
             }
-            case 'CHARACTER':
             default:
                 return lines.map(line => {
                     const kv = line.match(/^([^:]+):\s*(.+)$/);
@@ -2200,6 +2238,14 @@
             refreshProfileDropdown();
 
             $('#rpg_tracker_profile_save').on('click', function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No profile selected to overwrite. Use "Save As" for new profiles.', 'RPG Tracker');
+                saveProfile(name);
+                toastr['success'](`Profile "${name}" overwritten.`, 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_profile_save_as').on('click', function () {
                 const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
                 const existing = sel.value;
                 const name = prompt('Save profile as:', existing || '')?.trim();

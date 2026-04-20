@@ -20,10 +20,11 @@
                 <b>Visual Theme</b>
                 <div class="flex-container flexFlowColumn gap-1">
                     <select id="rpg_tracker_theme_select" class="text_pole">
-                        <option value="rt-theme-native">Native (Match SillyTavern UI)</option>
+                        <option value="rt-theme-native">Match SillyTavern Default UI</option>
                         <option value="rt-theme-hacker">Hacker (Terminal Green)</option>
                         <option value="rt-theme-fantasy">Fantasy (Parchment & Gold)</option>
                         <option value="rt-theme-hologram">Hologram (Cyberpunk Cyan/Pink)</option>
+                        <option value="rt-theme-azure">Azure Atoll (Tropical Cyan/Coral)</option>
                     </select>
                 </div>
 
@@ -62,8 +63,11 @@
                         <option value="">-- No Profile --</option>
                     </select>
                     <div class="flex-container gap-1">
-                        <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;">
-                            <i class="fa-solid fa-floppy-disk"></i> Save As
+                        <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;" title="Overwrite currently selected profile">
+                            <i class="fa-solid fa-floppy-disk"></i> Save
+                        </button>
+                        <button id="rpg_tracker_profile_save_as" class="menu_button interactable" style="flex: 1;" title="Save current settings as a new profile">
+                            <i class="fa-solid fa-file-export"></i> Save As
                         </button>
                         <button id="rpg_tracker_profile_load" class="menu_button interactable" style="flex: 1;">
                             <i class="fa-solid fa-folder-open"></i> Load
