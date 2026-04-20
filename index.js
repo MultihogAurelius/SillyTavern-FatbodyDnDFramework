@@ -76,7 +76,15 @@
                 "6. Output ONLY the changed sections (or NO_CHANGES_DETECTED). No preamble, no explanation, no commentary.\n\n" +
                 "REGARDING COMBAT:\n" +
                 "1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n" +
-                "2. If an entity dies in combat, output it as 0/X HP, for example \"Shambling Corpse B (Fodder): 0/9 HP | AC: 10,\" do not omit it completely from the next state.",
+                "2. If an entity dies in combat, output it as 0/X HP, for example \"Shambling Corpse B (Fodder): 0/9 HP | AC: 10,\" do not omit it completely from the next state.\n\n" +
+                "BUFFS:\n" +
+                "Duration Tracking: Record all durations explicitly. Use turns for combat (e.g., for 3 turns) and H:M for narrative time (e.g., 1h 30m).\n" +
+                "Restoration Anchors: When a buff or debuff modifies a base statistic (AC, Attributes, etc.), you MUST record the original value to allow for accurate restoration. Use the \"Current from Original\" format.\n" +
+                "Example: (Mage Armor, AC 13 from 10, 8h 0m)\n" +
+                "Example: (Weakened, STR 8 from 16, 1h 0m)\n" +
+                "Auto-Reversion: During each State Sync, check the delta between the PRIOR MEMO and current narrative. If a duration has expired, you MUST restore the base statistic to its \"Original\" value in the relevant section and then remove the buff from the list.\n" +
+                "Conditional Buffs: For effects without a set time, use event-based anchors.\n" +
+                "Example: (Exhaustion, Disadvantage on Ability Checks, until Long Rest)",
             modules: {
                 character: true,
                 party: true,
