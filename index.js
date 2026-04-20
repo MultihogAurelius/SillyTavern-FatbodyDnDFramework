@@ -417,8 +417,10 @@
 
     /**
      * The State Model pass: Extract state changes from the narrative.
+     * @param {string} narrativeOutput The last narrative message to parse.
+     * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
      */
-    async function runStateModelPass(narrativeOutput) {
+    async function runStateModelPass(narrativeOutput, isFullContext = false) {
         const settings = getSettings();
         const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
 
@@ -446,18 +448,42 @@
                 });
             }
 
-            const systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
+            let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
+            if (isFullContext) {
+                systemPrompt = systemPrompt
+                    .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
+                    .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
+            }
 
-            const lastUserAction = getLastUserAction();
-            const userActionSection = lastUserAction
-                ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
-                : '';
+            let userPrompt = "";
 
-            const userPrompt =
-                `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
-                userActionSection +
-                `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
-                `## OUTPUT ONLY CHANGED SECTIONS:`;
+            if (isFullContext) {
+                const { chat } = SillyTavern.getContext();
+                // Take last 60 messages for a "long horizon" audit
+                const N = 60;
+                const recentChat = chat.slice(-N);
+                const chatLog = recentChat.map(m => {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                    return `${name}: ${m.mes}`;
+                }).join('\n\n');
+
+                userPrompt =
+                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
+                    `## PRIOR MEMO\n${settings.currentMemo || '(empty)'}\n\n` +
+                    `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
+                    `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+            } else {
+                const lastUserAction = getLastUserAction();
+                const userActionSection = lastUserAction
+                    ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
+                    : '';
+
+                userPrompt =
+                    `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
+                    userActionSection +
+                    `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
+                    `## OUTPUT ONLY CHANGED SECTIONS:`;
+            }
 
             const result = await sendStateRequest(settings, systemPrompt, userPrompt);
 
@@ -1410,7 +1436,7 @@
         });
 
         // Manual update from panel button
-        const manualUpdate = async () => {
+        const manualUpdate = async (isFullContext = false) => {
             const { chat } = SillyTavern.getContext();
             if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
 
@@ -1421,14 +1447,51 @@
                     break;
                 }
             }
-            if (!lastAssistantMsg) return toastr['info']("No assistant message to parse.", "RPG Tracker");
 
-            toastr['info']("Triggering manual State Update...", "RPG Tracker");
-            await runStateModelPass(lastAssistantMsg);
+            if (!isFullContext && !lastAssistantMsg) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+
+            toastr['info'](isFullContext ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
+            await runStateModelPass(lastAssistantMsg, isFullContext);
         };
-        panel.querySelector('#rpg-tracker-update-btn').addEventListener('click', manualUpdate);
+
+        const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
+        const updateMenu = document.createElement('div');
+        updateMenu.className = 'rt-update-menu';
+        updateMenu.style.display = 'none';
+        updateMenu.innerHTML = `
+            <div class="rt-menu-item" id="rt-update-regular"><b>Regular Update</b><small>Parses last message</small></div>
+            <div class="rt-menu-item" id="rt-update-full"><b>Full Context Audit</b><small>Re-examines history</small></div>
+        `;
+        panel.appendChild(updateMenu);
+
+        updateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = updateMenu.style.display !== 'none';
+
+            // Close all other menus possibly
+            document.querySelectorAll('.rt-update-menu').forEach(m => m.style.display = 'none');
+
+            if (!isVisible) {
+                const rect = updateBtn.getBoundingClientRect();
+                const panelRect = panel.getBoundingClientRect();
+                updateMenu.style.top = (rect.bottom - panelRect.top + 5) + 'px';
+                updateMenu.style.right = (panelRect.right - rect.right) + 'px';
+                updateMenu.style.display = 'flex';
+
+                const closeMenu = () => {
+                    updateMenu.style.display = 'none';
+                    document.removeEventListener('click', closeMenu);
+                };
+                setTimeout(() => document.addEventListener('click', closeMenu), 10);
+            }
+        });
+
+        updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate(false));
+        updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate(true));
+
         // Link the settings button too if it's already rendered
-        $('#rpg_tracker_btn_update').off('click').on('click', manualUpdate);
+        // For settings button, we'll keep it simple or just trigger regular
+        $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate(false));
 
         // Snapshot navigation
         panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));

@@ -297,6 +297,44 @@
     border-color: var(--rt-accent);
 }
 
+/* ── Update Menu ── */
+.rt-update-menu {
+    position: absolute;
+    background: var(--rt-card-bg);
+    backdrop-filter: var(--rt-blur);
+    border: var(--rt-border);
+    border-radius: 8px;
+    box-shadow: var(--rt-shadow);
+    display: none;
+    flex-direction: column;
+    padding: 6px;
+    z-index: 3000;
+    width: 180px;
+}
+
+.rt-menu-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: background 0.2s; transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.rt-menu-item:hover {
+    background: var(--rt-accent-bg);
+}
+
+.rt-menu-item b {
+    font-size: 11px;
+    color: var(--rt-text);
+}
+
+.rt-menu-item small {
+    font-size: 9px;
+    color: var(--rt-text-muted);
+}
 
 /* ── Rendered Card View ── */
 .rpg-tracker-render-view {
