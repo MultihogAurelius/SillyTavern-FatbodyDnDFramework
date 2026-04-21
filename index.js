@@ -4,13 +4,14 @@
     // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
     const FOLDER_NAME = (function () {
         try {
-            const match = import.meta.url.match(/third-party\/([^\/]+)\//);
-            if (match) return decodeURIComponent(match[1]);
+            const scripts = Array.from(document.querySelectorAll('script[src]'));
+            const myScript = scripts.find(s => s.src.includes('SillyTavern-FatbodyDnDFramework') || s.src.includes('SillyTavern-RPGStateTracker'));
+            if (myScript) {
+                const match = myScript.src.match(/third-party\/([^\/]+)\//);
+                if (match) return decodeURIComponent(match[1]);
+            }
         } catch (e) { }
-
-        // Fallback for non-module contexts (which ST extensions normally wouldn't be)
-        const myScript = document.currentScript || document.querySelector('script[src*="RPG Tracker"]');
-        return myScript && myScript.src ? decodeURIComponent(myScript.src.match(/third-party\/([^\/]+)\//)?.[1] || 'RPG Tracker') : 'RPG Tracker';
+        return 'SillyTavern-FatbodyDnDFramework';
     })();
 
     const MODULE_NAME = "rpg_tracker";
@@ -103,7 +104,7 @@
             profiles: {},
             activeProfile: "",
             fullViewSections: [],
-            blockOrder: ['TIME', 'XP', 'COMBAT', 'CHARACTER', 'PARTY', 'SPELLS', 'ABILITIES', 'INVENTORY']
+            blockOrder: ['CHARACTER', 'PARTY', 'COMBAT', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -843,7 +844,7 @@
 
 
     const BLOCK_ICONS = { TIME: '🕒', XP: '🇽🇵', CHARACTER: '🧙', PARTY: '👥', COMBAT: '⚔️', INVENTORY: '🎒', ABILITIES: '✨', SPELLS: '📖' };
-    const BLOCK_ORDER = ['TIME', 'XP', 'COMBAT', 'CHARACTER', 'PARTY', 'SPELLS', 'ABILITIES', 'INVENTORY'];
+    const BLOCK_ORDER = ['CHARACTER', 'PARTY', 'COMBAT', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
     const PAGE_SIZE = 8;
     // Sections that should NEVER be paginated (show all entries always)
     const NO_PAGINATE = new Set(['CHARACTER', 'ABILITIES']);
@@ -2237,7 +2238,8 @@
 
         try {
             // Load Settings UI using the dynamic folder name
-            const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', {});
+            // Use a cache-busting parameter to ensure we get the fresh file from the server
+            const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings_v110', { v: Date.now() });
             // Third-party plugins should go to extensions_settings2 (right column) if available
             if ($('#extensions_settings2').length) {
                 $('#extensions_settings2').append(html);
@@ -2407,6 +2409,18 @@
                     const dp = document.getElementById('rpg-tracker-delta-content');
                     if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
                     toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+                }
+            });
+            
+            $('#rpg_tracker_btn_factory_reset').on('click', function () {
+                if (confirm("⚠️ NUCLEAR OPTION ⚠️\n\nThis will wipe EVERYTHING: all custom fields, character history, saved profiles, and prompt changes. The framework will return to v1.1.0 factory defaults.\n\nProceed?")) {
+                    const { extensionSettings } = SillyTavern.getContext();
+                    delete extensionSettings[MODULE_NAME];
+                    // Force re-initialization of defaults
+                    getSettings();
+                    ctx.saveSettingsDebounced();
+                    alert("Framework has been reset to factory defaults. Reloading page to apply...");
+                    location.reload();
                 }
             });
 
