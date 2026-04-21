@@ -1,5 +1,3 @@
-**⚠️ (NOTE: if you're updating, reset all prompts to default in the settings, or they won't update.) ⚠️**
-
 **"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
 
 *A D&D-lite simulation engine for SillyTavern.*
