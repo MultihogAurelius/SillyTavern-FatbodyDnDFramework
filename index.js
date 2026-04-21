@@ -45,6 +45,7 @@
             completionPresetId: "",
             renderedViewActive: true,
             maxTokens: 0,
+            rngEnabled: true,
             systemPromptTemplate:
                 "You are the State Extractor Model. Your task is to maintain a structured State Memo based on the roleplay narrative.\n" +
                 "IGNORE NARRATIVE FLUFF: Do not track temporary dialogue or actions. Only track persistent state changes.\n" +
@@ -126,14 +127,43 @@
     }
 
     /**
-     * Interceptor to inject the current memo into the outgoing prompt.
-     * Ephemeral: only modifies the cloned chat object used for the API call.
+     * RNG Engine Implementation
      */
+    const RNG_QUEUE_LEN = 8;
+    function rollDie(sides) {
+        const buf = new Uint32Array(1);
+        const limit = Math.floor(4294967296 / sides) * sides;
+        let roll;
+        do { crypto.getRandomValues(buf); roll = buf[0]; } while (roll >= limit);
+        return (roll % sides) + 1;
+    }
+    function makeRngQueue(n = RNG_QUEUE_LEN) {
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            out.push({
+                d20: rollDie(20),
+                d4: rollDie(4),
+                d6: rollDie(6),
+                d8: rollDie(8),
+                d10: rollDie(10),
+                d12: rollDie(12)
+            });
+        }
+        return out;
+    }
+    function buildRngBlock(queue) {
+        const turnId = Date.now();
+        const formattedQueue = queue.map(dice => {
+            return `${dice.d20}(d4:${dice.d4},d6:${dice.d6},d8:${dice.d8},d10:${dice.d10},d12:${dice.d12})`;
+        }).join(", ");
+        return `[RNG_QUEUE v6.0_PROPER]\nturn_id=${turnId}\nscope=this_response\nqueue=[${formattedQueue}]\n[/RNG_QUEUE]\n\n`;
+    }
+
     globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
         const settings = getSettings();
-        if (!settings.enabled || !settings.currentMemo) return;
+        if (!settings.enabled) return;
 
-        // Find the last user message to prepend the memo
+        // Find the last user message to prepend injections
         let idx = -1;
         for (let i = chat.length - 1; i >= 0; i--) {
             if (chat[i]['role'] === "user" || chat[i].is_user) {
@@ -145,21 +175,29 @@
         if (idx === -1) return;
 
         const msg = chat[idx];
-        const content = msg['content'] || msg.mes;
+        const content = msg['content'] || msg.mes || '';
 
-        // Prevent double injection
-        if (content && typeof content === "string" && content.includes("### STATE MEMO (DO NOT REPEAT)")) {
-            return;
+        let injections = "";
+
+        // 1. RNG Injection
+        if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
+            const queue = makeRngQueue(RNG_QUEUE_LEN);
+            injections += buildRngBlock(queue);
         }
 
-        const cloned = structuredClone(msg);
-        const injection = `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+        // 2. State Memo Injection
+        if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
+            injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+        }
 
-        if (typeof cloned.content === "string") cloned.content = injection + cloned.content;
-        else if (typeof cloned.mes === "string") cloned.mes = injection + cloned.mes;
+        if (!injections) return;
+
+        const cloned = structuredClone(msg);
+        if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
+        else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
 
         chat[idx] = cloned;
-        if (settings.debugMode) console.log("[RPG Tracker] Memo injected into request.");
+        if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
     };
 
     /**
@@ -1400,7 +1438,7 @@
         panel.innerHTML = `
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
-                    <span>RPG State Tracker</span>
+                    <span>Fatbody D&D Framework</span>
                     <div class="rpg-tracker-status-indicator active" id="rpg-tracker-status"></div>
                     <button class="rpg-tracker-stop-btn" id="rpg-tracker-stop-btn" title="Stop Generation" style="display:none;">■</button>
                 </div>
@@ -1429,6 +1467,9 @@
                 <textarea class="rpg-tracker-prompt-input" id="rpg-tracker-prompt-input" rows="2" placeholder="Instruct the tracker model… (Enter to send, Shift+Enter for newline)"></textarea>
                 <button class="rpg-tracker-prompt-send" id="rpg-tracker-prompt-send" title="Send instruction">▶</button>
             </div>
+            <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Injection">
+                <i class="fa-solid fa-dice"></i> RNG Physics Engine: <span id="rt-rng-status-text">OFF</span>
+            </button>
             <div class="rpg-tracker-footer">
                 <div class="rpg-tracker-nav">
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-back" title="View previous snapshot">←</button>
@@ -1438,6 +1479,7 @@
                 <div class="flex-container gap-1 alignitemscenter">
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
+                    <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt (sysprompt.txt)">SYSPROMPT</button>
                 </div>
             </div>
         `;
@@ -1486,6 +1528,31 @@
             panel.querySelector('#rpg-tracker-count').textContent = `chars: ${settings.currentMemo.length}`;
             SillyTavern.getContext().saveSettingsDebounced();
         });
+
+        // ── RNG Toggle Logic ──
+        const rngBtn = panel.querySelector('#rt-rng-toggle-overlay');
+        const syncRngUI = () => {
+            const s = getSettings();
+            const text = panel.querySelector('#rt-rng-status-text');
+            if (text) text.textContent = s.rngEnabled ? 'ON' : 'OFF';
+            if (rngBtn) {
+                if (s.rngEnabled) rngBtn.classList.add('active');
+                else rngBtn.classList.remove('active');
+            }
+            const settingsCb = document.getElementById('rpg_tracker_rng_enabled');
+            if (settingsCb) /** @type {HTMLInputElement} */ (settingsCb).checked = s.rngEnabled;
+        };
+
+        if (rngBtn) {
+            rngBtn.addEventListener('click', () => {
+                const s = getSettings();
+                s.rngEnabled = !s.rngEnabled;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncRngUI();
+                toastr['info'](`RNG Physics Engine ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+            });
+        }
+        syncRngUI();
 
         // View toggle (Raw ↔ Rendered)
         let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
@@ -1664,6 +1731,21 @@
                 const dp = document.getElementById('rpg-tracker-delta-content');
                 if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
                 toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+            }
+        });
+
+        // Copy System Prompt logic
+        panel.querySelector('#rt-copy-sysprompt').addEventListener('click', async () => {
+            try {
+                const response = await fetch(`scripts/extensions/third-party/${FOLDER_NAME}/sysprompt.txt`);
+                if (!response.ok) throw new Error('Failed to fetch sysprompt.txt');
+                const text = await response.text();
+                
+                await navigator.clipboard.writeText(text);
+                toastr['success']("System Prompt copied to clipboard!", "Fatbody Framework");
+            } catch (err) {
+                console.error("[Fatbody Framework] Failed to copy system prompt:", err);
+                toastr['error']("Could not find sysprompt.txt. Make sure the extension is installed correctly.", "Fatbody Framework");
             }
         });
 
@@ -2175,6 +2257,8 @@
                 ctx.saveSettingsDebounced();
             });
 
+
+
             // Connection Settings
             const sourceSelect = $('#rpg_tracker_connection_source');
             const profileGroup = $('#rpg_tracker_profile_group');
@@ -2387,7 +2471,7 @@
 
         btn.innerHTML = `
             <div class="fa-solid fa-clipboard-list extensionsMenuExtensionButton"></div>
-            <span>RPG Tracker</span>
+            <span>Fatbody D&D Framework</span>
         `;
 
         btn.addEventListener('click', () => {

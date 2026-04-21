@@ -1102,3 +1102,39 @@
     opacity: 0.5;
     cursor: wait;
 }
+
+.rt-rng-toggle-overlay {
+    width: 100%;
+    background: var(--rt-card-header);
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--rt-text-muted);
+    padding: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s ease;
+    font-family: var(--rt-font);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.rt-rng-toggle-overlay:hover {
+    background: var(--rt-accent-bg);
+    color: var(--rt-text);
+}
+
+.rt-rng-toggle-overlay.active {
+    color: var(--rt-accent);
+    background: var(--rt-accent-bg);
+    border-color: var(--rt-accent-dim);
+}
+
+.rt-rng-toggle-overlay i {
+    font-size: 14px;
+}
+
