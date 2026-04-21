@@ -94,7 +94,7 @@
                 combat: true,
                 inventory: true,
                 abilities: true,
-                spells: false,
+                spells: true,
                 time: true,
                 xp: true
             },
