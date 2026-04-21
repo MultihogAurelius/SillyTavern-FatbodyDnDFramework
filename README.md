@@ -1,10 +1,20 @@
 **⚠️ (NOTE: if you're updating, reset all prompts to default in the settings, or they won't update.) ⚠️**
 
-# Fatbody D&D Framework (SillyTavern Extension)
+**"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
 
-**Fatbody D&D Framework** (formerly RPG State Tracker) is a comprehensive extension for SillyTavern designed to seamlessly extract and maintain RPG states from your roleplay narrative. It operates as a distinct "State Model" pass in a two-model simulation pipeline, decoupling creative narrative generation from rigorous, mechanical state management.
+*A D&D-lite simulation engine for SillyTavern.*
 
-The State Model functions both as a "cheat sheet" for the AI as well as a UI for the user. It decouples the narrative AI from having to keep track of the user's inventory, HP, and world variables.
+What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences! Losing or dying is actually a thing.
+
+:warning: **Updating?** Reset all prompts to default in settings or they won't update. Also apply new `sysprompt.txt` into Quick Prompts Edit "Main."
+
+### The Fatbody D&D Framework involves three core components:
+
+1. :desktop: **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
+2. :game_die: **Context Injection RNG** — Feeds a pre-seeded deterministic dice queue into every turn. More reliable than tool calls, zero-latency, and works seamlessly across combat and non-combat in the same context.
+3. :scroll: **sysprompt.txt** — Required for the AI to understand the RNG system, buff/temporal logic, RVI damage, level-up, and consistent output structure. Plug & play, but modify at will. Can also be copied from the UI.
+
+Together they solve the two core problems of LLM tabletop RP: the AI forgets your inventory, spells, etc., and you always win.
 
 ## Features
 
