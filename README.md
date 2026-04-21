@@ -4,8 +4,6 @@
 
 What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences! Losing or dying is actually a thing.
 
-:warning: **Updating?** Reset all prompts to default in settings or they won't update. Also apply new `sysprompt.txt` into Quick Prompts Edit "Main."
-
 ### The Fatbody D&D Framework involves three core components:
 
 1. 🖥️ **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
@@ -13,6 +11,8 @@ What this framework does is essentially turn SillyTavern into something like AI 
 3. :scroll: **sysprompt.txt** — Required for the AI to understand the RNG system, buff/temporal logic, RVI damage, level-up, and consistent output structure. Plug & play, but modify at will. Can also be copied from the UI.
 
 Together they solve the two core problems of LLM tabletop RP: the AI forgets your inventory, spells, etc., and you always win.
+
+:warning: **Updating?** Reset all prompts to default in settings or they won't update. Also apply new `sysprompt.txt` into Quick Prompts Edit "Main."
 
 ## Features
 
