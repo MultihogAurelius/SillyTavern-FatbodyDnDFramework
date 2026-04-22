@@ -2,13 +2,16 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [2026-04-22] - UI & Prompt Hardening
+## [2026-04-22] - UI & XP Enhancements
 
 ### Added
+- **Character Level in XP Section**: Added character level display to the [XP] block, showing both level and experience progress in a single unified UI row.
 - **Resource Depletion Logic**: The DM now strictly monitors resource usage. If a player attempts to use an ability or spell with 0 uses remaining, the DM will pause the narrative and request a different action.
 - **Combat Field Expansion**: Enemies now track "Other" properties (Resistances, Immunities, Special Traits) with dedicated styling in the HUD.
 
 ### Changed
+- **XP Block Prompting**: Updated the State Model prompts to ensure level tracking is maintained alongside experience points.
+- **Support for Hybrid Formatting**: The UI now supports both `XP: current/max` and `Level: X | XP: current/max` formats for backward compatibility.
 - **Interactive Unit Pills**: Standardized the **Traits** and **Abilities** sections into interactive "Unit Pills."
 - **Tooltip System 2.0**: Descriptions are now revealed in a glassmorphism hover bubble that does not cause layout shifts (fixing the edge-of-screen "flashing" bug).
 - **CSS Iconography**: Replaced distorted unicode characters with perfectly circular, CSS-drawn info icons (ⓘ).

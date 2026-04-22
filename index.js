@@ -25,7 +25,7 @@
         abilities: "Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells.",
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
         time: "Current time and day (e.g. '8:43 AM, Day 1'). The model uses this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.",
-        xp: "Current and maximum Experience Points (XP). Format as `XP: current/max`. You MUST output this field whenever the narrative mentions gaining experience or leveling up."
+        xp: "Character Level and Experience Points (XP). Format as `Level: X | XP: current/max`. You MUST output this field whenever the narrative mentions gaining experience or leveling up."
     };
 
     /**
@@ -72,7 +72,7 @@
                 "   Goblin: 7/7 HP | AC: 15 | Saves: Fort +1, Ref +2, Will +0 | Status: Healthy\n" +
                 "   [/COMBAT]\n\n" +
                 "   [XP]\n" +
-                "   XP: 100/300\n" +
+                "   Level: 1 | XP: 100/300\n" +
                 "   [/XP]\n\n" +
                 "4. Omit unchanged sections entirely. Do NOT output a section if its contents did not change.\n" +
                 "5. BLOCK PERSISTENCE: For list-based sections ([PARTY], [INVENTORY], [ABILITIES], [SPELLS], [COMBAT]), if any single item within that section changes, you MUST re-output the ENTIRE section containing all items. Never omit existing members or items unless they are explicitly logically removed.\n" +
@@ -1082,12 +1082,13 @@
                 return lines.map(line => `<div class="rt-card-line">${escapeHtml(line)}</div>`);
             case 'XP':
                 return lines.map(line => {
-                    const xpMatch = line.match(/^XP:\s*(\d+)\/(\d+)$/i);
+                    const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*(\d+)\/(\d+)/i);
                     if (!xpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                    const [, cur, max] = xpMatch;
+                    const [, level, cur, max] = xpMatch;
                     const pct = Math.max(0, Math.min(100, (Number(cur) / Number(max)) * 100));
+                    const levelHtml = level ? `<span>Level ${level}</span>` : '';
                     return `<div class="rt-xp-row">
-                        <div class="rt-xp-label">XP: ${cur} / ${max}</div>
+                        <div class="rt-xp-label">${levelHtml}<span>XP: ${cur} / ${max}</span></div>
                         <div class="rt-xp-bar-wrap">
                             <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
                         </div>
