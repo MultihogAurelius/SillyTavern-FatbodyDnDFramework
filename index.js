@@ -1059,11 +1059,12 @@
                                     const url = `https://dnd5e.wikidot.com/spell:${slug}`;
                                     return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
                                 }).join('');
-                                spellsHtml = `<div class="rt-spell-list" style="margin-left: 4px;">${spells}</div>`;
+                                spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
                             }
-                            return `<div class="rt-entity-sub-line rt-spell-row" style="margin-top: 2px;">
-                                <span class="rt-entity-sub-label">Spells:</span>
-                                <span class="rt-spell-level" style="font-size: 9px; opacity: 0.7;">${escapeHtml(label.trim())}</span>
+                            // Mirror the exact HTML structure of the standalone SPELLS block:
+                            // rt-spell-row (2-col grid): level label | inline-group(pips + list)
+                            return `<div class="rt-spell-row">
+                                <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
                                 <div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div>
                             </div>`;
                         };
