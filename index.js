@@ -996,8 +996,34 @@
                         results[lastEntityIdx] += weaponHtml;
                     } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
                         const traitsText = line.substring(7).trim();
-                        const traitsHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Traits:</span> <span class="rt-entity-traits">${highlightParens(escapeHtml(traitsText))}</span>
+                        // Smart split on commas that aren't inside parentheses
+                        const splitTraits = (text) => {
+                            const res = [];
+                            let cur = '', depth = 0;
+                            for (const c of text) {
+                                if (c === '(') depth++; else if (c === ')') depth--;
+                                if (c === ',' && depth === 0) { res.push(cur.trim()); cur = ''; }
+                                else cur += c;
+                            }
+                            if (cur.trim()) res.push(cur.trim());
+                            return res;
+                        };
+
+                        const unitUnits = splitTraits(traitsText).map(t => {
+                            const m = t.match(/^(.+?)\s*\((.+)\)$/);
+                            if (m) {
+                                const [, name, desc] = m;
+                                return `<span class="rt-unit-pill">
+                                    <span class="rt-unit-name">${escapeHtml(name)}</span>
+                                    <span class="rt-unit-icon">i</span>
+                                    <span class="rt-unit-descr">${escapeHtml(desc)}</span>
+                                </span>`;
+                            }
+                            return `<span class="rt-unit-pill no-desc"><span class="rt-unit-name">${escapeHtml(t)}</span></span>`;
+                        }).join('');
+
+                        const traitsHtml = `<div class="rt-entity-sub-line rt-units-container">
+                            <span class="rt-entity-sub-label">Traits:</span> ${unitUnits}
                         </div>`;
                         results[lastEntityIdx] += traitsHtml;
                     } else if ((line.toLowerCase().startsWith('other:') || line.toLowerCase().startsWith('resistances:')) && lastEntityIdx !== -1) {
@@ -1111,13 +1137,32 @@
             }
             case 'ABILITIES': {
                 const allAbilities = lines.flatMap(line => {
-                    if (line.trim().match(/^[-*]\s+/)) {
-                        return [line.trim()];
+                    const l = line.trim();
+                    if (l.match(/^[-*]\s+/)) return [l.replace(/^[-*]\s*/, '')];
+                    // Smart split on commas
+                    const res = [];
+                    let cur = '', depth = 0;
+                    for (const c of l) {
+                        if (c === '(') depth++; else if (c === ')') depth--;
+                        if (c === ',' && depth === 0) { res.push(cur.trim()); cur = ''; }
+                        else cur += c;
                     }
-                    return line.split(/,(?![^(]*\))/).map(a => a.trim()).filter(Boolean);
+                    if (cur.trim()) res.push(cur.trim());
+                    return res;
                 });
-                return allAbilities.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(a => `<span class="rt-ability-pill">${escapeHtml(a)}</span>`);
+                
+                return allAbilities.map(t => {
+                    const m = t.match(/^(.+?)\s*\((.+)\)$/);
+                    if (m) {
+                        const [, name, desc] = m;
+                        return `<span class="rt-unit-pill">
+                            <span class="rt-unit-name">${escapeHtml(name)}</span>
+                            <span class="rt-unit-icon">i</span>
+                            <span class="rt-unit-descr">${escapeHtml(desc)}</span>
+                        </span>`;
+                    }
+                    return `<span class="rt-unit-pill no-desc"><span class="rt-unit-name">${escapeHtml(t)}</span></span>`;
+                });
             }
             default:
                 return lines.map(line => {
@@ -1323,6 +1368,30 @@
                 });
             });
         }
+
+        // Add toggle behavior for Unit Pills (Traits/Abilities)
+        el.querySelectorAll('.rt-unit-pill').forEach(unit => {
+            unit.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Toggle active class to show/hide description
+                const wasActive = unit.classList.contains('active');
+                // Close others first for a clean experience
+                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+                if (!wasActive) unit.classList.add('active');
+            });
+        });
+
+        // Global deselect when clicking anything else
+        const deselectHandler = (e) => {
+            if (!e.target.closest('.rt-unit-pill')) {
+                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+            }
+        };
+        // Use capture phase or just a standard listener on the panel/document
+        // Adding it to document is most reliable for "any empty space"
+        document.addEventListener('click', deselectHandler);
+        // Note: We might want to clean this up later in an unmount/cleanup phase if ST supports it,
+        // but for now this is standard ST extension behavior.
     }
 
     function refreshRenderedView() {

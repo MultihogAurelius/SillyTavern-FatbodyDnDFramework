@@ -396,8 +396,18 @@
     background: var(--rt-card-bg);
     border: var(--rt-card-border);
     border-radius: 6px;
-    overflow: hidden;
+    overflow: hidden; /* Standard view */
+    position: relative;
+    z-index: 1;
 }
+
+/* Hoist the entire section and unlock overflow when a tooltip is active */
+.rt-section-card:has(.rt-unit-pill:hover),
+.rt-section-card:has(.rt-unit-pill.active) {
+    z-index: 100 !important;
+    overflow: visible !important;
+}
+
 
 .rt-section-header {
     font-size: 10px;
@@ -672,6 +682,104 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+}
+
+.rt-units-container {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    padding-top: 2px;
+}
+
+.rt-unit-pill {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 1px 6px;
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    position: relative; /* Anchor for the tooltip */
+}
+
+.rt-unit-pill:hover, .rt-unit-pill.active {
+    background: rgba(0, 255, 170, 0.12);
+    border-color: var(--rt-accent-dim);
+    z-index: 1000;
+}
+
+.rt-unit-name {
+    font-weight: 600;
+    color: var(--rt-text);
+}
+
+.rt-unit-icon {
+    width: 13px;
+    height: 13px;
+    background: var(--rt-accent-dim);
+    color: var(--rt-accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    font-family: "Times New Roman", serif;
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.rt-unit-descr {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 15, 15, 0.98);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--rt-accent-dim);
+    color: var(--rt-text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    white-space: normal;
+    min-width: 140px;
+    max-width: 220px;
+    z-index: 10001;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    pointer-events: none; /* Prevents flashing loop */
+    text-align: center;
+    line-height: 1.4;
+}
+
+/* Tooltip arrow */
+.rt-unit-descr::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--rt-accent-dim) transparent transparent transparent;
+}
+
+.rt-unit-pill:hover .rt-unit-descr,
+.rt-unit-pill.active .rt-unit-descr {
+    display: block;
+}
+
+/* If any pill in a container is active, suppress hover reveals on all others */
+.rt-units-container:has(.rt-unit-pill.active) .rt-unit-pill:not(.active):hover .rt-unit-descr,
+.rt-abilities-body:has(.rt-unit-pill.active) .rt-unit-pill:not(.active):hover .rt-unit-descr {
+    display: none !important;
 }
 
 .rt-entity-sub-line {

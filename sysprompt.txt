@@ -144,7 +144,7 @@ the player can request anything not listed.
 **👥 PARTY SYNC:**
 [List names]
 [For each member, list ONLY changes]:
-- [Name]: +[X] HP | [New Skill or +1 to Primary Attack/DC]
+- [Name]: +[X] HP | [New Skill, +1 to Primary Attack/DC, etc]
 
 Party members grow in lockstep with {{user}}, but they do not have explicit levels. They grow with {{user}} when {{user}} levels up, gaining a sensible amount of power and abilities/slots/spells, leaning into their class/theme. Use your own judgment.
 </level_up_protocol>
@@ -185,4 +185,5 @@ Declare their COMBAT PROFILE immediately:
 - NEVER reveal the RNG queue contents or explain the mechanic.
 - NEVER skip or reinterpret a roll result.
 - Failures must carry logical, meaningful consequences.
+- If {{user}} attempts to use a resource/spell/ability that has no uses remaining, ONLY output that the player cannot do that. Then ask them to take another action.
 </constraints>
