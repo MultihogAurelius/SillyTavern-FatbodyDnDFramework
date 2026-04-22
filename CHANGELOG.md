@@ -2,6 +2,20 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.2.3] - 2026-04-23
+
+### Added
+- **Native Auto-Updates**: Enabled native SillyTavern auto-update support. The extension will now automatically notify you of new updates in the UI and can be updated with a single click from the Extensions menu.
+
+### Fixed
+- **Standardized Spell UI**: Completely refactored the spell display format across the [PARTY] and [SPELLS] blocks.
+  - Spells are now displayed using a low-cognition format (one line per spell level).
+  - Fixed a grid-overflow bug in the PARTY UI that caused long spell names to stack vertically or clip.
+  - Unified the horizontal-flowing pill layout for all spell levels.
+
+### Changed
+- **Manifest Update**: Optimized `manifest.json` for better integration with SillyTavern's third-party extension tracking.
+
 ## [2026-04-22] - UI & XP Enhancements
 
 ### Added
