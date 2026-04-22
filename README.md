@@ -38,9 +38,9 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 
 ## Installation
 
-1. Copy the `SillyTavern-FatbodyDnDFramework` folder into your `SillyTavern/public/scripts/extensions/third-party/` directory.
-2. Refresh your SillyTavern browser tab.
-3. Click the Extensions menu icon and configure **Fatbody D&D Framework** settings.
+1. Go to SillyTavern extension menu.
+2. Click on "Install extension" at the top.
+3. Enter this repo's URL.
 
 ## Usage Guide
 
