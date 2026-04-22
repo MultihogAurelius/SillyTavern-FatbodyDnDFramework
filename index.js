@@ -104,7 +104,7 @@
             profiles: {},
             activeProfile: "",
             fullViewSections: [],
-            blockOrder: ['CHARACTER', 'PARTY', 'COMBAT', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
+            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -844,7 +844,7 @@
 
 
     const BLOCK_ICONS = { TIME: '🕒', XP: '🇽🇵', CHARACTER: '🧙', PARTY: '👥', COMBAT: '⚔️', INVENTORY: '🎒', ABILITIES: '✨', SPELLS: '📖' };
-    const BLOCK_ORDER = ['CHARACTER', 'PARTY', 'COMBAT', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
+    const BLOCK_ORDER = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
     const PAGE_SIZE = 8;
     // Sections that should NEVER be paginated (show all entries always)
     const NO_PAGINATE = new Set(['CHARACTER', 'ABILITIES']);
