@@ -2116,7 +2116,7 @@
                              <option value="COMBAT">HP Bars</option>
                              <option value="SPELLS">Spell Pips</option>
                              <option value="INVENTORY">Bullet Points</option>
-                             <option value="ABILITIES">Oval Pills</option>
+                             <option value="ABILITIES">Oval Pills (Supports tooltips in parentheses)</option>
                         </select>
                         <label for="rt_cfe_prompt">AI Instructions (What should the model track for this field?)</label>
                         <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;" placeholder="Describe what information the AI should track and how to format it (e.g. 'Track the current weather and local time.')."></textarea>
