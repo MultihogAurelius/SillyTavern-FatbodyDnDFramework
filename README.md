@@ -16,7 +16,7 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 
 ## Installation
 
-⚠️ The packaged releases will likely not be up to date. I recommend cloning the repo or taking the steps below. ⚠️
+**The packaged releases will likely not be up to date. I recommend cloning the repo or taking the steps below.**
 
 1. Go to SillyTavern extension menu.
 2. Click on "Install extension" at the top.
