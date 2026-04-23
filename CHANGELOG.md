@@ -2,6 +2,15 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.2.6] - 2026-04-24
+
+### Fixed
+- **Profile Persistence**: Scenario profiles now correctly save and restore the **Module Order** and **Active Modules** status.
+- **Settings UI Sync**: Loading a profile now immediately updates the Module Settings list in the UI to reflect the loaded configuration.
+
+### Changed
+- **Enhanced Reset**: The "Reset ALL Prompts" button now also resets the module layout order and re-enables all stock modules to factory defaults.
+
 ## [1.2.5] - 2026-04-23
 
 ### Added

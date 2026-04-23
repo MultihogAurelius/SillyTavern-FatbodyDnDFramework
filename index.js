@@ -746,6 +746,7 @@
             currentMemo: s.currentMemo,
             memoHistory: JSON.parse(JSON.stringify(s.memoHistory)),
             modules: JSON.parse(JSON.stringify(s.modules)),
+            blockOrder: JSON.parse(JSON.stringify(s.blockOrder || BLOCK_ORDER)),
             stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
             customFields: JSON.parse(JSON.stringify(s.customFields || [])),
             lastDelta: s.lastDelta || ''
@@ -761,16 +762,15 @@
         s.currentMemo = p.currentMemo ?? '';
         s.memoHistory = p.memoHistory ?? [];
         s.modules = { ...s.modules, ...p.modules };
+        s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
         s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
         s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
         s.lastDelta = p.lastDelta ?? '';
         s.activeProfile = name;
         _historyViewIndex = -1;
         SillyTavern.getContext().saveSettingsDebounced();
-        // Refresh module checkboxes
-        ['character', 'party', 'combat', 'inventory', 'abilities', 'spells'].forEach(mod => {
-            $(`#rpg_tracker_mod_${mod}`).prop('checked', s.modules[mod]);
-        });
+        // Refresh UI
+        refreshOrderList();
         // Refresh delta panel
         const dp = document.getElementById('rpg-tracker-delta-content');
         if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
@@ -2534,14 +2534,17 @@
             });
 
             $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
-                if (!confirm('This will reset the Core Prompt AND all Module Prompts to their factory defaults. This cannot be undone. Proceed?')) return;
+                if (!confirm('This will reset the Core Prompt, Module Prompts, Active Modules, and Module Order to their factory defaults. This cannot be undone. Proceed?')) return;
                 const { extensionSettings } = SillyTavern.getContext();
                 delete extensionSettings[MODULE_NAME].systemPromptTemplate;
                 delete extensionSettings[MODULE_NAME].stockPrompts;
+                delete extensionSettings[MODULE_NAME].blockOrder;
+                delete extensionSettings[MODULE_NAME].modules;
                 const freshSettings = getSettings();
                 $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+                refreshOrderList();
                 ctx.saveSettingsDebounced();
-                toastr['success']('All prompts reset to factory defaults.', 'RPG Tracker');
+                toastr['success']('All prompts, modules, and layout order reset to factory defaults.', 'RPG Tracker');
             });
 
             $('#rpg_tracker_btn_update').on('click', async function () {
