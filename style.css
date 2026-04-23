@@ -609,6 +609,32 @@
     border-color: rgba(255,255,255,0.15);
 }
 
+.rt-hd-pips {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.rt-hd-pip {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+}
+
+.rt-hd-available {
+    background: #ffd700;
+    border-color: #ffd700;
+    box-shadow: 0 0 4px rgba(255, 215, 0, 0.4);
+}
+
+.rt-hd-label {
+    opacity: 0.8;
+}
+
 .rt-spell-list {
     display: flex;
     flex-wrap: wrap;

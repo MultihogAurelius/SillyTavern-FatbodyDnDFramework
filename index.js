@@ -18,13 +18,13 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: "Main character's core stats. Use this format:\n[CHARACTER]\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSaves: Fort +X | Ref +X | Will +X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nStatus: Effect (duration Xh Xm)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.",
-        party: "Companion/Party members. Use this format for each member:\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSaves: Fort +X | Ref +X | Will +X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nSpells: Cantrips: Spell1, Spell2\nSpells: Level N (avail/max): Spell1, Spell2\nStatus: Effect (duration Xh Xm)\n\nFor spells: output ONE `Spells:` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n\nOnly add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n\nPERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n\nExample party: [PARTY]Elara (Ranger): 26/45 HP\nAtt/def: Shortbow (+5 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +3 | Ref +5 | Will +2\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nStatus: Healthy\n[/PARTY]",
+        character: "Main character's core stats. Use this format:\n[CHARACTER]\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSaves: Fort +X | Ref +X | Will +X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nHD: dX (current/max)\nStatus: Effect (duration Xh Xm)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.",
+        party: "Companion/Party members. Use this format for each member:\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSaves: Fort +X | Ref +X | Will +X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nSpells: Cantrips: Spell1, Spell2\nSpells: Level N (avail/max): Spell1, Spell2\nHD: dX (current/max)\nStatus: Effect (duration Xh Xm)\n\nFor spells: output ONE `Spells:` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n\nOnly add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n\nPERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n\nExample party: [PARTY]Elara (Ranger): 26/45 HP\nAtt/def: Shortbow (+5 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +3 | Ref +5 | Will +2\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\nStatus: Healthy\n[/PARTY]",
         combat: "Active enemies/NPCs in combat. Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. Format each combatant as:\nName: current/max HP\nAtt/def: Weapon (+X / damage) | Armor (AC: Z)\nSaves: Fort +X, Ref +X, Will +X\nOther: Trait1 (description), Trait2 (description)\nStatus: Effect (duration)\n\nYou MUST output `[COMBAT]END_COMBAT[/COMBAT]` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].",
-        inventory: "Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n[/INVENTORY]",
+        inventory: "Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n- Item (Item special property)\n[/INVENTORY]",
         abilities: "Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells.",
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
-        time: "Current time and day (e.g. '8:43 AM, Day 1'). The model uses this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.",
+        time: "Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.",
         xp: "Character Level and Experience Points (XP). Format as `Level: X | XP: current/max`. You MUST output this field whenever the narrative mentions gaining experience or leveling up."
     };
 
@@ -1022,6 +1022,26 @@
                             <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtml(weaponText))}
                         </div>`;
                         results[lastEntityIdx] += weaponHtml;
+                    } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        let hdText = line.substring(startIdx).trim();
+                        let pipsHtml = escapeHtml(hdText);
+                        const m = hdText.match(/^([^(]+?)\s*(?:\((\d+)\/(\d+)\))?$/);
+                        if(m) {
+                            const [, dice, curStr, maxStr] = m;
+                            if (curStr && maxStr) {
+                                const cur = parseInt(curStr, 10);
+                                const max = parseInt(maxStr, 10);
+                                const pips = Array.from({length: max}, (_, i) => 
+                                    `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
+                                ).join('');
+                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtml(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
+                            }
+                        }
+                        const hdHtml = `<div class="rt-entity-sub-line">
+                            <span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span>
+                        </div>`;
+                        results[lastEntityIdx] += hdHtml;
                     } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
                         const traitsText = line.substring(7).trim();
                         const traitsHtml = `<div class="rt-entity-sub-line rt-units-container">
@@ -1101,8 +1121,66 @@
                 }
                 return results;
             }
-            case 'TIME':
-                return lines.map(line => `<div class="rt-card-line">${escapeHtml(line)}</div>`);
+            case 'TIME': {
+                let currentTotalMins = 0;
+                let parsedCurrent = false;
+
+                const parseTimeStr = (str) => {
+                    let d = 0, h = 0, m = 0;
+                    const dayMatch = str.match(/(?:Day|D)\s*(\d+)/i);
+                    if(dayMatch) d = parseInt(dayMatch[1], 10);
+                    const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+                    if(timeMatch) {
+                        let tmph = parseInt(timeMatch[1], 10);
+                        m = parseInt(timeMatch[2], 10);
+                        if(timeMatch[3]) {
+                            const ampm = timeMatch[3].toUpperCase();
+                            if(ampm === 'PM' && tmph < 12) tmph += 12;
+                            if(ampm === 'AM' && tmph === 12) tmph = 0;
+                        }
+                        h = tmph;
+                    }
+                    if(!dayMatch && !timeMatch) return null;
+                    return (d * 24 * 60) + (h * 60) + m;
+                };
+
+                for(let line of lines) {
+                    if (line.toLowerCase().startsWith('last rest:')) continue;
+                    if (!parsedCurrent) {
+                       const t = parseTimeStr(line);
+                       if (t !== null) {
+                           currentTotalMins = t;
+                           parsedCurrent = true;
+                       }
+                    }
+                }
+
+                return lines.map(line => {
+                    if (line.toLowerCase().startsWith('last rest:')) {
+                        const restVal = line.substring(line.indexOf(':')+1).trim();
+                        let append = "";
+                        if (parsedCurrent) {
+                            const restMins = parseTimeStr(restVal);
+                            if (restMins !== null) {
+                                const diff = currentTotalMins - restMins;
+                                if (diff >= 0) {
+                                    const dH = Math.floor(diff / 60);
+                                    const dM = diff % 60;
+                                    append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
+                                    if(diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
+                                    if(dH >= 24) {
+                                        const dDays = Math.floor(dH / 24);
+                                        const dRemH = dH % 24;
+                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
+                                    }
+                                }
+                            }
+                        }
+                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtml(restVal)}${append}</div>`;
+                    }
+                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                });
+            }
             case 'XP':
                 return lines.map(line => {
                     const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*(\d+)\/(\d+)/i);

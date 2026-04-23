@@ -2,6 +2,16 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.2.5] - 2026-04-23
+
+### Added
+- **Hit Dice Tracking (HD)**: Added a new `HD` field for Characters and Party members.
+  - Renders as high-fidelity gold pips (`[ dX ] 🔵🔵⚪`) to differentiate from blue spell slots.
+  - Automatically included in default system prompts.
+- **Last Rest Time Engine**: The `[TIME]` section now supports a `Last Rest:` field.
+  - The UI dynamically calculates and displays the time elapsed (e.g., "10 hours ago") relative to the current game time.
+- **Improved Prompt Clarity**: Refined prompt instructions for Time, Inventory, and HP to be more authoritative and direct.
+
 ## [1.2.4] - 2026-04-23
 
 ### Added
