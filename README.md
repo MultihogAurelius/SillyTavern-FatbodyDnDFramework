@@ -2,7 +2,9 @@
 
 *A D&D-lite simulation engine for SillyTavern.*
 
-What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences! Losing or dying is actually a thing.
+What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences. Losing or dying is actually a thing. In Big Rigs, you're always WINNER. Not in Fatbody D&D! 
+
+I wasn't satisfied with any of the commercial offerings available (AI Realm, AI Dungeon, Friends & Fables, etc.,) so I made my own D&D platform inside SillyTavern. 
 
 ### The Fatbody D&D Framework involves three core components:
 
