@@ -1256,14 +1256,31 @@
 
     function renderMemoAsCards(memo) {
         if (!memo || !memo.trim()) {
-            return `<div class="rt-empty">
-                <div class="rt-empty-icon">📜</div>
-                <div>Create a character to get started.</div>
-                <small>Stats, inventory, and abilities are recorded automatically from chat. You can manually prompt for creation via the 💬 icon, or <b>create a random character based on an archetype:</b></small>
-                <div class="rt-onboarding-buttons">
-                    <button class="rt-random-char-btn" data-archetype="magic">✨ Magic User</button>
-                    <button class="rt-random-char-btn" data-archetype="melee">⚔️ Melee Fighter</button>
-                    <button class="rt-random-char-btn" data-archetype="rogue">🗡️ Rogue / Thief</button>
+            return `<div class="rt-empty" style="text-align: left; align-items: flex-start; padding: 12px; gap: 10px; overflow-y: auto;">
+                <div style="text-align: center; width: 100%; margin-bottom: 4px; flex-shrink: 0;">
+                    <div class="rt-empty-icon">📜</div>
+                    <div style="font-size: 15px; font-weight: bold; color: var(--rt-text);">Fatbody D&D Framework</div>
+                </div>
+                
+                <div style="font-size: 11px; opacity: 0.9; margin-top: 4px; flex-shrink: 0; line-height: 1.4;">
+                    <b style="color: var(--rt-accent); font-size: 12px;">Initial Setup:</b><br><br>
+                    1. Use the archetype buttons below to roll a new character, or paste an existing sheet into the "Raw View". If your sheet doesn't align with what the UI expects, ask the model via 💬 to fix the formatting after pasting.<br><br>
+                    2. Create a character card for your "narrator", such as Simulation Engine or Game Master.<br><br>
+                    3. Finally, copy <code>sysprompt.txt</code> (or from the SYSPROMPT button) into your Quick Prompts "Main" box.<br><br>
+                    <span style="color: #ffaa00;"><b>NOTE:</b> When you update Fatbody D&D Framework, make sure you copy SYSPROMPT from the bottom right again. The system prompt is often also updated.</span>
+                </div>
+                <div class="rt-onboarding-buttons" style="width: 100%; justify-content: center; margin: 4px 0; flex-shrink: 0;">
+                    <button class="rt-random-char-btn" data-archetype="magic">✨ Magic</button>
+                    <button class="rt-random-char-btn" data-archetype="melee">⚔️ Melee</button>
+                    <button class="rt-random-char-btn" data-archetype="rogue">🗡️ Rogue</button>
+                </div>
+                
+                <div style="font-size: 11px; opacity: 0.9; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; line-height: 1.4;">
+                    <div><b style="color: var(--rt-accent);">Auto-Tracking:</b> As you roleplay, the extension intelligently parses assistant responses. It detects losses of HP, new loot, or combat triggers, running background passes to update the state.</div>
+                    
+                    <div><b style="color: var(--rt-accent);">Prompt Injection:</b> The State Memo and RNG Queue are injected seamlessly into your outgoing prompt. It acts as the "source of truth," assuring the model accurately remembers HP, inventory, and mechanical outcomes.</div>
+                    
+                    <div><b style="color: var(--rt-accent);">Validation:</b> Use the Delta Log (δ) to verify changes. If the AI ever makes a mistake, step backwards using the Snapshot Navigation (←/→) to restore a clean state.</div>
                 </div>
             </div>`;
         }

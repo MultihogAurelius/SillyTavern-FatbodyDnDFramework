@@ -2,6 +2,14 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.2.7] - 2026-04-24
+
+### Added
+- **Interactive Onboarding**: Added a comprehensive step-by-step startup guide to the empty tracker state.
+  - Numbered walkthrough for initial character setup and prompt configuration.
+  - Included a highlighted "Update Alert" warning to notify users when they need to re-copy the system prompt.
+  - Redesigned archetype buttons for better visual integration.
+
 ## [1.2.6] - 2026-04-24
 
 ### Fixed
