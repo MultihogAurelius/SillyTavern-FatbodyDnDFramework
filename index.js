@@ -1376,9 +1376,9 @@
                 const archetype = btn.dataset.archetype;
                 const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...' };
                 const prompts = {
-                    magic: "Generate a random D&D Magic User (Wizard, Sorcerer, or Warlock) and fill the [CHARACTER] template. Include appropriate spells in the [SPELLS] block (using 'Cantrips:' for level 0 spells), and items + attributes that fit a spellcaster.",
-                    melee: "Generate a random D&D Melee Fighter (Fighter, Barbarian, or Paladin) and fill the [CHARACTER] template. Include heavy armor, weapons, and high physical attributes.",
-                    rogue: "Generate a random D&D Rogue or Thief-style character and fill the [CHARACTER] template. Include stealth-related items, tools, and high Dexterity."
+                    magic: "Generate a random D&D Magic User (Wizard, Sorcerer, or Warlock). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes.",
+                    melee: "Generate a random D&D Melee Fighter (Fighter, Barbarian, or Paladin). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons.",
+                    rogue: "Generate a random D&D Rogue or Thief-style character. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack."
                 };
 
                 el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);

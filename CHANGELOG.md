@@ -2,6 +2,14 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.3.0] - 2026-04-24
+
+### Added
+- **Archetype Overhaul**: Significantly improved the character generation "wizard".
+  - All archetypes (Magic, Melee, Rogue) now consistently generate **[INVENTORY]** and **[ABILITIES]** blocks.
+  - Numbered prompts ensure more thematic gear (Thieves' Tools, Signature Weapons) and class features (Sneak Attack).
+- **Finalized Onboarding**: Completed the new user walkthrough in the empty state with descriptions and a manual creation guide.
+
 ## [1.2.9] - 2026-04-24
 
 ### Fixed
