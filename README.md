@@ -20,7 +20,7 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 2. Click on "Install extension" at the top.
 3. Enter this repo's URL.
 
-## Features
+## Highlights
 
 - **Draggable HUD** with HP bars, spell pips, etc.
 - **Automatic spell slot tracking** via 🔵 pips in the UI; never worry about remembering how many you have left
