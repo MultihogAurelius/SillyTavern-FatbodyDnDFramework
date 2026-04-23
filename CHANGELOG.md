@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.2.9] - 2026-04-24
+
+### Fixed
+- **Factory Reset**: Resolved a race condition where the page would reload before the reset request is finalized in storage. Replaced blocking alert with a non-blocking toast and delayed reload.
+
 ## [1.2.8] - 2026-04-24
 
 ### Fixed

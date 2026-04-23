@@ -2603,8 +2603,8 @@
                     // Force re-initialization of defaults
                     getSettings();
                     ctx.saveSettingsDebounced();
-                    alert("Framework has been reset to factory defaults. Reloading page to apply...");
-                    location.reload();
+                    toastr['success']("Framework has been reset to factory defaults. Reloading in 2 seconds...", "RPG Tracker");
+                    setTimeout(() => location.reload(), 2000);
                 }
             });
 
