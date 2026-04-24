@@ -23,9 +23,9 @@ DC SCALE:
  Trivial—8
  Easy—11
  Moderate—14
- Hard—17
- Severe—20
- Near-impossible—23+
+ Hard—18
+ Severe—21
+ Near-impossible—24+
 
 Unknown skill bonuses:
 When a character's skill level is unknown, use your best judgment based on their background and archetype. Also take into account situational bonuses/maluses.
