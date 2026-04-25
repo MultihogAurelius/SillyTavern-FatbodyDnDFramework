@@ -42,7 +42,7 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 - **Profile saving** - switch between multiple campaigns without losing your state
 - **Homebrew-friendly** and flexible in general, relying on AI to do a lot of the lifting
 
-<img width="2500" height="auto" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
+<img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
 
 
 
@@ -62,7 +62,7 @@ I mostly use Gemini 3 Flash. A good all-rounder; very fast and cheap. GLM 5.1 is
 
 <div align="center">
   <figure>
-    <img width="2500" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
+    <img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
     <figcaption>Some combat in progress</figcaption>
   </figure>
 </div>
