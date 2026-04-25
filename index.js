@@ -18,16 +18,17 @@
     let _stateModelRunning = false;
     let _syspromptCached = "";
 
-    async function getSysPrompt() {
-        if (_syspromptCached) return _syspromptCached;
+    async function getSysPrompt(force = false) {
+        if (_syspromptCached && !force) return _syspromptCached;
         try {
-            const response = await fetch(`scripts/extensions/third-party/${FOLDER_NAME}/sysprompt.txt`);
+            const url = `scripts/extensions/third-party/${FOLDER_NAME}/sysprompt.txt?v=${Date.now()}`;
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch');
             _syspromptCached = await response.text();
             return _syspromptCached;
         } catch (e) {
             console.error("Failed to load sysprompt.txt", e);
-            return "";
+            return _syspromptCached || "";
         }
     }
 
@@ -179,6 +180,21 @@
         const settings = getSettings();
         if (!settings.enabled) return;
 
+        // 0. System Prompt Override (Process this FIRST so it always runs)
+        if (settings.sysPromptOverride) {
+            // Always force refresh the prompt when override is active to pick up manual file edits
+            const sysPrompt = await getSysPrompt(true);
+            if (sysPrompt) {
+                let sysIdx = chat.findIndex(m => m.role === 'system' || m.is_system);
+                if (sysIdx !== -1) {
+                    if (typeof chat[sysIdx].content === 'string') chat[sysIdx].content = sysPrompt;
+                    else if (typeof chat[sysIdx].mes === 'string') chat[sysIdx].mes = sysPrompt;
+                } else {
+                    chat.unshift({ role: 'system', content: sysPrompt, is_system: true });
+                }
+            }
+        }
+
         // Find the last user message to prepend injections
         let idx = -1;
         for (let i = chat.length - 1; i >= 0; i--) {
@@ -194,22 +210,6 @@
         const content = msg['content'] || msg.mes || '';
 
         let injections = "";
-
-        // 0. System Prompt Override
-        if (settings.sysPromptOverride) {
-            const sysPrompt = await getSysPrompt();
-            if (sysPrompt) {
-                // Find system message
-                let sysIdx = chat.findIndex(m => m.role === 'system' || m.is_system);
-                if (sysIdx !== -1) {
-                    if (typeof chat[sysIdx].content === 'string') chat[sysIdx].content = sysPrompt;
-                    else if (typeof chat[sysIdx].mes === 'string') chat[sysIdx].mes = sysPrompt;
-                } else {
-                    // Prepend new system message if none found
-                    chat.unshift({ role: 'system', content: sysPrompt, is_system: true });
-                }
-            }
-        }
 
         // 1. RNG Injection
         if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
