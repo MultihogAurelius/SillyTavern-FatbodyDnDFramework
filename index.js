@@ -177,61 +177,68 @@
     }
 
     globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
-        const settings = getSettings();
-        if (!settings.enabled) return;
+        try {
+            const settings = getSettings();
+            if (!settings.enabled) return;
 
-        // 0. System Prompt Override (Process this FIRST so it always runs)
-        if (settings.sysPromptOverride) {
-            // Always force refresh the prompt when override is active to pick up manual file edits
-            const sysPrompt = await getSysPrompt(true);
-            if (sysPrompt) {
-                let sysIdx = chat.findIndex(m => m.role === 'system' || m.is_system);
-                if (sysIdx !== -1) {
-                    const clonedSys = structuredClone(chat[sysIdx]);
-                    if (typeof clonedSys.content === 'string') clonedSys.content = sysPrompt;
-                    else if (typeof clonedSys.mes === 'string') clonedSys.mes = sysPrompt;
-                    chat[sysIdx] = clonedSys;
-                } else {
-                    chat.unshift({ role: 'system', content: sysPrompt, is_system: true });
+            // 0. System Prompt Override (Process this FIRST so it always runs)
+            if (settings.sysPromptOverride) {
+                // Always force refresh the prompt when override is active to pick up manual file edits
+                const sysPrompt = await getSysPrompt(true);
+                if (sysPrompt) {
+                    let sysIdx = chat.findIndex(m => m.role === 'system' || m.is_system);
+                    if (sysIdx !== -1) {
+                        // Use spread for safer cloning of potentially proxied objects
+                        const clonedSys = { ...chat[sysIdx] };
+                        if (typeof clonedSys.content === 'string') clonedSys.content = sysPrompt;
+                        if (typeof clonedSys.mes === 'string') clonedSys.mes = sysPrompt;
+                        chat[sysIdx] = clonedSys;
+                    } else {
+                        // Create a robust system message with both common content keys
+                        chat.unshift({ role: 'system', content: sysPrompt, mes: sysPrompt, is_system: true });
+                    }
+                    if (settings.debugMode) console.log("[Fatbody Framework] System prompt override applied.");
                 }
             }
-        }
 
-        // Find the last user message to prepend injections
-        let idx = -1;
-        for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i]['role'] === "user" || chat[i].is_user) {
-                idx = i;
-                break;
+            // Find the last user message to prepend injections
+            let idx = -1;
+            for (let i = chat.length - 1; i >= 0; i--) {
+                if (chat[i]['role'] === "user" || chat[i].is_user) {
+                    idx = i;
+                    break;
+                }
             }
+
+            if (idx === -1) return;
+
+            const msg = chat[idx];
+            const content = msg['content'] || msg.mes || '';
+
+            let injections = "";
+
+            // 1. RNG Injection
+            if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
+                const queue = makeRngQueue(RNG_QUEUE_LEN);
+                injections += buildRngBlock(queue);
+            }
+
+            // 2. State Memo Injection
+            if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
+                injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+            }
+
+            if (!injections) return;
+
+            const cloned = { ...msg };
+            if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
+            else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
+
+            chat[idx] = cloned;
+            if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
+        } catch (err) {
+            console.error("[Fatbody Framework] Interceptor failed silently to prevent generation halt:", err);
         }
-
-        if (idx === -1) return;
-
-        const msg = chat[idx];
-        const content = msg['content'] || msg.mes || '';
-
-        let injections = "";
-
-        // 1. RNG Injection
-        if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
-            const queue = makeRngQueue(RNG_QUEUE_LEN);
-            injections += buildRngBlock(queue);
-        }
-
-        // 2. State Memo Injection
-        if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
-            injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
-        }
-
-        if (!injections) return;
-
-        const cloned = structuredClone(msg);
-        if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
-        else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
-
-        chat[idx] = cloned;
-        if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
     };
 
     /**
@@ -1695,7 +1702,7 @@
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt (sysprompt.txt)">COPY SYSPROMPT</button>
-                    <button class="rpg-tracker-nav-btn${settings.sysPromptOverride ? ' rt-active' : ''}" id="rt-override-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Toggles Narrator Prompt Override. When ON, the framework uses sysprompt.txt as the Narrator's system prompt automatically.">SYSPROMPT OVERRIDE</button>
+                    <button class="rpg-tracker-nav-btn${settings.sysPromptOverride ? ' rt-active' : ''}" id="rt-override-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Toggles Narrator Prompt Override. When ON, the framework uses sysprompt.txt as the Narrator's system prompt automatically. (Note: May take one message to initialize after toggling)">SYSPROMPT OVERRIDE</button>
                 </div>
             </div>
         `;
@@ -1974,7 +1981,7 @@
             const btn = e.target;
             if (s.sysPromptOverride) {
                 btn.classList.add('rt-active');
-                toastr['success']("System Prompt Override: ON", "Fatbody Framework");
+                toastr['success']("System Prompt Override: ON<br/><small>Note: May take one message to initialize.</small>", "Fatbody Framework");
                 // Pre-load prompt
                 await getSysPrompt();
             } else {
