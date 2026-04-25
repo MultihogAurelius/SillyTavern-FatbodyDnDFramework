@@ -88,7 +88,9 @@
                 "Example: (Weakened, STR 8 from 16, 1h 0m)\n" +
                 "Auto-Reversion: During each State Sync, check the delta between the PRIOR MEMO and current narrative. If a duration has expired, you MUST restore the base statistic to its \"Original\" value in the relevant section and then remove the buff from the list.\n" +
                 "Conditional Buffs: For effects without a set time, use event-based anchors.\n" +
-                "Example: (Exhaustion, Disadvantage on Ability Checks, until Long Rest)",
+                "Example: (Exhaustion, Disadvantage on Ability Checks, until Long Rest)\n\n" +
+                "LEVEL UPS:\n" +
+                "Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus increasing to 2d6, etc.",
             modules: {
                 character: true,
                 party: true,
