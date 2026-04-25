@@ -187,8 +187,10 @@
             if (sysPrompt) {
                 let sysIdx = chat.findIndex(m => m.role === 'system' || m.is_system);
                 if (sysIdx !== -1) {
-                    if (typeof chat[sysIdx].content === 'string') chat[sysIdx].content = sysPrompt;
-                    else if (typeof chat[sysIdx].mes === 'string') chat[sysIdx].mes = sysPrompt;
+                    const clonedSys = structuredClone(chat[sysIdx]);
+                    if (typeof clonedSys.content === 'string') clonedSys.content = sysPrompt;
+                    else if (typeof clonedSys.mes === 'string') clonedSys.mes = sysPrompt;
+                    chat[sysIdx] = clonedSys;
                 } else {
                     chat.unshift({ role: 'system', content: sysPrompt, is_system: true });
                 }
