@@ -42,9 +42,12 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 - **Profile saving** - switch between multiple campaigns without losing your state
 - **Homebrew-friendly** and flexible in general, relying on AI to do a lot of the lifting
 
-<img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
-
-
+<div align="center">
+  <figure>
+    <img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
+    <figcaption>Yep, things can go wrong!</figcaption>
+  </figure>
+</div>
 
 ## Suggested Companions
 
