@@ -931,14 +931,16 @@
                         continue;
                     }
 
-                    const hpMatch = line.match(/^(.+?):\s*(\d+)(?:\/(\d+))?\s*HP\s*[:|,]?\s*(.*)$/i);
+                    const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
                     if (hpMatch) {
-                        const [, name, cur, max, rest] = hpMatch;
+                        const [, name, curRaw, maxRaw, rest] = hpMatch;
+                        const cur = Number(curRaw.replace(/,/g, ''));
+                        const max = maxRaw ? Number(maxRaw.replace(/,/g, '')) : undefined;
                         const hasMax = max !== undefined;
-                        const pct = hasMax ? Math.max(0, Math.min(100, (Number(cur) / Number(max)) * 100)) : 100;
+                        const pct = hasMax ? Math.max(0, Math.min(100, (cur / max) * 100)) : 100;
                         const hpColor = !hasMax ? '#00ffaa' : pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
                         const status = rest.trim().replace(/^\|\s*/, '');
-                        const label = hasMax ? `${cur}/${max}` : `${cur}`;
+                        const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
 
                         lastEntityIdx = results.length;
                         results.push(`<div class="rt-entity-row">
@@ -1026,12 +1028,12 @@
                         const startIdx = line.indexOf(':') + 1;
                         let hdText = line.substring(startIdx).trim();
                         let pipsHtml = escapeHtml(hdText);
-                        const m = hdText.match(/^([^(]+?)\s*(?:\((\d+)\/(\d+)\))?$/);
+                        const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
                         if (m) {
                             const [, dice, curStr, maxStr] = m;
                             if (curStr && maxStr) {
-                                const cur = parseInt(curStr, 10);
-                                const max = parseInt(maxStr, 10);
+                                const cur = parseInt(curStr.replace(/,/g, ''), 10);
+                                const max = parseInt(maxStr.replace(/,/g, ''), 10);
                                 const pips = Array.from({ length: max }, (_, i) =>
                                     `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
                                 ).join('');
@@ -1183,13 +1185,15 @@
             }
             case 'XP':
                 return lines.map(line => {
-                    const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*(\d+)\/(\d+)/i);
+                    const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*([\d,]+)\/([\d,]+)/i);
                     if (!xpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                    const [, level, cur, max] = xpMatch;
-                    const pct = Math.max(0, Math.min(100, (Number(cur) / Number(max)) * 100));
+                    const [, level, curRaw, maxRaw] = xpMatch;
+                    const cur = Number(curRaw.replace(/,/g, ''));
+                    const max = Number(maxRaw.replace(/,/g, ''));
+                    const pct = Math.max(0, Math.min(100, (cur / max) * 100));
                     const levelHtml = level ? `<span>Level ${level}</span>` : '';
                     return `<div class="rt-xp-row">
-                        <div class="rt-xp-label">${levelHtml}<span>XP: ${cur} / ${max}</span></div>
+                        <div class="rt-xp-label">${levelHtml}<span>XP: ${curRaw} / ${maxRaw}</span></div>
                         <div class="rt-xp-bar-wrap">
                             <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
                         </div>
