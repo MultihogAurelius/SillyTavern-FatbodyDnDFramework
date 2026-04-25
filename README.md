@@ -42,7 +42,7 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 - **Profile saving** - switch between multiple campaigns without losing your state
 - **Homebrew-friendly** and flexible in general, relying on AI to do a lot of the lifting
 
-<img width="2138" height="1367" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
+<img width="2500" height="auto" alt="image" src="https://github.com/user-attachments/assets/6eb8b2b6-d4f6-4fc8-9d34-988ad03331ba" />
 
 
 
@@ -60,10 +60,12 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 ## What Model to Use?
 I mostly use Gemini 3 Flash. A good all-rounder; very fast and cheap. GLM 5.1 is also a solid choice, but it can tend to reason far too long, bogging things down, especially combat. Experimentation with different models is recommended.
 
-<figure>
-<img width="2138" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
-<figcaption>Combat in progress</figcaption>
-</figure>
+<div align="center">
+  <figure>
+    <img width="2500" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
+    <figcaption>Some combat in progress</figcaption>
+  </figure>
+</div>
 
 ## License
 MIT
