@@ -16,21 +16,6 @@
 
     const MODULE_NAME = "rpg_tracker";
     let _stateModelRunning = false;
-    let _syspromptCached = "";
-
-    async function getSysPrompt(force = false) {
-        if (_syspromptCached && !force) return _syspromptCached;
-        try {
-            const url = `scripts/extensions/third-party/${FOLDER_NAME}/sysprompt.txt?v=${Date.now()}`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error('Failed to fetch');
-            _syspromptCached = await response.text();
-            return _syspromptCached;
-        } catch (e) {
-            console.error("Failed to load sysprompt.txt", e);
-            return _syspromptCached || "";
-        }
-    }
 
     const DEFAULT_STOCK_PROMPTS = {
         character: "Main character's core stats. Use this format:\n[CHARACTER]\nName (Class): current/max HP\nAtt/def: Weapon (stats) | Armor (AC: Z)\nAttr: STR X, DEX X, CON X, INT X, WIS X, CHA X\nSaves: Fort +X | Ref +X | Will +X\nSkills: Skill1 +X, Skill2 +X\nTraits: Trait1 (effect), Trait2 (effect)\nHD: dX (current/max)\nStatus: Effect (duration Xh Xm)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.",
@@ -119,8 +104,7 @@
             profiles: {},
             activeProfile: "",
             fullViewSections: [],
-            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
-            sysPromptOverride: false
+            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -177,78 +161,44 @@
     }
 
     globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
-        try {
-            const settings = getSettings();
-            if (!settings.enabled) return;
+        const settings = getSettings();
+        if (!settings.enabled) return;
 
-            // 0. System Prompt Override (Process this FIRST so it always runs)
-            if (settings.sysPromptOverride) {
-                // Always force refresh the prompt when override is active to pick up manual file edits
-                const sysPrompt = await getSysPrompt(true);
-                if (sysPrompt) {
-                    let firstSysIdx = -1;
-                    for (let i = 0; i < chat.length; i++) {
-                        if (chat[i].role === 'system' || chat[i].is_system) {
-                            if (firstSysIdx === -1) {
-                                firstSysIdx = i;
-                            } else {
-                                // Remove duplicate/extra system messages (like Jailbreaks/NSFW prompts) to ensure total override
-                                chat.splice(i, 1);
-                                i--;
-                            }
-                        }
-                    }
-
-                    if (firstSysIdx !== -1) {
-                        const clonedSys = { ...chat[firstSysIdx] };
-                        if (typeof clonedSys.content === 'string') clonedSys.content = sysPrompt;
-                        if (typeof clonedSys.mes === 'string') clonedSys.mes = sysPrompt;
-                        chat[firstSysIdx] = clonedSys;
-                    } else {
-                        chat.unshift({ role: 'system', content: sysPrompt, mes: sysPrompt, is_system: true });
-                    }
-                    if (settings.debugMode) console.log("[Fatbody Framework] System prompt override applied (duplicates cleared).");
-                }
+        // Find the last user message to prepend injections
+        let idx = -1;
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (chat[i]['role'] === "user" || chat[i].is_user) {
+                idx = i;
+                break;
             }
-
-            // Find the last user message to prepend injections
-            let idx = -1;
-            for (let i = chat.length - 1; i >= 0; i--) {
-                if (chat[i]['role'] === "user" || chat[i].is_user) {
-                    idx = i;
-                    break;
-                }
-            }
-
-            if (idx === -1) return;
-
-            const msg = chat[idx];
-            const content = msg['content'] || msg.mes || '';
-
-            let injections = "";
-
-            // 1. RNG Injection
-            if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
-                const queue = makeRngQueue(RNG_QUEUE_LEN);
-                injections += buildRngBlock(queue);
-            }
-
-            // 2. State Memo Injection
-            if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
-                injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
-            }
-
-            if (!injections) return;
-
-            const cloned = { ...msg };
-            if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
-            else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
-
-            chat[idx] = cloned;
-            if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
-        } catch (err) {
-            console.error("[Fatbody Framework] Interceptor failed silently to prevent generation halt:", err);
         }
+
+        if (idx === -1) return;
+
+        const msg = chat[idx];
+        const content = msg['content'] || msg.mes || '';
+
+        let injections = "";
+
+        // 1. RNG Injection
+        if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
+            const queue = makeRngQueue(RNG_QUEUE_LEN);
+            injections += buildRngBlock(queue);
+        }
+
+        // 2. State Memo Injection
+        if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
+            injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+        }
+
+        if (!injections) return;
+
+        const cloned = structuredClone(msg);
+        if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
+        else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
+
+        chat[idx] = cloned;
+        if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
     };
 
     /**
@@ -1711,8 +1661,7 @@
                 <div class="flex-container gap-1 alignitemscenter">
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
-                    <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt (sysprompt.txt)">COPY SYSPROMPT</button>
-                    <button class="rpg-tracker-nav-btn${settings.sysPromptOverride ? ' rt-active' : ''}" id="rt-override-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Toggles Narrator Prompt Override. When ON, the framework uses sysprompt.txt as the Narrator's system prompt automatically. (Note: May take one message to initialize after toggling)">SYSPROMPT OVERRIDE</button>
+                    <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt (sysprompt.txt)">SYSPROMPT</button>
                 </div>
             </div>
         `;
@@ -1979,24 +1928,6 @@
             } catch (err) {
                 console.error("[Fatbody Framework] Failed to copy system prompt:", err);
                 toastr['error']("Could not find sysprompt.txt. Make sure the extension is installed correctly.", "Fatbody Framework");
-            }
-        });
-
-        // Toggle System Prompt Override
-        panel.querySelector('#rt-override-sysprompt').addEventListener('click', async (e) => {
-            const s = getSettings();
-            s.sysPromptOverride = !s.sysPromptOverride;
-            SillyTavern.getContext().saveSettingsDebounced();
-
-            const btn = e.target;
-            if (s.sysPromptOverride) {
-                btn.classList.add('rt-active');
-                toastr['success']("System Prompt Override: ON<br/><small>Note: May take one message to initialize.</small>", "Fatbody Framework");
-                // Pre-load prompt
-                await getSysPrompt();
-            } else {
-                btn.classList.remove('rt-active');
-                toastr['info']("System Prompt Override: OFF", "Fatbody Framework");
             }
         });
 

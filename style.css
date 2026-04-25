@@ -1042,13 +1042,6 @@
     cursor: default;
 }
 
-.rpg-tracker-nav-btn.rt-active {
-    background: var(--rt-accent-bg);
-    color: var(--rt-accent);
-    border-color: var(--rt-accent-dim);
-    opacity: 1 !important;
-}
-
 .rpg-tracker-nav-label {
     font-size: 0.8em;
     color: var(--rt-text-muted);
