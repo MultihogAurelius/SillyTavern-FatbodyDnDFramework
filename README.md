@@ -68,7 +68,7 @@ https://www.youtube.com/watch?v=wg0JMMwqiUA
 You can scrap the entire system prompt and all the default fields and track your own things completely. The D&D setup is just a plug & play system that works by default. 
 
 ## What Model to Use?
-I mostly use Gemini 3 Flash. A good all-rounder; very fast and cheap. GLM 5.1 is also a solid choice, but it can tend to reason far too long, bogging things down, especially combat. Experimentation with different models is recommended.
+I mostly use Gemini 3 Flash. A good all-rounder; very fast and cheap. Sometimes its pace can be a bit much, though. GLM 5.1 is also a solid choice, but it can tend to reason far too long, bogging things down, especially combat. Experimentation with different models is recommended.
 
 For the state pass, I use Gemini 3 Flash with medium reasoning.
 
