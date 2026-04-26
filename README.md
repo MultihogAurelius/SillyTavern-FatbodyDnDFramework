@@ -60,6 +60,10 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 3. **Prompt Injection:** The State Memo and RNG Queue are injected seamlessly into your outgoing prompt. It acts as the "source of truth," assuring the model accurately remembers HP, inventory, and mechanical outcomes.
 4. **Validation:** Use the Delta Log (δ) to verify changes. If the AI ever makes a mistake, step backwards using the Snapshot Navigation (←/→) to restore a clean state.
 
+## Don't Care About D&D?
+
+You can scrap the entire system prompt and all the default fields and track your own things completely. The D&D setup is just a plug & play system that works by default. 
+
 ## What Model to Use?
 I mostly use Gemini 3 Flash. A good all-rounder; very fast and cheap. GLM 5.1 is also a solid choice, but it can tend to reason far too long, bogging things down, especially combat. Experimentation with different models is recommended.
 
