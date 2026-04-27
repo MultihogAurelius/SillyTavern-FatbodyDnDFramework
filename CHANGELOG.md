@@ -2,6 +2,12 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.4.3] - 2026-04-28
+
+### Fixed
+- **Interceptor Stability**: Switched to in-place message modification in the chat interceptor. This preserves hidden SillyTavern metadata and object referential integrity, resolving potential compatibility issues with "Thinking" models like DeepSeek R1 and Gemini.
+- **Thinking Tag Stripping**: The State Model pass now automatically strips `<thought>`, `<thinking>`, and `<reasoning>` tags from the narrative input, preventing prompt bloat and API validation errors.
+
 ## [1.4.2] - 2026-04-27
 
 ### Fixed

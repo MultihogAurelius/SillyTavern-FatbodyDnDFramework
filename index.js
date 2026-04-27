@@ -310,11 +310,8 @@
 
         if (!injections) return;
 
-        const cloned = structuredClone(msg);
-        if (typeof cloned.content === "string") cloned.content = injections + cloned.content;
-        else if (typeof cloned.mes === "string") cloned.mes = injections + cloned.mes;
-
-        chat[idx] = cloned;
+        if (typeof msg.content === "string") msg.content = injections + msg.content;
+        else if (typeof msg.mes === "string") msg.mes = injections + msg.mes;
         if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
     };
 
@@ -342,10 +339,15 @@
             if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
             if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
 
-            // ─── Strip Tool Call UI & Thinking Tags ───
-            // SillyTavern embeds tool calls in <details> and <pre> blocks.
-            // Some models (DeepSeek, Gemini) also output internal <thought>, <reasoning>, or <thinking> tags.
-            mes = mes.replace(/<(details|pre|thought|reasoning|thinking)\b[^>]*>([\s\S]*?)<\/\1>/gi, '');
+            // ─── Strip Tool Call & Thinking UI ───
+            // SillyTavern embeds tool calls and reasoning in <details> and <pre> blocks.
+            // Some models (DeepSeek, Gemini) also use internal <thought> or <reasoning> tags.
+            // These bloat the state model prompt and can cause "reasoning_content" errors on some APIs.
+            mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
+            mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
+            mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
+            mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
+            mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
             mes = mes.trim();
 
             if (mes) {
