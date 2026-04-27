@@ -2,6 +2,14 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.3.4] - 2026-04-27
+
+### Changed
+- **Buff/Debuff Logic Overhaul**: Refactored how temporary effects and stat modifications are tracked.
+  - Relocated "restoration anchors" to the stat lines themselves (e.g., `AC 18 (base 13)`), allowing for cleaner status displays.
+  - Standardized Status line formatting to focus on absolute mathematical effects (e.g., `Shield (+5 AC, 1 turn)`).
+  - Improved Narrator and State Model synergy for automatic buff expiration and stat restoration.
+
 ## [1.3.3] - 2026-04-27
 
 ### Fixed

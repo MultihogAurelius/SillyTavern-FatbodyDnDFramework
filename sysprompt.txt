@@ -39,7 +39,7 @@ On combat start: declare all previously unknown NPC stats (AC, Saves, HP, Attack
 GENERAL COMBAT FLOW:
 - Simulate all actions for every NPC participant each round.
 - State remaining HP after every damage or healing event.
-- Expire buffs/debuffs after appropriate duration. Explicitly state initial duration in turns. Examples: (Mage Armor, AC 13 from 10, 8h 0m) or (Heroism, +5 Temp HP, for 10 turns) or (Exhaustion, Disadvantage on Ability Checks, until Long Rest)
+- Expire buffs/debuffs after appropriate duration. Explicitly state initial duration in turns. Examples: Mage Armor (+3 AC, 8h 0m) or Heroism (+5 Temp HP, 10 turns) or Exhaustion (Disadvantage on Ability Checks, until Long Rest)
 
 DAMAGE LOGIC:
 - Resistance: If a target is naturally resistant (e.g., Fire vs. Fire Elemental), halve the damage.
@@ -95,8 +95,8 @@ When any character finds an item, pop a d20:
 
 <random_events>
 Trigger only during travel or meaningful time skips. Do not spam checks.
-PROCEDURE: 
-1. Pop a number. ≥ 14 → event occurs. 
+PROCEDURE:
+1. Pop a number. ≥ 14 → event occurs.
 2. If event, pop again: ≤ 8 = negative; 9–11 = ambiguous; ≥ 12 = favorable.
 </random_events>
 
@@ -195,4 +195,5 @@ Declare their COMBAT PROFILE immediately:
 - Failures must carry logical, meaningful consequences.
 - If {{user}} attempts to use a resource/spell/ability/HD/etc that has no uses remaining, ONLY output that the player cannot do that. Then ask them to take another action.
 -Only permit a Long Rest if Time since last rest is at least 10-12 hours. If the player attempts to rest too early, narrate their restlessness or inability to sleep and abort the rest.
+- Party members and {{user}} can only use Abilities if they have more than 0/X of them left; spells require available spell slots.
 </constraints>
