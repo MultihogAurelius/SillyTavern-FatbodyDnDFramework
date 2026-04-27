@@ -4,7 +4,7 @@
     // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
     const FOLDER_NAME = (function () {
         try {
-            const scripts = Array.from(document.querySelectorAll('script[src]'));
+            const scripts = /** @type {HTMLScriptElement[]} */ (Array.from(document.querySelectorAll('script[src]')));
             const myScript = scripts.find(s => s.src.includes('SillyTavern-FatbodyDnDFramework') || s.src.includes('SillyTavern-RPGStateTracker'));
             if (myScript) {
                 const match = myScript.src.match(/third-party\/([^\/]+)\//);
@@ -163,14 +163,14 @@
 
         if (value === 'custom') {
             const { Popup } = SillyTavern.getContext();
-            value = await Popup.show.input('Enter the dice formula:<br><i>(for example, <tt>2d6</tt>)</i>', '', 'Roll', 'Cancel');
+            value = await Popup.show.input('Enter the dice formula:<br><i>(for example, <tt>2d6</tt>)</i>', '', 'Roll', { cancelButton: 'Cancel' });
         }
 
         if (!value) return nullValue;
 
         const droll = SillyTavern.libs.droll;
         if (!droll) {
-            toastr.error('Dice library (droll) not found.');
+            toastr['error']('Dice library (droll) not found.');
             return nullValue;
         }
 
@@ -184,7 +184,7 @@
             }
             return { total: String(result.total), rolls: result.rolls.map(String) };
         } else {
-            toastr.warning('Invalid dice formula');
+            toastr['warning']('Invalid dice formula');
             return nullValue;
         }
     }
@@ -1894,29 +1894,29 @@
         };
 
         if (rngBtn) {
-            rngBtn.onclick = () => {
+            rngBtn.addEventListener('click', () => {
                 const s = getSettings();
                 s.rngEnabled = !s.rngEnabled;
                 SillyTavern.getContext().saveSettingsDebounced();
                 syncFooterToggles();
                 toastr['info'](`RNG Queue ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-            };
+            });
         }
 
         if (diceToolBtn) {
-            diceToolBtn.onclick = () => {
+            diceToolBtn.addEventListener('click', () => {
                 const s = getSettings();
                 s.diceFunctionTool = !s.diceFunctionTool;
                 SillyTavern.getContext().saveSettingsDebounced();
                 syncFooterToggles();
                 registerDiceFunctionTool();
                 toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-            };
+            });
         }
 
         const helpBtn = panel.querySelector('#rt-rng-help-btn');
         if (helpBtn) {
-            helpBtn.onclick = () => {
+            helpBtn.addEventListener('click', () => {
                 const { Popup } = SillyTavern.getContext();
                 const content = `
                     <div style="text-align: left; line-height: 1.4; max-height: 70vh; overflow-y: auto; padding-right: 5px;">
@@ -1939,7 +1939,7 @@
                     </div>
                 `;
                 Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
-            };
+            });
         }
 
         syncFooterToggles();
@@ -2064,7 +2064,7 @@
             const isVisible = updateMenu.style.display !== 'none';
 
             // Close all other menus possibly
-            document.querySelectorAll('.rt-update-menu').forEach(m => m.style.display = 'none');
+            document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */ (m).style.display = 'none');
 
             if (!isVisible) {
                 const rect = updateBtn.getBoundingClientRect();
@@ -2125,8 +2125,8 @@
         });
 
         // Copy System Prompt logic
-        const syspromptMenu = panel.querySelector('#rt-sysprompt-menu');
-        const syspromptBtn = panel.querySelector('#rt-copy-sysprompt');
+        const syspromptMenu = /** @type {HTMLElement} */ (panel.querySelector('#rt-sysprompt-menu'));
+        const syspromptBtn = /** @type {HTMLElement} */ (panel.querySelector('#rt-copy-sysprompt'));
 
         syspromptBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2136,7 +2136,7 @@
 
         panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
             opt.addEventListener('click', async (e) => {
-                const fileName = e.currentTarget.getAttribute('data-file');
+                const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
                 try {
                     const response = await fetch(`scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
                     if (!response.ok) throw new Error(`Failed to fetch ${fileName}`);
@@ -2154,7 +2154,7 @@
 
         // Close menu when clicking outside
         window.addEventListener('click', (e) => {
-            if (syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(e.target) && e.target !== syspromptBtn) {
+            if (syspromptMenu && syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(/** @type {Node} */ (e.target)) && e.target !== syspromptBtn) {
                 syspromptMenu.style.display = 'none';
             }
         });
