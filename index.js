@@ -202,15 +202,15 @@
     };
 
     /**
-     * Event handler for MESSAGE_RECEIVED.
-     * Triggers the State Model pass after the Narrative Engine speaks.
+     * Event handler for GENERATION_ENDED.
+     * Triggers the State Model pass ONLY after the entire generation loop (including tool calls) finishes.
      */
-    async function onMessageReceived(messageId) {
+    async function onGenerationEnded() {
         const settings = getSettings();
         if (!settings.enabled || _stateModelRunning) return;
 
         const { chat } = SillyTavern.getContext();
-        const lastMsg = chat[messageId];
+        const lastMsg = chat[chat.length - 1];
 
         // ─── Filter out non-narrative messages ───
         // 1. Basic ST types
@@ -228,7 +228,10 @@
         // 3. Ignore messages with specialized extension metadata that usually shouldn't be parsed
         if (lastMsg.extra?.['summary'] || lastMsg.extra?.['is_summary'] || lastMsg.extra?.['summary_data']) return;
 
-        if (settings.debugMode) console.log("[RPG Tracker] Assistant message detected. Triggering State Model pass...");
+        // 4. Ignore messages that are explicitly tool calls/responses (if any slip through)
+        if (lastMsg.extra?.tool_calls || lastMsg.extra?.api_calls) return;
+
+        if (settings.debugMode) console.log("[RPG Tracker] Assistant generation ended. Triggering State Model pass...");
 
         runStateModelPass(mes);
     }
@@ -2740,7 +2743,10 @@
             console.error("[RPG Tracker] Failed to build settings UI", e);
         }
 
-        eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
+        // Hook into the end of the generation loop instead of message reception
+        // This prevents the state model from interrupting active Tool Calls or API loops
+        eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+        eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
 
         // Add wand button to toggle panel visibility
         addWandButton();

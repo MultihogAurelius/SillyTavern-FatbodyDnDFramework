@@ -2,6 +2,12 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.3.5] - 2026-04-27
+
+### Fixed
+- **Tool Calling Compatibility**: Resolved a critical issue where the tracker would interrupt and break SillyTavern's internal tool-calling sequences.
+  - Refactored the core event listener from `MESSAGE_RECEIVED` to `GENERATION_ENDED` (and `GENERATION_STOPPED`). The State Model will now patiently wait for the entire AI tool chain to finish before triggering an update, rather than firing in the "gaps" between tool execution steps.
+
 ## [1.3.4] - 2026-04-27
 
 ### Changed
