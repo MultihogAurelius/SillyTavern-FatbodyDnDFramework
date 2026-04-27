@@ -342,11 +342,10 @@
             if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
             if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
 
-            // ─── Strip Tool Call UI ───
-            // SillyTavern embeds tool calls and reasoning in <details> and <pre> blocks.
-            // These bloat the state model prompt and can confuse it.
-            mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
-            mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
+            // ─── Strip Tool Call UI & Thinking Tags ───
+            // SillyTavern embeds tool calls in <details> and <pre> blocks.
+            // Some models (DeepSeek, Gemini) also output internal <thought>, <reasoning>, or <thinking> tags.
+            mes = mes.replace(/<(details|pre|thought|reasoning|thinking)\b[^>]*>([\s\S]*?)<\/\1>/gi, '');
             mes = mes.trim();
 
             if (mes) {
