@@ -14,7 +14,7 @@ I wasn't satisfied with any of the commercial offerings available (AI Realm, AI 
 
 1. 🖥️ **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
 2. 🎲 **Hybrid RNG System** — A dual-engine approach to tabletop physics. 
-   - **RNG Queue (Combat)**: Pre-seeded deterministic dice injected into every turn for high-speed, zero-latency combat resolution.
+   - **RNG Queue (Combat)**: Pre-seeded deterministic dice injected into every turn for high-speed, zero-latency combat resolution, neatly within a single output.
    - **Tool Call RNG (Narrative)**: A proactive AI-driven rolling system for non-combat skill checks. Features a "Waterproof" commitment logic where the AI must declare a DC before seeing the result, preventing narrative sycophancy and cheating.
 3. 📜 **sysprompt.txt** — Required for the AI to understand the Hybrid RNG system, buff/temporal logic, resistance/vulnerability/immunity, level-up, and consistent output structure. Version 1.4.0 offers both the Modern (Hybrid) and Legacy (Queue-only) prompts via a toggle in the UI.
 
