@@ -1919,13 +1919,23 @@
             helpBtn.onclick = () => {
                 const { Popup } = SillyTavern.getContext();
                 const content = `
-                    <div style="text-align: left; line-height: 1.4;">
+                    <div style="text-align: left; line-height: 1.4; max-height: 70vh; overflow-y: auto; padding-right: 5px;">
                         <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
-                        <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast, fluid, and reliable because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
-                        <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI. Also good for handling combat scenarios in terms of complexity, which is also part of why I've opted to use it for combat specifically.</p>
+                        <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
+                        <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
                         
                         <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
-                        <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). Good for checks outside of combat because it prevents the AI "cheating," creating the situation to fit the roll it knows beforehand, rather than creating the outcome based on the roll.</p>
+                        <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
+                        <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
+                            <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
+                        </p>
+                        
+                        <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
+                        <p>Click the <b>SYSPROMPT</b> button in the bottom right of the UI to copy the appropriate logic for your character card:</p>
+                        <ul style="padding-left: 20px;">
+                            <li style="margin-bottom: 8px;"><b>Tool Call + Queue</b>: The modern hybrid system. Mandatory for the Tool Call RNG toggle to function.</li>
+                            <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
+                        </ul>
                     </div>
                 `;
                 Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
