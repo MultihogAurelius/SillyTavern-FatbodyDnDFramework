@@ -1196,6 +1196,19 @@
         max-width: 90vw;
         max-height: 40vh;
     }
+
+    .rpg-tracker-footer {
+        padding: 4px 6px !important;
+        gap: 4px !important;
+    }
+
+    .rt-rng-label-text {
+        display: none;
+    }
+    
+    #rpg-tracker-count {
+        display: none; /* Hide char count on small screens to save space */
+    }
 }
 
 /* ── Settings Module List ── */

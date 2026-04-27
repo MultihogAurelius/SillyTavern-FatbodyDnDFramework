@@ -1678,7 +1678,7 @@
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
                 </div>
                 <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Injection">
-                    <i class="fa-solid fa-dice"></i> RNG Physics Engine: <span id="rt-rng-status-text">OFF</span>
+                    <i class="fa-solid fa-dice"></i> <span class="rt-rng-label-text">RNG Physics Engine: </span><span id="rt-rng-status-text">OFF</span>
                 </button>
                 <div class="flex-container gap-1 alignitemscenter">
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
