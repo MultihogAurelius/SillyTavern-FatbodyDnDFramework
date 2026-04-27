@@ -1,3 +1,5 @@
+**⚠️ Important recent changes: https://www.youtube.com/watch?v=1n5x7VBJ0IU**
+
 **"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
 
 *A D&D-lite simulation engine for SillyTavern.*
