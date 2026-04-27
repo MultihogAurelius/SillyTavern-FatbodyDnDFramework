@@ -2,6 +2,21 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.4.0] - 2026-04-27
+
+### Added
+- **Hybrid RNG Architecture**: Introduced a dual-system approach to random number generation.
+  - **RNG Queue (Combat)**: Pre-rolled dice for speed and anti-sycophancy in structured play.
+  - **Tool Call RNG (Narrative)**: Reactive, AI-driven rolling for skill checks to prevent narrative "cheating."
+- **"Waterproof" Narrative Logic**: Mandatory `dc` (Difficulty Class) parameter enforced in the `RollTheDice` tool. The AI must now commit to a difficulty *before* seeing the roll result.
+- **Enhanced SYSPROMPT Selector**: Added a multi-version popup menu to the `SYSPROMPT` button, allowing users to choose between the **Modern (Hybrid)** and **Legacy (Queue-only)** system prompts.
+- **Dynamic Footer UI**: Completely refactored the footer buttons with an "Accordion Squeeze" responsive design that hides labels/text as the UI box is resized, rather than stacking vertically.
+- **Slash Commands**: Added `/roll` and `/r` commands for manual dice rolling via the command bar.
+
+### Fixed
+- **Core Stability**: Resolved a critical initialization crash in the UI core caused by a missing API provider in the slash command registration.
+- **Responsive Stacking**: Fixed a bug where footer buttons would stack vertically and misalign on narrow screens.
+
 ## [1.3.5] - 2026-04-27
 
 ### Fixed

@@ -9,8 +9,10 @@ I wasn't satisfied with any of the commercial offerings available (AI Realm, AI 
 ### The Fatbody D&D Framework involves three core components:
 
 1. 🖥️ **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
-2. :game_die: **Context Injection RNG** — Feeds a pre-seeded deterministic dice queue into every turn. More reliable than tool calls, zero-latency, and works seamlessly across combat and non-combat in the same context. Do anything in combat, be creative; there are no rigid constraints like dedicated combat modes have, but you are still impacted by the gravity of the dice and your stats/skills.
-3. :scroll: **sysprompt.txt** — Required for the AI to understand the RNG system, buff/temporal logic, resistance/vulnerability/immunity, level-up, and consistent output structure. Plug & play, but modify at will. Can also be copied from the UI.
+2. :game_die: **Hybrid RNG System** — A dual-engine approach to tabletop physics. 
+   - **RNG Queue (Combat)**: Pre-seeded deterministic dice injected into every turn for high-speed, zero-latency combat resolution.
+   - **Tool Call RNG (Narrative)**: A proactive AI-driven rolling system for non-combat skill checks. Features a "Waterproof" commitment logic where the AI must declare a DC before seeing the result, preventing narrative sycophancy.
+3. :scroll: **sysprompt.txt** — Required for the AI to understand the Hybrid RNG system, buff/temporal logic, resistance/vulnerability/immunity, level-up, and consistent output structure. Version 1.4.0 offers both the Modern (Hybrid) and Legacy (Queue-only) prompts via a toggle in the UI.
 
 Together they solve the two core problems of LLM tabletop RP: the AI forgets your inventory, spells, etc., and you always winning (aka. plot armor.) I have high confidence in the system's reliability, that you can just play and not worry about tinkering with much of anything.
 

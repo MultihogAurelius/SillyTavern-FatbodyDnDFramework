@@ -47,6 +47,7 @@
             renderedViewActive: true,
             maxTokens: 0,
             rngEnabled: true,
+            diceFunctionTool: true,
             systemPromptTemplate:
                 "You are the State Extractor Model. Your task is to maintain a structured State Memo based on the roleplay narrative.\n" +
                 "IGNORE NARRATIVE FLUFF: Do not track temporary dialogue or actions. Only track persistent state changes.\n" +
@@ -151,6 +152,122 @@
             });
         }
         return out;
+    }
+
+    /**
+     * Dice Rolling Implementation
+     */
+    async function doDiceRoll(customDiceFormula, quiet = false) {
+        const nullValue = { total: '', rolls: [] };
+        let value = typeof customDiceFormula === 'string' ? customDiceFormula.trim() : '1d20';
+
+        if (value === 'custom') {
+            const { Popup } = SillyTavern.getContext();
+            value = await Popup.show.input('Enter the dice formula:<br><i>(for example, <tt>2d6</tt>)</i>', '', 'Roll', 'Cancel');
+        }
+
+        if (!value) return nullValue;
+
+        const droll = SillyTavern.libs.droll;
+        if (!droll) {
+            toastr.error('Dice library (droll) not found.');
+            return nullValue;
+        }
+
+        const isValid = droll.validate(value);
+        if (isValid) {
+            const result = droll.roll(value);
+            if (!result) return nullValue;
+            if (!quiet) {
+                const context = SillyTavern.getContext();
+                context.sendSystemMessage('generic', `${context.name1} rolls a ${value}. The result is: ${result.total} (${result.rolls.join(', ')})`, { isSmallSys: true });
+            }
+            return { total: String(result.total), rolls: result.rolls.map(String) };
+        } else {
+            toastr.warning('Invalid dice formula');
+            return nullValue;
+        }
+    }
+
+    function registerDiceFunctionTool() {
+        try {
+            const ctx = SillyTavern.getContext();
+            const { registerFunctionTool, unregisterFunctionTool } = ctx;
+            if (!registerFunctionTool || !unregisterFunctionTool) return;
+
+            unregisterFunctionTool('RollTheDice');
+
+            const settings = getSettings();
+            if (!settings.diceFunctionTool) return;
+
+            const rollDiceSchema = {
+                type: 'object',
+                properties: {
+                    who: { type: 'string', description: 'The name of the persona rolling the dice' },
+                    formula: { type: 'string', description: 'A dice formula to roll, e.g. 1d20' },
+                    dc: { type: 'number', description: 'The Difficulty Class (DC) for this roll. Anchors the difficulty before the roll is made.' },
+                },
+                required: ['who', 'formula', 'dc'],
+            };
+
+            registerFunctionTool({
+                name: 'RollTheDice',
+                displayName: 'Dice Roll',
+                description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
+                parameters: rollDiceSchema,
+                action: async (args) => {
+                    const formula = args?.formula || '1d20';
+                    const dc = Number(args?.dc) || 0;
+                    const roll = await doDiceRoll(formula, true);
+                    const total = parseInt(roll.total) || 0;
+                    
+                    let result = args.who
+                        ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
+                        : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
+                    
+                    if (dc > 0) {
+                        result += ` (Result: ${total >= dc ? 'SUCCESS' : 'FAILURE'})`;
+                    }
+                    return result;
+                },
+                formatMessage: () => '',
+            });
+        } catch (error) {
+            console.error('[RPG Tracker] Error registering dice function tool', error);
+        }
+    }
+
+    function registerDiceSlashCommand() {
+        const { SlashCommand, SlashCommandParser, ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } = SillyTavern.getContext();
+        if (!SlashCommand || !SlashCommandParser) return;
+
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'roll',
+            aliases: ['r'],
+            callback: async (args, value) => {
+                const quiet = String(args.quiet) === 'true';
+                const result = await doDiceRoll(String(value || '1d20'), quiet);
+                return result.total;
+            },
+            helpString: 'Roll the dice.',
+            returns: 'roll result',
+            namedArgumentList: [
+                SlashCommandNamedArgument.fromProps({
+                    name: 'quiet',
+                    description: 'Do not display the result in chat',
+                    isRequired: false,
+                    typeList: [ARGUMENT_TYPE.BOOLEAN],
+                    defaultValue: 'false',
+                }),
+            ],
+            unnamedArgumentList: [
+                SlashCommandArgument.fromProps({
+                    description: 'dice formula, e.g. 2d6',
+                    isRequired: true,
+                    typeList: [ARGUMENT_TYPE.STRING],
+                }),
+            ],
+        }));
     }
     function buildRngBlock(queue) {
         const turnId = Date.now();
@@ -1678,13 +1795,27 @@
                     <span class="rpg-tracker-nav-label" id="rpg-tracker-nav-label">Live</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
                 </div>
-                <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Injection">
-                    <i class="fa-solid fa-dice"></i> <span class="rt-rng-label-text">RNG Physics Engine: </span><span id="rt-rng-status-text">OFF</span>
-                </button>
+                <div class="flex-container gap-1 alignitemscenter rt-rng-footer-group">
+                    <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Queue Injection">
+                        <i class="fa-solid fa-dice"></i> <span class="rt-rng-label-text">RNG Queue: </span><span id="rt-rng-status-text" class="rt-rng-status-text">OFF</span>
+                    </button>
+                    <button id="rt-dice-tool-toggle" class="rt-rng-toggle-overlay" title="Toggle Tool Call RNG">
+                        <i class="fa-solid fa-robot"></i> <span class="rt-rng-label-text">Tool Call RNG: </span><span id="rt-dice-tool-status-text" class="rt-rng-status-text">OFF</span>
+                    </button>
+                    <button id="rt-rng-help-btn" class="rt-rng-toggle-overlay" style="min-width: 20px; justify-content: center; padding: 2px 4px;" title="RNG Help">
+                        <i class="fa-solid fa-question-circle"></i>
+                    </button>
+                </div>
                 <div class="flex-container gap-1 alignitemscenter">
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
-                    <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt (sysprompt.txt)">SYSPROMPT</button>
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
+                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.4.0</b> (Tool Call + Queue)</button>
+                            <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
+                        </div>
+                        <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -1734,30 +1865,74 @@
             SillyTavern.getContext().saveSettingsDebounced();
         });
 
-        // ── RNG Toggle Logic ──
+        // ── RNG & Dice Toggle Logic ──
         const rngBtn = panel.querySelector('#rt-rng-toggle-overlay');
-        const syncRngUI = () => {
+        const diceToolBtn = panel.querySelector('#rt-dice-tool-toggle');
+
+        const syncFooterToggles = () => {
             const s = getSettings();
-            const text = panel.querySelector('#rt-rng-status-text');
-            if (text) text.textContent = s.rngEnabled ? 'ON' : 'OFF';
+            
+            // Sync RNG Engine
+            const rngText = panel.querySelector('#rt-rng-status-text');
+            if (rngText) rngText.textContent = s.rngEnabled ? 'ON' : 'OFF';
             if (rngBtn) {
                 if (s.rngEnabled) rngBtn.classList.add('active');
                 else rngBtn.classList.remove('active');
             }
-            const settingsCb = document.getElementById('rpg_tracker_rng_enabled');
-            if (settingsCb) /** @type {HTMLInputElement} */ (settingsCb).checked = s.rngEnabled;
+            const rngCb = document.getElementById('rpg_tracker_rng_enabled');
+            if (rngCb) /** @type {HTMLInputElement} */ (rngCb).checked = s.rngEnabled;
+
+            // Sync AI Dice Tool
+            const diceText = panel.querySelector('#rt-dice-tool-status-text');
+            if (diceText) diceText.textContent = s.diceFunctionTool ? 'ON' : 'OFF';
+            if (diceToolBtn) {
+                if (s.diceFunctionTool) diceToolBtn.classList.add('active');
+                else diceToolBtn.classList.remove('active');
+            }
+            const diceCb = document.getElementById('rpg_tracker_dice_function_tool');
+            if (diceCb) /** @type {HTMLInputElement} */ (diceCb).checked = s.diceFunctionTool;
         };
 
         if (rngBtn) {
-            rngBtn.addEventListener('click', () => {
+            rngBtn.onclick = () => {
                 const s = getSettings();
                 s.rngEnabled = !s.rngEnabled;
                 SillyTavern.getContext().saveSettingsDebounced();
-                syncRngUI();
-                toastr['info'](`RNG Physics Engine ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-            });
+                syncFooterToggles();
+                toastr['info'](`RNG Queue ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+            };
         }
-        syncRngUI();
+
+        if (diceToolBtn) {
+            diceToolBtn.onclick = () => {
+                const s = getSettings();
+                s.diceFunctionTool = !s.diceFunctionTool;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncFooterToggles();
+                registerDiceFunctionTool();
+                toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+            };
+        }
+
+        const helpBtn = panel.querySelector('#rt-rng-help-btn');
+        if (helpBtn) {
+            helpBtn.onclick = () => {
+                const { Popup } = SillyTavern.getContext();
+                const content = `
+                    <div style="text-align: left; line-height: 1.4;">
+                        <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
+                        <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast, fluid, and reliable because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
+                        <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI. Also good for handling combat scenarios in terms of complexity, which is also part of why I've opted to use it for combat specifically.</p>
+                        
+                        <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
+                        <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). Good for checks outside of combat because it prevents the AI "cheating," creating the situation to fit the roll it knows beforehand, rather than creating the outcome based on the roll.</p>
+                    </div>
+                `;
+                Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
+            };
+        }
+
+        syncFooterToggles();
 
         // View toggle (Raw ↔ Rendered)
         let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
@@ -1940,17 +2115,37 @@
         });
 
         // Copy System Prompt logic
-        panel.querySelector('#rt-copy-sysprompt').addEventListener('click', async () => {
-            try {
-                const response = await fetch(`scripts/extensions/third-party/${FOLDER_NAME}/sysprompt.txt`);
-                if (!response.ok) throw new Error('Failed to fetch sysprompt.txt');
-                const text = await response.text();
+        const syspromptMenu = panel.querySelector('#rt-sysprompt-menu');
+        const syspromptBtn = panel.querySelector('#rt-copy-sysprompt');
 
-                await navigator.clipboard.writeText(text);
-                toastr['success']("System Prompt copied to clipboard!", "Fatbody Framework");
-            } catch (err) {
-                console.error("[Fatbody Framework] Failed to copy system prompt:", err);
-                toastr['error']("Could not find sysprompt.txt. Make sure the extension is installed correctly.", "Fatbody Framework");
+        syspromptBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = syspromptMenu.style.display === 'flex';
+            syspromptMenu.style.display = isVisible ? 'none' : 'flex';
+        });
+
+        panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
+            opt.addEventListener('click', async (e) => {
+                const fileName = e.currentTarget.getAttribute('data-file');
+                try {
+                    const response = await fetch(`scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                    if (!response.ok) throw new Error(`Failed to fetch ${fileName}`);
+                    const text = await response.text();
+
+                    await navigator.clipboard.writeText(text);
+                    toastr['success'](`${fileName} copied to clipboard!`, "Fatbody Framework");
+                    syspromptMenu.style.display = 'none';
+                } catch (err) {
+                    console.error("[Fatbody Framework] Failed to copy system prompt:", err);
+                    toastr['error'](`Could not find ${fileName}.`, "Fatbody Framework");
+                }
+            });
+        });
+
+        // Close menu when clicking outside
+        window.addEventListener('click', (e) => {
+            if (syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(e.target) && e.target !== syspromptBtn) {
+                syspromptMenu.style.display = 'none';
             }
         });
 
@@ -2505,7 +2700,19 @@
                 ctx.saveSettingsDebounced();
             });
 
+            $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
+                settings.diceFunctionTool = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+                registerDiceFunctionTool();
+            });
 
+            // ─── Event Hooks ───
+            eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+            eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+
+            // ─── Dice System ───
+            registerDiceFunctionTool();
+            registerDiceSlashCommand();
 
             // Connection Settings
             const sourceSelect = $('#rpg_tracker_connection_source');
