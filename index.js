@@ -320,16 +320,25 @@
      * Triggers the State Model pass ONLY after the entire generation loop (including tool calls) finishes.
      */
     /**
-     * Helper to collect the full AI narrative since the last user message.
-     * Stitches together multi-part responses from tool call loops.
+     * Helper to collect AI narrative from the chat.
+     * @param {any[]} chat - The SillyTavern chat array.
+     * @param {number} limit - If -1, collects since last user message. Otherwise, collects N valid assistant blocks.
      */
-    function getNarrativeSinceLastUser(chat) {
+    function getNarrativeBlocks(chat, limit = -1) {
         if (!chat || chat.length === 0) return "";
         let narrativeBlocks = [];
+        let foundCount = 0;
 
         for (let i = chat.length - 1; i >= 0; i--) {
             const msg = chat[i];
-            if (msg.is_user) break;
+            
+            // Mode A: Stop at user message
+            if (limit === -1 && msg.is_user) break;
+            
+            // Mode B: Stop at limit
+            if (limit !== -1 && foundCount >= limit) break;
+
+            // Always skip system/hidden
             if (msg.is_system || /** @type {any} */ (msg).is_hidden) continue;
 
             let mes = (msg.mes || '').trim();
@@ -340,9 +349,6 @@
             if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
 
             // ─── Strip Tool Call & Thinking UI ───
-            // SillyTavern embeds tool calls and reasoning in <details> and <pre> blocks.
-            // Some models (DeepSeek, Gemini) also use internal <thought> or <reasoning> tags.
-            // These bloat the state model prompt and can cause "reasoning_content" errors on some APIs.
             mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
             mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
             mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
@@ -352,6 +358,7 @@
 
             if (mes) {
                 narrativeBlocks.unshift(mes);
+                foundCount++;
             }
         }
         return narrativeBlocks.join('\n\n');
@@ -362,7 +369,7 @@
         if (!settings.enabled || _stateModelRunning) return;
 
         const { chat } = SillyTavern.getContext();
-        const combinedNarrative = getNarrativeSinceLastUser(chat);
+        const combinedNarrative = getNarrativeBlocks(chat, -1);
 
         if (!combinedNarrative) return;
 
@@ -2048,14 +2055,25 @@
         });
 
         // Manual update from panel button
-        const manualUpdate = async (isFullContext = false) => {
-            const { chat } = SillyTavern.getContext();
-            const narrative = getNarrativeSinceLastUser(chat);
+        const manualUpdate = async (type = 'regular') => {
+            const { chat, Popup } = SillyTavern.getContext();
+            let narrative = "";
+            let isFullAudit = false;
 
-            if (!isFullContext && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+            if (type === 'regular') {
+                narrative = getNarrativeBlocks(chat, -1);
+            } else if (type === 'full') {
+                isFullAudit = true;
+            } else if (type === 'custom') {
+                const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
+                if (!count || isNaN(parseInt(count))) return;
+                narrative = getNarrativeBlocks(chat, parseInt(count));
+            }
 
-            toastr['info'](isFullContext ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
-            await runStateModelPass(narrative, isFullContext);
+            if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+
+            toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
+            await runStateModelPass(narrative, isFullAudit);
         };
 
         const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
@@ -2063,8 +2081,9 @@
         updateMenu.className = 'rt-update-menu';
         updateMenu.style.display = 'none';
         updateMenu.innerHTML = `
-            <div class="rt-menu-item" id="rt-update-regular"><b>Regular Update</b><small>Parses last message</small></div>
-            <div class="rt-menu-item" id="rt-update-full"><b>Full Context Audit</b><small>Re-examines history</small></div>
+            <div class="rt-menu-item" id="rt-update-regular"><b>Regular Update</b><small>Since last user message</small></div>
+            <div class="rt-menu-item" id="rt-update-custom"><b>Lookback Update</b><small>Last N messages</small></div>
+            <div class="rt-menu-item" id="rt-update-full"><b>Full Context Audit</b><small>Re-examine whole history</small></div>
         `;
         panel.appendChild(updateMenu);
 
@@ -2090,12 +2109,13 @@
             }
         });
 
-        updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate(false));
-        updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate(true));
+        updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate('regular'));
+        updateMenu.querySelector('#rt-update-custom').addEventListener('click', () => manualUpdate('custom'));
+        updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate('full'));
 
         // Link the settings button too if it's already rendered
         // For settings button, we'll keep it simple or just trigger regular
-        $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate(false));
+        $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate('regular'));
 
         // Snapshot navigation
         panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));

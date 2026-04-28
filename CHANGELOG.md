@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.4.4] - 2026-04-28
+
+### Added
+- **Lookback Update Option**: Added a third manual update mode that allows users to specify exactly how many past assistant turns to parse. This is useful for summarizing multi-turn dialogue or complex narrative sequences without a full context audit.
+
 ## [1.4.3] - 2026-04-27
 
 ### Fixed
