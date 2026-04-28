@@ -2,6 +2,13 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.5.1] - 2026-04-28
+
+### Fixed
+- **Detached UI Scrolling**: Fixed an issue where undocked panels (Combat, Party, etc.) would not allow internal scrolling.
+- **Resize Handle Conflict**: Resolved a bug where grabbing the resize handle on detached windows would trigger the scrollbar track.
+- **Content Overflow**: Optimized card layout within detached panels to ensure proper scroll-height calculation for large entity lists.
+
 ## [1.5.0] - 2026-04-28
 
 ### Added

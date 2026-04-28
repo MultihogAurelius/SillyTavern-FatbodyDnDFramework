@@ -1148,6 +1148,29 @@
     background: transparent;
 }
 
+.rt-detached-panel .rt-section-body,
+.rpg-tracker-detached-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: scroll !important;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    padding-bottom: 18px; /* Buffer for resize handle */
+}
+
+/* Allow content to flow freely inside detached panels so it can overflow and scroll */
+.rpg-tracker-detached-body .rt-section-card {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+.rpg-tracker-detached-body .rt-section-body {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
 .rt-detached-panel .rt-section-header {
     display: none; /* Hide internal header, use window header instead */
 }
