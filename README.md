@@ -1,4 +1,4 @@
-**💬 Important recent changes. Check out the v1.4.0 patch notes under releases.**
+**💬 Important recent changes. Check out the [v.1.4.0 patch notes](https://github.com/MultihogAurelius/SillyTavern-FatbodyDnDFramework/releases/tag/v1.4.0) under releases.**
 
 ---
 
