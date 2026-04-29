@@ -1402,15 +1402,61 @@
 }
 
 /* ── Mobile Layout Fixes ── */
+.rt-footer-toggle-btn {
+    display: none; /* Hide on desktop */
+}
+
 @media (max-width: 600px) {
+    /* Make the panel taller on mobile — cover more screen */
+    .rpg-tracker-panel {
+        top: 40px !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 70vh !important;
+        border-radius: 0 !important;
+    }
+
     .rpg-tracker-footer {
         flex-direction: column !important;
-        gap: 6px !important;
-        padding: 8px 4px !important;
+        gap: 0 !important;
+        padding: 4px !important;
         height: auto !important;
     }
 
-    /* Hide character count on mobile to save space */
+    .rt-footer-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        border: none;
+        color: var(--rt-accent);
+        font-size: 14px;
+        padding: 4px 8px;
+        cursor: pointer;
+        opacity: 0.7;
+    }
+
+    /* Hide drawer sections by default on mobile */
+    .rpg-tracker-footer .rt-rng-footer-group,
+    .rpg-tracker-footer .rt-utility-footer-group {
+        display: none !important;
+    }
+
+    /* Show drawer sections when expanded */
+    .rpg-tracker-footer.rt-footer-expanded .rt-rng-footer-group,
+    .rpg-tracker-footer.rt-footer-expanded .rt-utility-footer-group {
+        display: flex !important;
+        width: 100%;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        padding: 0 8px;
+        box-sizing: border-box;
+    }
+
+    /* Hide character count on mobile */
     #rpg-tracker-count {
         display: none !important;
     }
@@ -1420,34 +1466,42 @@
         display: none !important;
     }
 
-    .rt-rng-footer-group {
-        width: 100%;
-        justify-content: space-around;
-        gap: 4px !important;
-    }
-
-    .rt-rng-toggle-overlay {
-        flex: 1;
-        justify-content: center;
-        padding: 6px 2px !important;
+    /* RNG buttons: don't stretch, stay compact */
+    .rpg-tracker-footer .rt-rng-toggle-overlay {
+        flex: 0 0 auto !important;
+        padding: 6px 10px !important;
         font-size: 10px !important;
         min-height: 28px;
     }
 
-    #rt-rng-help-btn {
-        flex: 0 0 40px !important;
-        min-width: 40px !important;
+    /* ? button in utility row */
+    .rt-utility-footer-group #rt-rng-help-btn {
+        margin-left: auto !important;
     }
 
-    /* Stack the nav and utility groups */
-    .rpg-tracker-nav {
+    /* Top row: toggle + centered nav */
+    .rt-mobile-top-row {
         width: 100%;
-        justify-content: center;
+        display: flex;
+        align-items: center;
     }
 
-    .rpg-tracker-footer .flex-container:last-child {
-        width: 100%;
+    .rt-mobile-top-row::after {
+        content: '';
+        flex: 0 0 auto;
+        width: 28px;
+    }
+
+    .rt-mobile-top-row .rt-footer-toggle-btn {
+        flex: 0 0 auto;
+    }
+
+    .rt-mobile-top-row .rpg-tracker-nav {
+        flex: 1;
+        display: flex;
         justify-content: center;
+        align-items: center;
+        gap: 8px;
     }
 }
 

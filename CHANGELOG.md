@@ -2,7 +2,12 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [1.5.3] - 2026-04-29
+## [1.5.4] - 2026-04-29
+
+### Added
+- **Full-Screen Mobile Support**: The tracker now expands to cover the screen on mobile, optimizing space.
+- **Button Alignment Fixes**: Centered all navigation and RNG buttons, ensuring they align vertically and horizontally.
+- **Settings Drawer Refinement**: Polished the collapsible footer to keep settings accessible but out of the way.
 
 ### Added
 - **Mobile UI Optimization**: Implemented responsive CSS for mobile devices (max-width 600px).

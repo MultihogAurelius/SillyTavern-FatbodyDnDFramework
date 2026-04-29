@@ -1897,11 +1897,14 @@
                 <textarea class="rpg-tracker-prompt-input" id="rpg-tracker-prompt-input" rows="2" placeholder="Instruct the tracker model… (Enter to send, Shift+Enter for newline)"></textarea>
                 <button class="rpg-tracker-prompt-send" id="rpg-tracker-prompt-send" title="Send instruction">▶</button>
             </div>
-            <div class="rpg-tracker-footer">
-                <div class="rpg-tracker-nav">
-                    <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-back" title="View previous snapshot">←</button>
-                    <span class="rpg-tracker-nav-label" id="rpg-tracker-nav-label">Live</span>
-                    <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
+            <div class="rpg-tracker-footer" id="rt-main-footer">
+                <div class="rt-mobile-top-row">
+                    <button class="rt-footer-toggle-btn" id="rt-footer-expand-btn" title="Toggle Settings Drawer"><i class="fa-solid fa-chevron-up"></i></button>
+                    <div class="rpg-tracker-nav">
+                        <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-back" title="View previous snapshot">←</button>
+                        <span class="rpg-tracker-nav-label" id="rpg-tracker-nav-label">Live</span>
+                        <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
+                    </div>
                 </div>
                 <div class="flex-container gap-1 alignitemscenter rt-rng-footer-group">
                     <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Queue Injection">
@@ -1910,11 +1913,8 @@
                     <button id="rt-dice-tool-toggle" class="rt-rng-toggle-overlay" title="Toggle Tool Call RNG">
                         <i class="fa-solid fa-robot"></i> <span class="rt-rng-label-text">Tool Call RNG: </span><span id="rt-dice-tool-status-text" class="rt-rng-status-text">OFF</span>
                     </button>
-                    <button id="rt-rng-help-btn" class="rt-rng-toggle-overlay" style="min-width: 20px; justify-content: center; padding: 2px 4px;" title="RNG Help">
-                        <i class="fa-solid fa-question-circle"></i>
-                    </button>
                 </div>
-                <div class="flex-container gap-1 alignitemscenter">
+                <div class="flex-container gap-1 alignitemscenter rt-utility-footer-group">
                     <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
@@ -1924,6 +1924,9 @@
                         </div>
                         <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
                     </div>
+                    <button id="rt-rng-help-btn" class="rt-rng-toggle-overlay" style="min-width: 20px; justify-content: center; padding: 2px 4px; margin-left: auto;" title="RNG Help">
+                        <i class="fa-solid fa-question-circle"></i>
+                    </button>
                 </div>
             </div>
         `;
@@ -2035,11 +2038,11 @@
                         <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
                         <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
                         <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
-                            <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work. If tool calls are unreliable with your model, try disabling <b>Streaming</b>.
+                            <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
                         </p>
                         
                         <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
-                        <p>Click the <b>SYSPROMPT</b> button in the bottom right of the UI to copy the appropriate logic for your character card:</p>
+                        <p>Click the <b>SYSPROMPT</b> button in the bottom right of the UI to copy the appropriate system prompt for your chosen RNG/dice rolling method:</p>
                         <ul style="padding-left: 20px;">
                             <li style="margin-bottom: 8px;"><b>Tool Call + Queue</b>: The modern hybrid system. Mandatory for the Tool Call RNG toggle to function.</li>
                             <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
@@ -2204,6 +2207,22 @@
         // Snapshot navigation
         panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
         panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
+
+        // Footer Expand/Collapse (Mobile)
+        panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
+            const footer = document.getElementById('rt-main-footer');
+            if (footer) {
+                footer.classList.toggle('rt-footer-expanded');
+                const icon = footer.querySelector('#rt-footer-expand-btn i');
+                if (icon) {
+                    if (footer.classList.contains('rt-footer-expanded')) {
+                        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                    } else {
+                        icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                    }
+                }
+            }
+        });
 
         // Restore via label click
         panel.querySelector('#rpg-tracker-nav-label').addEventListener('click', () => {
