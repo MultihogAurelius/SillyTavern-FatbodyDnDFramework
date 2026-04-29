@@ -2,7 +2,13 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [1.5.1] - 2026-04-28
+## [1.5.2] - 2026-04-29
+
+### Changed
+- **Initiative System**: Shifted pre-combat initiative rolls from the RNG Queue to the Tool Call system for better narrative integration.
+- **Resting Rules**: Reduced the Long Rest cooldown to 9 hours and implemented a d20-based interruption check for resting in dangerous locations.
+- **RNG Queue Constraint**: Strictly isolated the RNG Queue to active combat actions only.
+- **Prompt Synchronization**: Updated the legacy fallback prompt to maintain parity with the latest system rules.
 
 ### Fixed
 - **Detached UI Scrolling**: Fixed an issue where undocked panels (Combat, Party, etc.) would not allow internal scrolling.
