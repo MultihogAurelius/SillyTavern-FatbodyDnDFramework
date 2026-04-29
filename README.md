@@ -20,7 +20,15 @@ I wasn't satisfied with any of the commercial offerings available (AI Realm, AI 
 
 Together they solve the two core problems of LLM tabletop RP: the AI forgets your inventory/spells, and you always winning (aka. plot armor). I have high confidence in the system's reliability—you can just play and not worry about tinkering with much of anything.
 
+---
+
 ⚠️ **Updating?** Reset all prompts to default in settings or they won't update. Also apply the new `sysprompt.txt` into Quick Prompts Edit "Main."
+
+<img width="228" height="133" alt="image" src="https://github.com/user-attachments/assets/cf5e5cab-c4c9-413c-9b20-ff601c9e82fc" />
+
+<img width="206" height="195" alt="image" src="https://github.com/user-attachments/assets/da85ac09-bdd2-4f28-a6c7-3af8b732b710" />
+
+---
 
 ⚠️ **NOTE: if you close the UI window, it can be reopened from the wand menu.**
 
