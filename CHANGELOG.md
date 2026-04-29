@@ -2,7 +2,10 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [1.5.4] - 2026-04-29
+## [1.5.5] - 2026-04-29
+
+### Fixed
+- **Mobile Prompt Access**: Embedded system prompts directly into the code and implemented an HTTP-compatible clipboard fallback. This ensures the SYSPROMPT button works on mobile/Termux environments where local file fetching and modern clipboard APIs are often restricted.
 
 ### Added
 - **Full-Screen Mobile Support**: The tracker now expands to cover the screen on mobile, optimizing space.
