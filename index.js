@@ -25,7 +25,7 @@
         abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.\n\nExample:\n[ABILITIES]\n- Second Wind (1/1, Regain 1d10+4 HP)\n- Combat Superiority (2/4, d8 dice)\n[/ABILITIES]`,
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
         time: "Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.\n\n'Last Rest' is ONLY triggered on Long Rest, NOT Short Rest. If the [TIME] delta between PREVIOUS STATE MEMO and your current update is only an hour, it is a Short Rest.",
-        xp: "Track character experience points. Use this format:\n[XP]\nTotal: 1,200 / 2,700 XP (Level 3)\n[/XP]",
+        xp: "Track character experience points. Use this format:\n[XP]\nLevel: 3 | XP: 1,200/2,700\n[/XP]",
     };
 
     // System prompts embedded directly for mobile/Termux compatibility (no fetch needed)
@@ -1811,19 +1811,38 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             }
             case 'XP':
                 return lines.map(line => {
-                    const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*([\d,]+)\/([\d,]+)/i);
-                    if (!xpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                    const [, level, curRaw, maxRaw] = xpMatch;
-                    const cur = Number(curRaw.replace(/,/g, ''));
-                    const max = Number(maxRaw.replace(/,/g, ''));
-                    const pct = Math.max(0, Math.min(100, (cur / max) * 100));
-                    const levelHtml = level ? `<span>Level ${level}</span>` : '';
-                    return `<div class="rt-xp-row">
-                        <div class="rt-xp-label">${levelHtml}<span>XP: ${curRaw} / ${maxRaw}</span></div>
-                        <div class="rt-xp-bar-wrap">
-                            <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
-                        </div>
-                    </div>`;
+                    // New format: Total: 1,200 / 2,700 XP (Level 3)
+                    let m = line.match(/Total:\s*([\d,]+)\s*\/\s*([\d,]+)\s*XP\s*\(Level\s*(\d+)\)/i);
+                    if (m) {
+                        const [, curRaw, maxRaw, level] = m;
+                        const cur = Number(curRaw.replace(/,/g, ''));
+                        const max = Number(maxRaw.replace(/,/g, ''));
+                        const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+                        return `<div class="rt-xp-row">
+                            <div class="rt-xp-label"><span>Level ${level}</span><span>XP: ${curRaw} / ${maxRaw}</span></div>
+                            <div class="rt-xp-bar-wrap">
+                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
+                            </div>
+                        </div>`;
+                    }
+
+                    // Legacy format: XP: 1,200/2,700 or Level: 3 | XP: 1,200/2,700
+                    m = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*([\d,]+)\/([\d,]+)/i);
+                    if (m) {
+                        const [, level, curRaw, maxRaw] = m;
+                        const cur = Number(curRaw.replace(/,/g, ''));
+                        const max = Number(maxRaw.replace(/,/g, ''));
+                        const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+                        const levelHtml = level ? `<span>Level ${level}</span>` : '';
+                        return `<div class="rt-xp-row">
+                            <div class="rt-xp-label">${levelHtml}<span>XP: ${curRaw} / ${maxRaw}</span></div>
+                            <div class="rt-xp-bar-wrap">
+                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
+                            </div>
+                        </div>`;
+                    }
+
+                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
                 });
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
