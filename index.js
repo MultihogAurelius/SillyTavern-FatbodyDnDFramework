@@ -2308,7 +2308,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     </button>
                 </div>
                 <div class="flex-container gap-1 alignitemscenter rt-utility-footer-group">
-                    <span id="rpg-tracker-count">chars: ${settings.currentMemo.length}</span>
+                    <span id="rpg-tracker-count">~${Math.round(settings.currentMemo.length / 2.62)} tokens</span>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
@@ -2365,7 +2365,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         textarea.addEventListener('input', (e) => {
             if (_historyViewIndex !== -1) return;
             settings.currentMemo = /** @type {HTMLTextAreaElement} */ (e.target).value;
-            panel.querySelector('#rpg-tracker-count').textContent = `chars: ${settings.currentMemo.length}`;
+            panel.querySelector('#rpg-tracker-count').textContent = `~${Math.round(settings.currentMemo.length / 2.62)} tokens`;
             SillyTavern.getContext().saveSettingsDebounced();
         });
 
@@ -2727,7 +2727,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             navLabel.title = 'Current Live State';
             btnBack.disabled = histLen === 0;
             btnFwd.disabled = true;
-            if (counter) counter.textContent = `chars: ${s.currentMemo.length}`;
+            if (counter) counter.textContent = `~${Math.round(s.currentMemo.length / 2.62)} tokens`;
         } else {
             // Snapshot view
             const snapshot = s.memoHistory[_historyViewIndex];
@@ -2738,7 +2738,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             navLabel.title = 'Click to RESTORE this snapshot to Live';
             btnBack.disabled = _historyViewIndex >= histLen - 1;
             btnFwd.disabled = false; // can always navigate forward toward Live
-            if (counter) counter.textContent = `chars: ${(snapshot ?? '').length}`;
+            if (counter) counter.textContent = `~${Math.round((snapshot ?? '').length / 2.62)} tokens`;
         }
         refreshRenderedView();
     }
@@ -2835,7 +2835,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
         if (textarea) textarea.value = text;
         const counter = document.getElementById('rpg-tracker-count');
-        if (counter) counter.textContent = `chars: ${text.length}`;
+        if (counter) counter.textContent = `~${Math.round(text.length / 2.62)} tokens`;
     }
 
     function updateStatusIndicator(state) {
