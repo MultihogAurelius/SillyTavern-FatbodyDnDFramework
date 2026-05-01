@@ -373,9 +373,9 @@ LEVEL-UP PROCEDURE — triggers whenever XP crosses a threshold mid-output:
 NEVER auto-resolve a level-up choice. NEVER narrate past a level-up until the player has responded.
 
 [If ASI/Feat choice]:
-Present 4–6 feats that are thematically or mechanically relevant 
-to this character's class and playstyle. Briefly describe each 
-in one line. Always include a "other — name a feat" option so 
+Present 4–6 feats that are thematically or mechanically relevant
+to this character's class and playstyle. Briefly describe each
+in one line. Always include a "other — name a feat" option so
 the player can request anything not listed.
 
 **👥 PARTY SYNC:**
@@ -462,70 +462,86 @@ Declare their COMBAT PROFILE immediately:
             rngEnabled: true,
             diceFunctionTool: true,
             systemPromptTemplate:
-                "You are the State Extractor Model. Your task is to maintain a structured State Memo based on the roleplay narrative.\n" +
-                "<core_directives>\n" +
-                "IGNORE NARRATIVE FLUFF: Do not track temporary dialogue or actions. Only track persistent state changes.\n" +
-                "INTEGRATION: Track all durations stated by the narrative (e.g. 'poisoned for 3 turns'). Decrement by 1 each round in [COMBAT]. For out-of-combat durations, calculate the delta between the current [TIME] and the [TIME] in the PRIOR MEMO.\n" +
-                "CREATION: You MAY create a section that did not exist in the Prior Memo when the narrative warrants it based on your enabled modules.\n" +
-                "DELETION: To REMOVE a section entirely, you MUST output: `[TAG]REMOVED[/TAG]`.\n" +
-                "</core_directives>\n\n" +
-                "<modules>\n" +
-                "You must track the following enabled modules:\n" +
-                "{{modulesText}}\n" +
-                "</modules>\n\n" +
-                "<list_formatting>\n" +
-                "For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):\n" +
-                "1. Use a bulleted list with `-`.\n" +
-                "2. Format: `- Name (Resource/Max, Effect Description)`.\n" +
-                "3. If no resource tracker is needed, use: `- Name (Effect Description)`.\n" +
-                "4. The parentheses MUST contain the resource count FIRST, followed by a comma, then the description.\n" +
-                "</list_formatting>\n\n" +
-                "<rules>\n" +
-                "1. Read the PRIOR MEMO and the NARRATIVE OUTPUT carefully.\n" +
-                "2. Determine which sections changed. Only output sections that actually changed.\n" +
-                "3. Use strict [TAG]...[/TAG] structure based on the modules requested above. ALWAYS include the closing tag.\n" +
-                "4. Omit unchanged sections entirely. Do NOT output a section if its contents did not change.\n" +
-                "5. BLOCK PERSISTENCE: For list-based sections ([PARTY], [INVENTORY], [ABILITIES], [SPELLS], [COMBAT]), if any single item within that section changes, you MUST re-output the ENTIRE section containing all items. Never omit existing members or items unless they are explicitly logically removed.\n" +
-                "6. If there are absolutely NO CHANGES to any section, you MUST output exactly: `NO_CHANGES_DETECTED`\n" +
-                "7. Output ONLY the changed sections (or NO_CHANGES_DETECTED). No preamble, no explanation, no commentary.\n" +
-                "</rules>\n\n" +
-                "<formatting_examples>\n" +
-                "   [TIME]\n" +
-                "   8:43 AM, Day 1\n" +
-                "   [/TIME]\n\n" +
-                "   [CHARACTER]\n" +
-                "   Eliel: 8/8 HP | AC: 12\n" +
-                "   Level 1 | STR 8, DEX 14, CON 14\n" +
-                "   Saves: Fort +4 | Ref +2 | Will -1\n" +
-                "   [/CHARACTER]\n\n" +
-                "   [ABILITIES]\n" +
-                "   - Second Wind (1/1, Regain 1d10+4 HP)\n" +
-                "   - Combat Superiority (2/4, d8 dice)\n" +
-                "   - Darkvision (60ft range)\n" +
-                "   [/ABILITIES]\n\n" +
-                "   [COMBAT]\n" +
-                "   Combat Round 1\n" +
-                "   Goblin: 7/7 HP | AC: 15 | Saves: Fort +1, Ref +2, Will +0 | Status: Healthy\n" +
-                "   [/COMBAT]\n\n" +
-                "   [XP]\n" +
-                "   Level: 1 | XP: 100/300\n" +
-                "   [/XP]\n" +
-                "</formatting_examples>\n\n" +
-                "<combat_logic>\n" +
-                "1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n" +
-                "2. If an entity dies in combat, output it as 0/X HP, for example \"Shambling Corpse B (Fodder): 0/9 HP | AC: 10,\" do not omit it completely from the next state.\n" +
-                "</combat_logic>\n\n" +
-                "<buff_debuff_logic>\n" +
-                "Duration Tracking: Record all durations explicitly. Use turns for combat (e.g., for 3 turns) and H:M for narrative time (e.g., 1h 30m).\n" +
-                "Restoration Anchors: When a buff or debuff modifies a base statistic (AC, Attributes, etc.), record the base value directly in the respective field—e.g., 'AC 18 (base 13)'.\n" +
-                "Status Formatting: Output the buff/debuff in the Status line with its absolute mathematical effect in parentheses. Example: 'Shield (+5 AC, 1 turn)'.\n" +
-                "Auto-Reversion: During each State Sync, check if a duration has expired. If it has, use the modifier in the Status line to reverse the math on the base statistic (e.g., subtracting the +5 AC), restore the field, and remove the buff from the list.\n" +
-                "Conditional Buffs: For effects without a set time, use event-based anchors. Example: 'Exhaustion (Disadvantage on Ability Checks, until Long Rest)'.\n" +
-                "STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive status effects (buffs) with `(+)` and negative status effects (debuffs) with `(-)`. Every status MUST include its effect AND duration in parentheses. Example: `Status: (+) Heroism (+2 Temp HP per turn, 9 turns), (-) Poisoned (Disadvantage on attacks, 2 turns)`. Healthy or no effects needs no prefix.\n" +
-                "</buff_debuff_logic>\n\n" +
-                "<progression_logic>\n" +
-                "Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus increasing to 2d6, etc.\n" +
-                "</progression_logic>",
+                `You are the State Extractor Model. Your task is to maintain a structured State Memo based on the roleplay narrative.
+<core_directives>
+IGNORE NARRATIVE FLUFF: Do not track temporary dialogue or actions. Only track persistent state changes.
+INTEGRATION: Track all durations stated by the narrative (e.g. 'poisoned for 3 turns'). Decrement by 1 each round in [COMBAT]. For out-of-combat durations, calculate the delta between the current [TIME] and the [TIME] in the PRIOR MEMO.
+CREATION: You MAY create a section that did not exist in the Prior Memo when the narrative warrants it based on your enabled modules.
+DELETION: To REMOVE a section entirely, you MUST output: \`[TAG]REMOVED[/TAG]\`.
+</core_directives>
+
+<modules>
+You must track the following enabled modules:
+{{modulesText}}
+</modules>
+
+<list_formatting>
+For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):
+1. Use a bulleted list with \`-\`.
+2. Format: \`- Name (Resource/Max, Effect Description)\`.
+3. If no resource tracker is needed, use: \`- Name (Effect Description)\`.
+4. The parentheses MUST contain the resource count FIRST, followed by a comma, then the description.
+</list_formatting>
+
+<rules>
+1. Read the PRIOR MEMO and the NARRATIVE OUTPUT carefully.
+2. Determine which sections changed. Only output sections that actually changed.
+3. Use strict [TAG]...[/TAG] structure based on the modules requested above. ALWAYS include the closing tag.
+4. Omit unchanged sections entirely. Do NOT output a section if its contents did not change.
+5. BLOCK PERSISTENCE: For list-based sections ([PARTY], [INVENTORY], [ABILITIES], [SPELLS], [COMBAT]), if any single item within that section changes, you MUST re-output the ENTIRE section containing all items. Never omit existing members or items unless they are explicitly logically removed.
+6. If there are absolutely NO CHANGES to any section, you MUST output exactly: \`NO_CHANGES_DETECTED\`
+7. Output ONLY the changed sections (or NO_CHANGES_DETECTED). No preamble, no explanation, no commentary.
+</rules>
+
+<formatting_examples>
+[TIME]
+9:43 AM, Day 1
+Last Rest: 1:15 AM, Day 1
+[/TIME]
+
+[CHARACTER]
+Eliel: 8/8 HP | AC: 12 (base 9)
+Level 1 | STR 8, DEX 14, CON 14
+Saves: Fort +4 | Ref +2 | Will -1
+Status: (+) Mage Armor (+3 AC, 2h 38m)
+[/CHARACTER]
+
+[ABILITIES]
+- Second Wind (1/1, Regain 1d10+4 HP)
+- Combat Superiority (2/4, d8 dice)
+- Darkvision (60ft range)
+[/ABILITIES]
+
+[COMBAT]
+Goblin: 15/15 HP
+Att/def: Spear (+0 / 1d5+1 Piercing) | Hide Armor (AC: 10)
+Saves: Fort +1, Ref +1, Will -2
+Other: Trait1 (description), Trait2 (description)
+Status: (-) Bleeding (-2 HP/turn, 3 turns)
+[/COMBAT]
+
+[XP]
+Level: 1 | XP: 100/300
+[/XP]
+</formatting_examples>
+
+<combat_logic>
+1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.
+2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.
+</combat_logic>
+
+<buff_debuff_logic>
+Duration Tracking: Record all durations explicitly. Use turns for combat (e.g., for 3 turns) and H:M for narrative time (e.g., 1h 30m).
+Restoration Anchors: When a buff or debuff modifies a base statistic (AC, Attributes, etc.), record the base value directly in the respective field—e.g., 'AC 18 (base 13)'.
+Status Formatting: Output the buff/debuff in the Status line with its absolute mathematical effect in parentheses. Example: 'Shield (+5 AC, 1 turn)'.
+Auto-Reversion: During each State Sync, check if a duration has expired. If it has, use the modifier in the Status line to reverse the math on the base statistic (e.g., subtracting the +5 AC), restore the field, and remove the buff from the list.
+Conditional Buffs: For effects without a set time, use event-based anchors. Example: 'Exhaustion (Disadvantage on Ability Checks, until Long Rest)'.
+STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive status effects (buffs) with \`(+)\` and negative status effects (debuffs) with \`(-)\`. Every status MUST include its effect AND duration in parentheses. Example: \`Status: (+) Heroism (+2 Temp HP per turn, 9 turns), (-) Poisoned (Disadvantage on attacks, 2 turns)\`. Healthy or no effects needs no prefix.
+</buff_debuff_logic>
+
+<progression_logic>
+Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus increasing to 2d6, etc.
+</progression_logic>`,
             modules: {
                 character: true,
                 party: true,
@@ -656,11 +672,11 @@ Declare their COMBAT PROFILE immediately:
                     const dc = Number(args?.dc) || 0;
                     const roll = await doDiceRoll(formula, true);
                     const total = parseInt(roll.total) || 0;
-                    
+
                     let result = args.who
                         ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
                         : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
-                    
+
                     if (dc > 0) {
                         result += ` (Result: ${total >= dc ? 'SUCCESS' : 'FAILURE'})`;
                     }
@@ -767,10 +783,10 @@ Declare their COMBAT PROFILE immediately:
 
         for (let i = chat.length - 1; i >= 0; i--) {
             const msg = chat[i];
-            
+
             // Mode A: Stop at user message
             if (limit === -1 && msg.is_user) break;
-            
+
             // Mode B: Stop at limit
             if (limit !== -1 && foundCount >= limit) break;
 
@@ -950,7 +966,7 @@ Declare their COMBAT PROFILE immediately:
     function deduplicateMemo(memo) {
         if (!memo) return "";
         const settings = getSettings();
-        
+
         // Find all tags in the string
         const tagRegex = /\[([A-Z_]+)\]/gi;
         const tags = new Set();
@@ -967,14 +983,14 @@ Declare their COMBAT PROFILE immediately:
 
             if (blocks.length > 1) {
                 if (settings.debugMode) console.warn(`[RPG Tracker] Deduplication: Found ${blocks.length} instances of [${tag}]. Keeping the last one.`);
-                
+
                 // Remove all instances of the tag
                 cleanedMemo = cleanedMemo.replace(pattern, "---DEDUP_MARKER---");
-                
+
                 // Put back only the last one
                 const lastBlock = blocks[blocks.length - 1][0];
-                
-                // We use a temporary marker to avoid double-replacing if the tag content 
+
+                // We use a temporary marker to avoid double-replacing if the tag content
                 // accidentally contains its own tag name.
                 const split = cleanedMemo.split("---DEDUP_MARKER---");
                 cleanedMemo = split.join("").trim() + "\n\n" + lastBlock;
@@ -1478,7 +1494,7 @@ Declare their COMBAT PROFILE immediately:
             const m = displayText.match(/^(.+?)\s*\((.+)\)$/);
             if (m) {
                 const [, name, desc] = m;
-                
+
                 // Extract resource count if present (e.g., "2/3")
                 let iconHtml = '';
                 const resourceMatch = desc.match(/(\d+)\s*\/\s*(\d+)/);
@@ -2395,7 +2411,7 @@ Declare their COMBAT PROFILE immediately:
 
         const syncFooterToggles = () => {
             const s = getSettings();
-            
+
             // Sync RNG Engine
             const rngText = panel.querySelector('#rt-rng-status-text');
             if (rngText) rngText.textContent = s.rngEnabled ? 'ON' : 'OFF';
@@ -2447,13 +2463,13 @@ Declare their COMBAT PROFILE immediately:
                         <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
                         <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
                         <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
-                        
+
                         <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
                         <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
                         <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
                             <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
                         </p>
-                        
+
                         <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
                         <p>Click the <b>SYSPROMPT</b> button in the bottom right of the UI to copy the appropriate system prompt for your chosen RNG/dice rolling method:</p>
                         <ul style="padding-left: 20px;">
@@ -2592,7 +2608,7 @@ Declare their COMBAT PROFILE immediately:
             const isVisible = updateMenu.style.display !== 'none';
 
             // Close all other menus possibly
-            document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */ (m).style.display = 'none');
+            document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */(m).style.display = 'none');
 
             if (!isVisible) {
                 const rect = updateBtn.getBoundingClientRect();
@@ -2709,7 +2725,7 @@ Declare their COMBAT PROFILE immediately:
 
         // Close menu when clicking outside
         window.addEventListener('click', (e) => {
-            if (syspromptMenu && syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(/** @type {Node} */ (e.target)) && e.target !== syspromptBtn) {
+            if (syspromptMenu && syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(/** @type {Node} */(e.target)) && e.target !== syspromptBtn) {
                 syspromptMenu.style.display = 'none';
             }
         });
@@ -3470,14 +3486,14 @@ Declare their COMBAT PROFILE immediately:
                 const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
                 const existing = sel.value;
                 const { Popup } = SillyTavern.getContext();
-                
+
                 let name = null;
                 if (Popup && Popup.show && Popup.show.input) {
                     name = await Popup.show.input('Save Profile', 'Save profile as:', existing || '');
                 } else {
                     name = prompt('Save profile as:', existing || '');
                 }
-                
+
                 name = name?.trim();
                 if (!name) return;
                 saveProfile(name);
@@ -3497,7 +3513,7 @@ Declare their COMBAT PROFILE immediately:
                 const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
                 const name = sel.value;
                 if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
-                
+
                 const { Popup, POPUP_RESULT } = SillyTavern.getContext();
                 if (Popup && Popup.show && Popup.show.confirm) {
                     const confirmResult = await Popup.show.confirm('Delete Profile', `Delete profile "${name}"?`);
@@ -3505,7 +3521,7 @@ Declare their COMBAT PROFILE immediately:
                 } else {
                     if (!confirm(`Delete profile "${name}"?`)) return;
                 }
-                
+
                 deleteProfile(name);
                 refreshProfileDropdown();
                 toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
