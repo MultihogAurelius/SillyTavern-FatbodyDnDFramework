@@ -609,6 +609,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 sanitizationEnabled: true,
                 dayInterval: 3,
                 lastFireDay: -1,
+                lastFireMsgDate: null,
                 lookbackMessages: 40,
                 currentWorldState: '',
                 lorebookName: '',
@@ -958,11 +959,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
-     * Stage 2: Narrative Lookback
-     * Unlike getNarrativeBlocks (which strips summaries for the State Model),
-     * this function INCLUDES visible summary messages from Summaryception/similar
-     * extensions. Those summaries cover ghosted (is_hidden) messages and are the
-     * only window into history older than the lookback window.
+     * Stage 2: Narrative Lookback — Sliding Window
+     * Collects messages from chat AFTER the last World Model fire,
+     * preventing already-processed events from re-entering the chronicle.
      */
     function buildNarrativeDigest() {
         const settings = getSettings();
@@ -970,6 +969,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (!chat || chat.length === 0) return '';
 
         const limit = settings.worldModel?.lookbackMessages ?? 40;
+        const lastFireMsgDate = settings.worldModel?.lastFireMsgDate;
         const blocks = [];
         let foundCount = 0;
 
@@ -978,14 +978,18 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             const msg = chat[i];
 
-            // Skip ghosted originals — their content is already covered by the
-            // visible summary message that replaced them.
+            // ── Sliding Window: stop when we reach the exact message of the last fire ──
+            if (lastFireMsgDate && msg.send_date === lastFireMsgDate) {
+                break;
+            }
+
+            // Skip ghosted/hidden messages
             if (/** @type {any} */ (msg).is_hidden) continue;
 
             let mes = (msg.mes || '').trim();
             if (!mes) continue;
 
-            // Strip tool-call / thinking UI — same as getNarrativeBlocks
+            // Strip tool-call / thinking UI
             mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
             mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
             mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
@@ -997,6 +1001,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 blocks.unshift(mes);
                 foundCount++;
             }
+        }
+
+        if (settings.worldModel?.debugMode) {
+            console.log(`[World Model] Digest: collected ${blocks.length} messages since last fire.`);
         }
 
         return blocks.join('\n\n');
@@ -1283,8 +1291,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             }
             
             // 4. Persistence
+            const { chat } = SillyTavern.getContext();
+            const currentMsgDate = chat && chat.length > 0 ? chat[chat.length - 1].send_date : null;
             settings.worldModel.currentWorldState = updatedState;
             settings.worldModel.lastFireDay = currentDay;
+            if (currentMsgDate) settings.worldModel.lastFireMsgDate = currentMsgDate;
             SillyTavern.getContext().saveSettingsDebounced();
 
             // 5. Lorebook Write-back (Stage 4)
