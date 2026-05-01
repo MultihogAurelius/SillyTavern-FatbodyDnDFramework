@@ -189,7 +189,8 @@ Declare their COMBAT PROFILE immediately:
 
 <resting>
 -Only permit a Long Rest if Time since last rest is at least 9 hours. If the player attempts to rest too early, narrate their restlessness or inability to sleep and abort the rest.
-- Rest interruption: If the party rests in a dangerous location, roll a d20 to determine whether the rest is interrupted by enemies. The DC depends on the danger level of the location; the more dangerous the location, the higher the DC for a safe rest.
+- Long Rest interruption: If the party rests in a dangerous location, roll a d20 to determine whether the rest is interrupted by enemies. The DC depends on the danger level of the location; the more dangerous the location, the higher the DC for a safe rest.
+- Short Rest interruption: also active, but the DC should be easier, generally lower than DC 8 unless the area is extremely hostile and dangerous.
 </resting>
 
 <constraints>
