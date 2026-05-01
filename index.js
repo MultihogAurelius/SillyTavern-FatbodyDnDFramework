@@ -18,7 +18,7 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 C, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
+        character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
         party: `Companion/Party members. \n\nExample party: \n[PARTY]\nElara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\nStatus: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
         combat: `Active enemies/NPCs in combat. Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations accordingly.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\nGoblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\nOther: Trait1 (description), Trait2 (description)\nStatus: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
         inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
@@ -507,771 +507,674 @@ STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive s
 Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus increasing to 2d6, etc.
 </progression_logic>`,
             modules: {
-            character: true,
+                character: true,
                 party: true,
-                    combat: true,
-                        inventory: true,
-                            abilities: true,
-                                spells: true,
-                                    time: true,
-                                        xp: true
-        },
-        stockPrompts: { ...DEFAULT_STOCK_PROMPTS },
-        customFields: [],
-            profiles: { },
-        activeProfile: "",
+                combat: true,
+                inventory: true,
+                abilities: true,
+                spells: true,
+                time: true,
+                xp: true
+            },
+            stockPrompts: { ...DEFAULT_STOCK_PROMPTS },
+            customFields: [],
+            profiles: {},
+            activeProfile: "",
             fullViewSections: [],
-                blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
-    };
+            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
+        };
 
-    if (!extensionSettings[MODULE_NAME]) {
-        extensionSettings[MODULE_NAME] = {};
-    }
+        if (!extensionSettings[MODULE_NAME]) {
+            extensionSettings[MODULE_NAME] = {};
+        }
 
-    // Deep merge config to prevent missing 'modules' object in updates
-    for (const [key, value] of Object.entries(defaults)) {
-        if (extensionSettings[MODULE_NAME][key] === undefined) {
-            extensionSettings[MODULE_NAME][key] = value;
-        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-            if (extensionSettings[MODULE_NAME][key] === undefined) extensionSettings[MODULE_NAME][key] = {};
-            for (const [subKey, subValue] of Object.entries(value)) {
-                if (extensionSettings[MODULE_NAME][key][subKey] === undefined) {
-                    extensionSettings[MODULE_NAME][key][subKey] = subValue;
+        // Deep merge config to prevent missing 'modules' object in updates
+        for (const [key, value] of Object.entries(defaults)) {
+            if (extensionSettings[MODULE_NAME][key] === undefined) {
+                extensionSettings[MODULE_NAME][key] = value;
+            } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                if (extensionSettings[MODULE_NAME][key] === undefined) extensionSettings[MODULE_NAME][key] = {};
+                for (const [subKey, subValue] of Object.entries(value)) {
+                    if (extensionSettings[MODULE_NAME][key][subKey] === undefined) {
+                        extensionSettings[MODULE_NAME][key][subKey] = subValue;
+                    }
                 }
             }
         }
+        return extensionSettings[MODULE_NAME];
     }
-    return extensionSettings[MODULE_NAME];
-}
 
     /**
      * RNG Engine Implementation
      */
     const RNG_QUEUE_LEN = 8;
-function rollDie(sides) {
-    const buf = new Uint32Array(1);
-    const limit = Math.floor(4294967296 / sides) * sides;
-    let roll;
-    do { crypto.getRandomValues(buf); roll = buf[0]; } while (roll >= limit);
-    return (roll % sides) + 1;
-}
-function makeRngQueue(n = RNG_QUEUE_LEN) {
-    const out = [];
-    for (let i = 0; i < n; i++) {
-        out.push({
-            d20: rollDie(20),
-            d4: rollDie(4),
-            d6: rollDie(6),
-            d8: rollDie(8),
-            d10: rollDie(10),
-            d12: rollDie(12)
-        });
+    function rollDie(sides) {
+        const buf = new Uint32Array(1);
+        const limit = Math.floor(4294967296 / sides) * sides;
+        let roll;
+        do { crypto.getRandomValues(buf); roll = buf[0]; } while (roll >= limit);
+        return (roll % sides) + 1;
     }
-    return out;
-}
-
-/**
- * Dice Rolling Implementation
- */
-async function doDiceRoll(customDiceFormula, quiet = false) {
-    const nullValue = { total: '', rolls: [] };
-    let value = typeof customDiceFormula === 'string' ? customDiceFormula.trim() : '1d20';
-
-    if (value === 'custom') {
-        const { Popup } = SillyTavern.getContext();
-        value = await Popup.show.input('Enter the dice formula:<br><i>(for example, <tt>2d6</tt>)</i>', '', 'Roll', { cancelButton: 'Cancel' });
-    }
-
-    if (!value) return nullValue;
-
-    const droll = SillyTavern.libs.droll;
-    if (!droll) {
-        toastr['error']('Dice library (droll) not found.');
-        return nullValue;
-    }
-
-    const isValid = droll.validate(value);
-    if (isValid) {
-        const result = droll.roll(value);
-        if (!result) return nullValue;
-        if (!quiet) {
-            const context = SillyTavern.getContext();
-            context.sendSystemMessage('generic', `${context.name1} rolls a ${value}. The result is: ${result.total} (${result.rolls.join(', ')})`, { isSmallSys: true });
-        }
-        return { total: String(result.total), rolls: result.rolls.map(String) };
-    } else {
-        toastr['warning']('Invalid dice formula');
-        return nullValue;
-    }
-}
-
-function registerDiceFunctionTool() {
-    try {
-        const ctx = SillyTavern.getContext();
-        const { registerFunctionTool, unregisterFunctionTool } = ctx;
-        if (!registerFunctionTool || !unregisterFunctionTool) return;
-
-        unregisterFunctionTool('RollTheDice');
-
-        const settings = getSettings();
-        if (!settings.diceFunctionTool) return;
-
-        const rollDiceSchema = {
-            type: 'object',
-            properties: {
-                who: { type: 'string', description: 'The name of the persona rolling the dice' },
-                formula: { type: 'string', description: 'A dice formula to roll, e.g. 1d20' },
-                dc: { type: 'number', description: 'The Difficulty Class (DC) for this roll. Anchors the difficulty before the roll is made.' },
-            },
-            required: ['who', 'formula', 'dc'],
-        };
-
-        registerFunctionTool({
-            name: 'RollTheDice',
-            displayName: 'Dice Roll',
-            description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
-            parameters: rollDiceSchema,
-            action: async (args) => {
-                const formula = args?.formula || '1d20';
-                const dc = Number(args?.dc) || 0;
-                const roll = await doDiceRoll(formula, true);
-                const total = parseInt(roll.total) || 0;
-
-                let result = args.who
-                    ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
-                    : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
-
-                if (dc > 0) {
-                    result += ` (Result: ${total >= dc ? 'SUCCESS' : 'FAILURE'})`;
-                }
-                return result;
-            },
-            formatMessage: () => '',
-        });
-    } catch (error) {
-        console.error('[RPG Tracker] Error registering dice function tool', error);
-    }
-}
-
-function registerDiceSlashCommand() {
-    const { SlashCommand, SlashCommandParser, ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } = SillyTavern.getContext();
-    if (!SlashCommand || !SlashCommandParser) return;
-
-    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-        name: 'roll',
-        aliases: ['r'],
-        callback: async (args, value) => {
-            const quiet = String(args.quiet) === 'true';
-            const result = await doDiceRoll(String(value || '1d20'), quiet);
-            return result.total;
-        },
-        helpString: 'Roll the dice.',
-        returns: 'roll result',
-        namedArgumentList: [
-            SlashCommandNamedArgument.fromProps({
-                name: 'quiet',
-                description: 'Do not display the result in chat',
-                isRequired: false,
-                typeList: [ARGUMENT_TYPE.BOOLEAN],
-                defaultValue: 'false',
-            }),
-        ],
-        unnamedArgumentList: [
-            SlashCommandArgument.fromProps({
-                description: 'dice formula, e.g. 2d6',
-                isRequired: true,
-                typeList: [ARGUMENT_TYPE.STRING],
-            }),
-        ],
-    }));
-}
-function buildRngBlock(queue) {
-    const turnId = Date.now();
-    const formattedQueue = queue.map(dice => {
-        return `${dice.d20}(d4:${dice.d4},d6:${dice.d6},d8:${dice.d8},d10:${dice.d10},d12:${dice.d12})`;
-    }).join(", ");
-    return `[RNG_QUEUE v6.0_PROPER]\nturn_id=${turnId}\nscope=this_response\nqueue=[${formattedQueue}]\n[/RNG_QUEUE]\n\n`;
-}
-
-globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
-    const settings = getSettings();
-    if (!settings.enabled) return;
-
-    // Find the last user message to prepend injections
-    let idx = -1;
-    for (let i = chat.length - 1; i >= 0; i--) {
-        if (chat[i]['role'] === "user" || chat[i].is_user) {
-            idx = i;
-            break;
-        }
-    }
-
-    if (idx === -1) return;
-
-    const msg = chat[idx];
-    const content = msg['content'] || msg.mes || '';
-
-    let injections = "";
-
-    // 1. RNG Injection
-    if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
-        const queue = makeRngQueue(RNG_QUEUE_LEN);
-        injections += buildRngBlock(queue);
-    }
-
-    // 2. State Memo Injection
-    if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
-        injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
-    }
-
-    if (!injections) return;
-
-    if (typeof msg.content === "string") msg.content = injections + msg.content;
-    else if (typeof msg.mes === "string") msg.mes = injections + msg.mes;
-    if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
-};
-
-/**
- * Event handler for GENERATION_ENDED.
- * Triggers the State Model pass ONLY after the entire generation loop (including tool calls) finishes.
- */
-/**
- * Helper to collect AI narrative from the chat.
- * @param {any[]} chat - The SillyTavern chat array.
- * @param {number} limit - If -1, collects since last user message. Otherwise, collects N valid assistant blocks.
- */
-function getNarrativeBlocks(chat, limit = -1) {
-    if (!chat || chat.length === 0) return "";
-    let narrativeBlocks = [];
-    let foundCount = 0;
-
-    for (let i = chat.length - 1; i >= 0; i--) {
-        const msg = chat[i];
-
-        // Mode A: Stop at user message
-        if (limit === -1 && msg.is_user) break;
-
-        // Mode B: Stop at limit
-        if (limit !== -1 && foundCount >= limit) break;
-
-        // Always skip system/hidden
-        if (msg.is_system || /** @type {any} */ (msg).is_hidden) continue;
-
-        let mes = (msg.mes || '').trim();
-        if (!mes) continue;
-
-        // Ignore typical "summary" patterns
-        if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
-        if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
-
-        // ─── Strip Tool Call & Thinking UI ───
-        mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
-        mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
-        mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
-        mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
-        mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
-        mes = mes.trim();
-
-        if (mes) {
-            narrativeBlocks.unshift(mes);
-            foundCount++;
-        }
-    }
-    return narrativeBlocks.join('\n\n');
-}
-
-async function onGenerationEnded() {
-    const settings = getSettings();
-    if (!settings.enabled || _stateModelRunning) return;
-
-    const { chat } = SillyTavern.getContext();
-    const combinedNarrative = getNarrativeBlocks(chat, -1);
-
-    if (!combinedNarrative) return;
-
-    if (settings.debugMode) console.log("[RPG Tracker] Assistant generation ended. Triggering State Model pass...", combinedNarrative);
-    runStateModelPass(combinedNarrative);
-}
-
-/**
- * Update the visual status of the panel (active, running, paused)
- */
-function updatePanelStatus() {
-    const settings = getSettings();
-    const panel = document.getElementById('rpg-tracker-panel');
-    const indicator = document.getElementById('rpg-tracker-status');
-    const pauseBtn = document.getElementById('rpg-tracker-pause-btn');
-
-    if (!panel || !indicator || !pauseBtn) return;
-
-    if (settings.enabled) {
-        panel.classList.remove('is-paused');
-        indicator.classList.add('active');
-        pauseBtn.textContent = '⏸';
-        pauseBtn.title = 'Pause Tracker';
-    } else {
-        panel.classList.add('is-paused');
-        indicator.classList.remove('active');
-        pauseBtn.textContent = '▶';
-        pauseBtn.title = 'Resume Tracker';
-    }
-
-    if (_stateModelRunning) {
-        indicator.classList.add('running');
-    } else {
-        indicator.classList.remove('running');
-    }
-}
-
-/**
- * Connection Profile Helpers (Switch-Execute-Restore Pattern)
- */
-async function checkConnectionProfilesActive() {
-    return $('#sys-settings-button').find('#connection_profiles').length > 0;
-}
-
-async function getCurrentConnectionProfile() {
-    if (!(await checkConnectionProfilesActive())) return null;
-    const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-    const result = await executeSlashCommandsWithOptions(`/profile`);
-    return result?.pipe?.trim() || null;
-}
-
-async function setConnectionProfile(name) {
-    if (!(await checkConnectionProfilesActive())) return;
-    if (!name) return;
-    const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-    await executeSlashCommandsWithOptions(`/profile ${name}`);
-}
-
-async function getConnectionProfiles() {
-    if (!(await checkConnectionProfilesActive())) return [];
-    const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-    const result = await executeSlashCommandsWithOptions(`/profile-list`);
-    try {
-        return JSON.parse(result.pipe);
-    } catch {
-        return [];
-    }
-}
-
-async function getCurrentCompletionPreset() {
-    const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-    const result = await executeSlashCommandsWithOptions(`/preset`);
-    return result?.pipe?.trim() || null;
-}
-
-async function setCompletionPreset(name) {
-    if (!name) return;
-    const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-    await executeSlashCommandsWithOptions(`/preset "${name}"`);
-}
-
-/**
- * Send the request through the configured backend.
- */
-async function sendStateRequest(settings, systemPrompt, userPrompt) {
-    const { generateRaw } = SillyTavern.getContext();
-    let originalProfile = null;
-    let originalPreset = null;
-
-    try {
-        if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
-            originalProfile = await getCurrentConnectionProfile();
-            if (settings.debugMode) console.log(`[RPG Tracker] Switching Connection Profile: ${originalProfile} -> ${settings.connectionProfileId}`);
-            await setConnectionProfile(settings.connectionProfileId);
-        }
-
-        if (settings.completionPresetId) {
-            originalPreset = await getCurrentCompletionPreset();
-            if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
-            await setCompletionPreset(settings.completionPresetId);
-        }
-
-        const options = {
-            prompt: userPrompt,
-            systemPrompt: systemPrompt,
-            bypassAll: true
-        };
-
-        if (settings.maxTokens && settings.maxTokens > 0) {
-            options.responseLength = settings.maxTokens;
-        }
-
-        const result = await generateRaw(options);
-
-        if (typeof result === 'string') return result;
-        const r = /** @type {any} */ (result);
-        return r?.choices?.[0]?.message?.content ||
-            r?.choices?.[0]?.text ||
-            r?.message?.content ||
-            r?.content ||
-            JSON.stringify(result);
-
-    } catch (err) {
-        console.error("[RPG Tracker] Request failed:", err);
-        throw err;
-    } finally {
-        if (originalPreset && settings.completionPresetId && originalPreset !== settings.completionPresetId) {
-            if (settings.debugMode) console.log(`[RPG Tracker] Restoring preset: ${originalPreset}`);
-            await setCompletionPreset(originalPreset);
-        }
-        if (originalProfile && settings.connectionProfileId && originalProfile !== settings.connectionProfileId) {
-            if (settings.debugMode) console.log(`[RPG Tracker] Restoring profile: ${originalProfile}`);
-            await setConnectionProfile(originalProfile);
-        }
-    }
-}
-
-/**
- * Sanitizes a memo string to ensure no duplicate [TAG] sections exist.
- * If duplicates are found, the last one in the string is preserved.
- */
-function deduplicateMemo(memo) {
-    if (!memo) return "";
-    const settings = getSettings();
-
-    // Find all tags in the string
-    const tagRegex = /\[([A-Z_]+)\]/gi;
-    const tags = new Set();
-    let match;
-    while ((match = tagRegex.exec(memo)) !== null) {
-        tags.add(match[1].toUpperCase());
-    }
-
-    let cleanedMemo = memo;
-    for (const tag of tags) {
-        const escapedTag = escapeRegex(tag);
-        const pattern = new RegExp(`\\[${escapedTag}\\][\\s\\S]*?\\[\\/${escapedTag}\\]`, 'gi');
-        const blocks = [...memo.matchAll(pattern)];
-
-        if (blocks.length > 1) {
-            if (settings.debugMode) console.warn(`[RPG Tracker] Deduplication: Found ${blocks.length} instances of [${tag}]. Keeping the last one.`);
-
-            // Remove all instances of the tag
-            cleanedMemo = cleanedMemo.replace(pattern, "---DEDUP_MARKER---");
-
-            // Put back only the last one
-            const lastBlock = blocks[blocks.length - 1][0];
-
-            // We use a temporary marker to avoid double-replacing if the tag content
-            // accidentally contains its own tag name.
-            const split = cleanedMemo.split("---DEDUP_MARKER---");
-            cleanedMemo = split.join("").trim() + "\n\n" + lastBlock;
-        }
-    }
-
-    return cleanedMemo.replace(/\n{3,}/g, '\n\n').trim();
-}
-
-/**
- * Merge partial AI output into the existing memo.
- * Finds all [TAG]...[/TAG] blocks in the AI output and replaces the
- * matching section in the current memo. New sections are appended.
- * If the AI output contains no bracket tags at all, the full output
- * replaces the memo (full-replacement fallback).
- */
-function mergeMemo(currentMemo, aiOutput) {
-    const settings = getSettings();
-
-    // Find all [TAG]...[/TAG] pairs in the AI's output (case-insensitive, whitespace-tolerant)
-    const tagPattern = /\[([^\]\/][^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
-    const matches = [...aiOutput.matchAll(tagPattern)];
-
-    // Fallback: if the AI output contains no [TAG] blocks, it likely output a
-    // "no changes needed" explanation instead of structured data.
-    // In this case, preserve the current memo entirely — do NOT replace it.
-    if (matches.length === 0) {
-        console.warn("[RPG Tracker] No valid [TAG]...[/TAG] blocks found in model output — treating as no-change. Output was:", aiOutput);
-        return currentMemo;
-    }
-
-    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: found ${matches.length} tag(s):`, matches.map(m => m[1]));
-
-    let memo = currentMemo;
-
-    for (const match of matches) {
-        const tag = match[1].trim();         // e.g. "CHARACTER"
-        const newContent = match[2].trim();  // new content for that section
-
-        // Handle removal keywords
-        const isRemoval = /^(?:REMOVED|EXPIRED|CLEARED|NONE|END_COMBAT)$/i.test(newContent);
-
-        // Build pattern to find existing section in memo
-        const escapedTag = escapeRegex(tag);
-        const existingPattern = new RegExp(
-            `\\s*\\[${escapedTag}\\][\\s\\S]*?\\[\\/${escapedTag}\\]`,
-            'i'
-        );
-
-        if (settings.debugMode) {
-            console.log(`[RPG Tracker] mergeMemo: processing [${tag}], pattern: ${existingPattern}`);
-        }
-
-        if (isRemoval) {
-            memo = memo.replace(existingPattern, "").trim();
-            if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REMOVED`);
-        } else {
-            const fullBlock = `[${tag}]\n${newContent}\n[/${tag}]`;
-            const before = memo;
-            memo = memo.replace(existingPattern, () => '\n\n' + fullBlock);
-            if (memo !== before) {
-                if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REPLACED`);
-            } else {
-                // Section doesn't exist yet — append it
-                memo = memo.trimEnd() + '\n\n' + fullBlock;
-                if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] APPENDED (new section)`);
-            }
-        }
-    }
-
-    // Final cleanup and deduplication
-    const cleaned = memo.replace(/\n{3,}/g, '\n\n').trim();
-    return deduplicateMemo(cleaned);
-}
-
-function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Extract and clean the last user message from the chat,
- * stripping injected blocks (STATE MEMO, RNG_QUEUE) so only
- * the player's actual typed input remains.
- * @returns {string} The cleaned user action text, or an empty string.
- */
-function getLastUserAction() {
-    const { chat } = SillyTavern.getContext();
-    if (!chat || chat.length === 0) return '';
-
-    let raw = '';
-    for (let i = chat.length - 1; i >= 0; i--) {
-        if (chat[i].is_user || chat[i]['role'] === 'user') {
-            raw = chat[i].mes || chat[i]['content'] || '';
-            break;
-        }
-    }
-
-    if (!raw) return '';
-
-    // Strip ### STATE MEMO ... (ends at a blank line before the next section or RNG block)
-    raw = raw.replace(/###\s*STATE MEMO[^]*?(?=\n\[RNG_QUEUE|\n###|\n\[(?!RNG_QUEUE)[A-Z]|$)/i, '');
-
-    // Strip [RNG_QUEUE ...]...[/RNG_QUEUE] blocks
-    raw = raw.replace(/\[RNG_QUEUE[^\]]*\][\s\S]*?\[\/RNG_QUEUE\]/gi, '');
-
-    // Strip any residual [TAG]...[/TAG] injected memo blocks that may linger
-    raw = raw.replace(/\[[A-Z_]+\][\s\S]*?\[\/[A-Z_]+\]/g, '');
-
-    return raw.trim();
-}
-
-/**
- * The State Model pass: Extract state changes from the narrative.
- * @param {string} narrativeOutput The last narrative message to parse.
- * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
- */
-async function runStateModelPass(narrativeOutput, isFullContext = false) {
-    const settings = getSettings();
-    const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
-
-    if (!generateRaw) {
-        console.error("[RPG Tracker] generateRaw not found in context.");
-        return;
-    }
-
-    try {
-        _stateModelRunning = true;
-        updateStatusIndicator('running');
-
-        let modulesText = "";
-        const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
-        for (const [key, prompt] of Object.entries(promptsMap)) {
-            if (settings.modules[key]) {
-                modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
-            }
-        }
-        if (settings.customFields && settings.customFields.length > 0) {
-            settings.customFields.forEach(f => {
-                if (f.enabled && f.tag && f.prompt) {
-                    modulesText += `- [${f.tag.toUpperCase()}]: ${f.prompt}\n`;
-                }
+    function makeRngQueue(n = RNG_QUEUE_LEN) {
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            out.push({
+                d20: rollDie(20),
+                d4: rollDie(4),
+                d6: rollDie(6),
+                d8: rollDie(8),
+                d10: rollDie(10),
+                d12: rollDie(12)
             });
         }
+        return out;
+    }
 
-        let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
-        if (isFullContext) {
-            systemPrompt = systemPrompt
-                .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
-                .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
+    /**
+     * Dice Rolling Implementation
+     */
+    async function doDiceRoll(customDiceFormula, quiet = false) {
+        const nullValue = { total: '', rolls: [] };
+        let value = typeof customDiceFormula === 'string' ? customDiceFormula.trim() : '1d20';
+
+        if (value === 'custom') {
+            const { Popup } = SillyTavern.getContext();
+            value = await Popup.show.input('Enter the dice formula:<br><i>(for example, <tt>2d6</tt>)</i>', '', 'Roll', { cancelButton: 'Cancel' });
         }
 
-        let userPrompt = "";
+        if (!value) return nullValue;
 
-        if (isFullContext) {
-            const { chat } = SillyTavern.getContext();
-            // Take last 60 messages for a "long horizon" audit
-            const N = 60;
-            const recentChat = chat.slice(-N);
-            const chatLog = recentChat.map(m => {
-                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                return `${name}: ${m.mes}`;
-            }).join('\n\n');
+        const droll = SillyTavern.libs.droll;
+        if (!droll) {
+            toastr['error']('Dice library (droll) not found.');
+            return nullValue;
+        }
 
-            userPrompt =
-                `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
-                `## PRIOR MEMO\n${settings.currentMemo || '(empty)'}\n\n` +
-                `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
-                `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+        const isValid = droll.validate(value);
+        if (isValid) {
+            const result = droll.roll(value);
+            if (!result) return nullValue;
+            if (!quiet) {
+                const context = SillyTavern.getContext();
+                context.sendSystemMessage('generic', `${context.name1} rolls a ${value}. The result is: ${result.total} (${result.rolls.join(', ')})`, { isSmallSys: true });
+            }
+            return { total: String(result.total), rolls: result.rolls.map(String) };
         } else {
-            const lastUserAction = getLastUserAction();
-            const userActionSection = lastUserAction
-                ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
-                : '';
+            toastr['warning']('Invalid dice formula');
+            return nullValue;
+        }
+    }
 
-            userPrompt =
-                `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
-                userActionSection +
-                `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
-                `## OUTPUT ONLY CHANGED SECTIONS:`;
+    function registerDiceFunctionTool() {
+        try {
+            const ctx = SillyTavern.getContext();
+            const { registerFunctionTool, unregisterFunctionTool } = ctx;
+            if (!registerFunctionTool || !unregisterFunctionTool) return;
+
+            unregisterFunctionTool('RollTheDice');
+
+            const settings = getSettings();
+            if (!settings.diceFunctionTool) return;
+
+            const rollDiceSchema = {
+                type: 'object',
+                properties: {
+                    who: { type: 'string', description: 'The name of the persona rolling the dice' },
+                    formula: { type: 'string', description: 'A dice formula to roll, e.g. 1d20' },
+                    dc: { type: 'number', description: 'The Difficulty Class (DC) for this roll. Anchors the difficulty before the roll is made.' },
+                },
+                required: ['who', 'formula', 'dc'],
+            };
+
+            registerFunctionTool({
+                name: 'RollTheDice',
+                displayName: 'Dice Roll',
+                description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
+                parameters: rollDiceSchema,
+                action: async (args) => {
+                    const formula = args?.formula || '1d20';
+                    const dc = Number(args?.dc) || 0;
+                    const roll = await doDiceRoll(formula, true);
+                    const total = parseInt(roll.total) || 0;
+
+                    let result = args.who
+                        ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
+                        : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
+
+                    if (dc > 0) {
+                        result += ` (Result: ${total >= dc ? 'SUCCESS' : 'FAILURE'})`;
+                    }
+                    return result;
+                },
+                formatMessage: () => '',
+            });
+        } catch (error) {
+            console.error('[RPG Tracker] Error registering dice function tool', error);
+        }
+    }
+
+    function registerDiceSlashCommand() {
+        const { SlashCommand, SlashCommandParser, ARGUMENT_TYPE, SlashCommandArgument, SlashCommandNamedArgument } = SillyTavern.getContext();
+        if (!SlashCommand || !SlashCommandParser) return;
+
+        SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+            name: 'roll',
+            aliases: ['r'],
+            callback: async (args, value) => {
+                const quiet = String(args.quiet) === 'true';
+                const result = await doDiceRoll(String(value || '1d20'), quiet);
+                return result.total;
+            },
+            helpString: 'Roll the dice.',
+            returns: 'roll result',
+            namedArgumentList: [
+                SlashCommandNamedArgument.fromProps({
+                    name: 'quiet',
+                    description: 'Do not display the result in chat',
+                    isRequired: false,
+                    typeList: [ARGUMENT_TYPE.BOOLEAN],
+                    defaultValue: 'false',
+                }),
+            ],
+            unnamedArgumentList: [
+                SlashCommandArgument.fromProps({
+                    description: 'dice formula, e.g. 2d6',
+                    isRequired: true,
+                    typeList: [ARGUMENT_TYPE.STRING],
+                }),
+            ],
+        }));
+    }
+    function buildRngBlock(queue) {
+        const turnId = Date.now();
+        const formattedQueue = queue.map(dice => {
+            return `${dice.d20}(d4:${dice.d4},d6:${dice.d6},d8:${dice.d8},d10:${dice.d10},d12:${dice.d12})`;
+        }).join(", ");
+        return `[RNG_QUEUE v6.0_PROPER]\nturn_id=${turnId}\nscope=this_response\nqueue=[${formattedQueue}]\n[/RNG_QUEUE]\n\n`;
+    }
+
+    globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
+        const settings = getSettings();
+        if (!settings.enabled) return;
+
+        // Find the last user message to prepend injections
+        let idx = -1;
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (chat[i]['role'] === "user" || chat[i].is_user) {
+                idx = i;
+                break;
+            }
         }
 
-        const result = await sendStateRequest(settings, systemPrompt, userPrompt);
+        if (idx === -1) return;
 
-        if (result && typeof result === 'string') {
-            if (settings.debugMode) console.log("[RPG Tracker] Raw Result:", result);
+        const msg = chat[idx];
+        const content = msg['content'] || msg.mes || '';
 
-            // ── Pre-clean: strip <memo> wrapper tags before any merge logic ──
-            // The model may wrap its output in <memo>...</memo> regardless of our prompt.
-            // We extract the last complete block's content, or strip orphaned tags.
-            let cleanedOutput = result;
-            const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
-            if (memoBlocks.length > 0) {
-                // Take the last complete <memo>...</memo> block
-                cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
-            } else {
-                // Strip any orphaned <memo> / </memo> tags
-                cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+        let injections = "";
+
+        // 1. RNG Injection
+        if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
+            const queue = makeRngQueue(RNG_QUEUE_LEN);
+            injections += buildRngBlock(queue);
+        }
+
+        // 2. State Memo Injection
+        if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
+            injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+        }
+
+        if (!injections) return;
+
+        if (typeof msg.content === "string") msg.content = injections + msg.content;
+        else if (typeof msg.mes === "string") msg.mes = injections + msg.mes;
+        if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
+    };
+
+    /**
+     * Event handler for GENERATION_ENDED.
+     * Triggers the State Model pass ONLY after the entire generation loop (including tool calls) finishes.
+     */
+    /**
+     * Helper to collect AI narrative from the chat.
+     * @param {any[]} chat - The SillyTavern chat array.
+     * @param {number} limit - If -1, collects since last user message. Otherwise, collects N valid assistant blocks.
+     */
+    function getNarrativeBlocks(chat, limit = -1) {
+        if (!chat || chat.length === 0) return "";
+        let narrativeBlocks = [];
+        let foundCount = 0;
+
+        for (let i = chat.length - 1; i >= 0; i--) {
+            const msg = chat[i];
+
+            // Mode A: Stop at user message
+            if (limit === -1 && msg.is_user) break;
+
+            // Mode B: Stop at limit
+            if (limit !== -1 && foundCount >= limit) break;
+
+            // Always skip system/hidden
+            if (msg.is_system || /** @type {any} */ (msg).is_hidden) continue;
+
+            let mes = (msg.mes || '').trim();
+            if (!mes) continue;
+
+            // Ignore typical "summary" patterns
+            if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
+            if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
+
+            // ─── Strip Tool Call & Thinking UI ───
+            mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
+            mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
+            mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
+            mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
+            mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
+            mes = mes.trim();
+
+            if (mes) {
+                narrativeBlocks.unshift(mes);
+                foundCount++;
+            }
+        }
+        return narrativeBlocks.join('\n\n');
+    }
+
+    async function onGenerationEnded() {
+        const settings = getSettings();
+        if (!settings.enabled || _stateModelRunning) return;
+
+        const { chat } = SillyTavern.getContext();
+        const combinedNarrative = getNarrativeBlocks(chat, -1);
+
+        if (!combinedNarrative) return;
+
+        if (settings.debugMode) console.log("[RPG Tracker] Assistant generation ended. Triggering State Model pass...", combinedNarrative);
+        runStateModelPass(combinedNarrative);
+    }
+
+    /**
+     * Update the visual status of the panel (active, running, paused)
+     */
+    function updatePanelStatus() {
+        const settings = getSettings();
+        const panel = document.getElementById('rpg-tracker-panel');
+        const indicator = document.getElementById('rpg-tracker-status');
+        const pauseBtn = document.getElementById('rpg-tracker-pause-btn');
+
+        if (!panel || !indicator || !pauseBtn) return;
+
+        if (settings.enabled) {
+            panel.classList.remove('is-paused');
+            indicator.classList.add('active');
+            pauseBtn.textContent = '⏸';
+            pauseBtn.title = 'Pause Tracker';
+        } else {
+            panel.classList.add('is-paused');
+            indicator.classList.remove('active');
+            pauseBtn.textContent = '▶';
+            pauseBtn.title = 'Resume Tracker';
+        }
+
+        if (_stateModelRunning) {
+            indicator.classList.add('running');
+        } else {
+            indicator.classList.remove('running');
+        }
+    }
+
+    /**
+     * Connection Profile Helpers (Switch-Execute-Restore Pattern)
+     */
+    async function checkConnectionProfilesActive() {
+        return $('#sys-settings-button').find('#connection_profiles').length > 0;
+    }
+
+    async function getCurrentConnectionProfile() {
+        if (!(await checkConnectionProfilesActive())) return null;
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        const result = await executeSlashCommandsWithOptions(`/profile`);
+        return result?.pipe?.trim() || null;
+    }
+
+    async function setConnectionProfile(name) {
+        if (!(await checkConnectionProfilesActive())) return;
+        if (!name) return;
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        await executeSlashCommandsWithOptions(`/profile ${name}`);
+    }
+
+    async function getConnectionProfiles() {
+        if (!(await checkConnectionProfilesActive())) return [];
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        const result = await executeSlashCommandsWithOptions(`/profile-list`);
+        try {
+            return JSON.parse(result.pipe);
+        } catch {
+            return [];
+        }
+    }
+
+    async function getCurrentCompletionPreset() {
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        const result = await executeSlashCommandsWithOptions(`/preset`);
+        return result?.pipe?.trim() || null;
+    }
+
+    async function setCompletionPreset(name) {
+        if (!name) return;
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        await executeSlashCommandsWithOptions(`/preset "${name}"`);
+    }
+
+    /**
+     * Send the request through the configured backend.
+     */
+    async function sendStateRequest(settings, systemPrompt, userPrompt) {
+        const { generateRaw } = SillyTavern.getContext();
+        let originalProfile = null;
+        let originalPreset = null;
+
+        try {
+            if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
+                originalProfile = await getCurrentConnectionProfile();
+                if (settings.debugMode) console.log(`[RPG Tracker] Switching Connection Profile: ${originalProfile} -> ${settings.connectionProfileId}`);
+                await setConnectionProfile(settings.connectionProfileId);
             }
 
-            // Also sanitize the current stored memo in case it was previously
-            // contaminated by a prior session that saved raw tags.
-            const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+            if (settings.completionPresetId) {
+                originalPreset = await getCurrentCompletionPreset();
+                if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
+                await setCompletionPreset(settings.completionPresetId);
+            }
 
-            const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+            const options = {
+                prompt: userPrompt,
+                systemPrompt: systemPrompt,
+                bypassAll: true
+            };
+
+            if (settings.maxTokens && settings.maxTokens > 0) {
+                options.responseLength = settings.maxTokens;
+            }
+
+            const result = await generateRaw(options);
+
+            if (typeof result === 'string') return result;
+            const r = /** @type {any} */ (result);
+            return r?.choices?.[0]?.message?.content ||
+                r?.choices?.[0]?.text ||
+                r?.message?.content ||
+                r?.content ||
+                JSON.stringify(result);
+
+        } catch (err) {
+            console.error("[RPG Tracker] Request failed:", err);
+            throw err;
+        } finally {
+            if (originalPreset && settings.completionPresetId && originalPreset !== settings.completionPresetId) {
+                if (settings.debugMode) console.log(`[RPG Tracker] Restoring preset: ${originalPreset}`);
+                await setCompletionPreset(originalPreset);
+            }
+            if (originalProfile && settings.connectionProfileId && originalProfile !== settings.connectionProfileId) {
+                if (settings.debugMode) console.log(`[RPG Tracker] Restoring profile: ${originalProfile}`);
+                await setConnectionProfile(originalProfile);
+            }
+        }
+    }
+
+    /**
+     * Sanitizes a memo string to ensure no duplicate [TAG] sections exist.
+     * If duplicates are found, the last one in the string is preserved.
+     */
+    function deduplicateMemo(memo) {
+        if (!memo) return "";
+        const settings = getSettings();
+
+        // Find all tags in the string
+        const tagRegex = /\[([A-Z_]+)\]/gi;
+        const tags = new Set();
+        let match;
+        while ((match = tagRegex.exec(memo)) !== null) {
+            tags.add(match[1].toUpperCase());
+        }
+
+        let cleanedMemo = memo;
+        for (const tag of tags) {
+            const escapedTag = escapeRegex(tag);
+            const pattern = new RegExp(`\\[${escapedTag}\\][\\s\\S]*?\\[\\/${escapedTag}\\]`, 'gi');
+            const blocks = [...memo.matchAll(pattern)];
+
+            if (blocks.length > 1) {
+                if (settings.debugMode) console.warn(`[RPG Tracker] Deduplication: Found ${blocks.length} instances of [${tag}]. Keeping the last one.`);
+
+                // Remove all instances of the tag
+                cleanedMemo = cleanedMemo.replace(pattern, "---DEDUP_MARKER---");
+
+                // Put back only the last one
+                const lastBlock = blocks[blocks.length - 1][0];
+
+                // We use a temporary marker to avoid double-replacing if the tag content
+                // accidentally contains its own tag name.
+                const split = cleanedMemo.split("---DEDUP_MARKER---");
+                cleanedMemo = split.join("").trim() + "\n\n" + lastBlock;
+            }
+        }
+
+        return cleanedMemo.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    /**
+     * Merge partial AI output into the existing memo.
+     * Finds all [TAG]...[/TAG] blocks in the AI output and replaces the
+     * matching section in the current memo. New sections are appended.
+     * If the AI output contains no bracket tags at all, the full output
+     * replaces the memo (full-replacement fallback).
+     */
+    function mergeMemo(currentMemo, aiOutput) {
+        const settings = getSettings();
+
+        // Find all [TAG]...[/TAG] pairs in the AI's output (case-insensitive, whitespace-tolerant)
+        const tagPattern = /\[([^\]\/][^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
+        const matches = [...aiOutput.matchAll(tagPattern)];
+
+        // Fallback: if the AI output contains no [TAG] blocks, it likely output a
+        // "no changes needed" explanation instead of structured data.
+        // In this case, preserve the current memo entirely — do NOT replace it.
+        if (matches.length === 0) {
+            console.warn("[RPG Tracker] No valid [TAG]...[/TAG] blocks found in model output — treating as no-change. Output was:", aiOutput);
+            return currentMemo;
+        }
+
+        if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: found ${matches.length} tag(s):`, matches.map(m => m[1]));
+
+        let memo = currentMemo;
+
+        for (const match of matches) {
+            const tag = match[1].trim();         // e.g. "CHARACTER"
+            const newContent = match[2].trim();  // new content for that section
+
+            // Handle removal keywords
+            const isRemoval = /^(?:REMOVED|EXPIRED|CLEARED|NONE|END_COMBAT)$/i.test(newContent);
+
+            // Build pattern to find existing section in memo
+            const escapedTag = escapeRegex(tag);
+            const existingPattern = new RegExp(
+                `\\s*\\[${escapedTag}\\][\\s\\S]*?\\[\\/${escapedTag}\\]`,
+                'i'
+            );
 
             if (settings.debugMode) {
-                console.log(`[RPG Tracker] Memo ${merged !== sanitizedCurrent ? 'updated (partial merge)' : 'unchanged'}.`);
+                console.log(`[RPG Tracker] mergeMemo: processing [${tag}], pattern: ${existingPattern}`);
             }
 
-            // Push snapshot to rolling history (max 5)
-            const delta = computeDelta(sanitizedCurrent, merged);
-            settings.memoHistory.unshift(sanitizedCurrent);
-            if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
-
-            // Persist delta and update panel
-            settings.lastDelta = delta;
-            const deltaPanel = document.getElementById('rpg-tracker-delta-content');
-            if (deltaPanel) deltaPanel.innerHTML = delta;
-
-            // Rotation logic (legacy compat)
-            settings.prevMemo2 = settings.prevMemo1;
-            settings.prevMemo1 = sanitizedCurrent;
-            settings.currentMemo = merged;
-
-            updateUIMemo(merged);
-            syncMemoView();
-            refreshRenderedView();
-            saveSettingsDebounced();
-
-            if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
-
-            // Check for Level Up
-            if (/LEVEL_UP=true/i.test(merged)) {
-                handleLevelUp();
-            }
-        }
-    } catch (error) {
-        console.error("[RPG Tracker] State Model pass failed:", error);
-    } finally {
-        _stateModelRunning = false;
-        updateStatusIndicator('active');
-    }
-}
-
-function handleLevelUp() {
-    const { sendSystemMessage } = SillyTavern.getContext();
-    toastr['success']("Level Up Detected! System prompt injected.", "RPG Tracker");
-
-    if (sendSystemMessage) {
-        sendSystemMessage('generic', "SYSTEM: Level Up Detected! The character has gained a level. Acknowledge this immediately and prompt the user to make their level-up choices or grant them their logical boons.");
-    }
-}
-
-/**
- * Send a direct instruction to the State Model bypassing the narrative pipeline.
- * Used for initial character setup and manual corrections.
- */
-async function sendDirectPrompt(message) {
-    if (_stateModelRunning) {
-        toastr['info']('State Model is already running. Please wait.', 'RPG Tracker');
-        return;
-    }
-
-    const settings = getSettings();
-    const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
-    if (!generateRaw) return;
-
-    try {
-        _stateModelRunning = true;
-        updateStatusIndicator('running');
-
-        let modulesText = '';
-        const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
-        for (const [key, prompt] of Object.entries(promptsMap)) {
-            if (settings.modules[key]) {
-                modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
-            }
-        }
-        if (settings.customFields && settings.customFields.length > 0) {
-            settings.customFields.forEach(f => {
-                if (f.enabled && f.tag && f.prompt) {
-                    modulesText += `- [${f.tag.toUpperCase()}]: ${f.prompt}\n`;
-                }
-            });
-        }
-
-        const systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
-
-        const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
-
-        const userPrompt =
-            `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
-            `## USER INSTRUCTION\n${message}\n\n` +
-            `## OUTPUT ONLY CHANGED OR NEW SECTIONS:`;
-
-        const result = await sendStateRequest(settings, systemPrompt, userPrompt);
-
-        if (result && typeof result === 'string') {
-            let cleanedOutput = result;
-            const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
-            if (memoBlocks.length > 0) {
-                cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
+            if (isRemoval) {
+                memo = memo.replace(existingPattern, "").trim();
+                if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REMOVED`);
             } else {
-                cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+                const fullBlock = `[${tag}]\n${newContent}\n[/${tag}]`;
+                const before = memo;
+                memo = memo.replace(existingPattern, () => '\n\n' + fullBlock);
+                if (memo !== before) {
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REPLACED`);
+                } else {
+                    // Section doesn't exist yet — append it
+                    memo = memo.trimEnd() + '\n\n' + fullBlock;
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] APPENDED (new section)`);
+                }
+            }
+        }
+
+        // Final cleanup and deduplication
+        const cleaned = memo.replace(/\n{3,}/g, '\n\n').trim();
+        return deduplicateMemo(cleaned);
+    }
+
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Extract and clean the last user message from the chat,
+     * stripping injected blocks (STATE MEMO, RNG_QUEUE) so only
+     * the player's actual typed input remains.
+     * @returns {string} The cleaned user action text, or an empty string.
+     */
+    function getLastUserAction() {
+        const { chat } = SillyTavern.getContext();
+        if (!chat || chat.length === 0) return '';
+
+        let raw = '';
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (chat[i].is_user || chat[i]['role'] === 'user') {
+                raw = chat[i].mes || chat[i]['content'] || '';
+                break;
+            }
+        }
+
+        if (!raw) return '';
+
+        // Strip ### STATE MEMO ... (ends at a blank line before the next section or RNG block)
+        raw = raw.replace(/###\s*STATE MEMO[^]*?(?=\n\[RNG_QUEUE|\n###|\n\[(?!RNG_QUEUE)[A-Z]|$)/i, '');
+
+        // Strip [RNG_QUEUE ...]...[/RNG_QUEUE] blocks
+        raw = raw.replace(/\[RNG_QUEUE[^\]]*\][\s\S]*?\[\/RNG_QUEUE\]/gi, '');
+
+        // Strip any residual [TAG]...[/TAG] injected memo blocks that may linger
+        raw = raw.replace(/\[[A-Z_]+\][\s\S]*?\[\/[A-Z_]+\]/g, '');
+
+        return raw.trim();
+    }
+
+    /**
+     * The State Model pass: Extract state changes from the narrative.
+     * @param {string} narrativeOutput The last narrative message to parse.
+     * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
+     */
+    async function runStateModelPass(narrativeOutput, isFullContext = false) {
+        const settings = getSettings();
+        const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
+
+        if (!generateRaw) {
+            console.error("[RPG Tracker] generateRaw not found in context.");
+            return;
+        }
+
+        try {
+            _stateModelRunning = true;
+            updateStatusIndicator('running');
+
+            let modulesText = "";
+            const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
+            for (const [key, prompt] of Object.entries(promptsMap)) {
+                if (settings.modules[key]) {
+                    modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
+                }
+            }
+            if (settings.customFields && settings.customFields.length > 0) {
+                settings.customFields.forEach(f => {
+                    if (f.enabled && f.tag && f.prompt) {
+                        modulesText += `- [${f.tag.toUpperCase()}]: ${f.prompt}\n`;
+                    }
+                });
             }
 
-            const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+            let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
+            if (isFullContext) {
+                systemPrompt = systemPrompt
+                    .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
+                    .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
+            }
 
-            if (merged !== sanitizedCurrent) {
+            let userPrompt = "";
+
+            if (isFullContext) {
+                const { chat } = SillyTavern.getContext();
+                // Take last 60 messages for a "long horizon" audit
+                const N = 60;
+                const recentChat = chat.slice(-N);
+                const chatLog = recentChat.map(m => {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                    return `${name}: ${m.mes}`;
+                }).join('\n\n');
+
+                userPrompt =
+                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
+                    `## PRIOR MEMO\n${settings.currentMemo || '(empty)'}\n\n` +
+                    `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
+                    `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+            } else {
+                const lastUserAction = getLastUserAction();
+                const userActionSection = lastUserAction
+                    ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
+                    : '';
+
+                userPrompt =
+                    `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
+                    userActionSection +
+                    `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
+                    `## OUTPUT ONLY CHANGED SECTIONS:`;
+            }
+
+            const result = await sendStateRequest(settings, systemPrompt, userPrompt);
+
+            if (result && typeof result === 'string') {
+                if (settings.debugMode) console.log("[RPG Tracker] Raw Result:", result);
+
+                // ── Pre-clean: strip <memo> wrapper tags before any merge logic ──
+                // The model may wrap its output in <memo>...</memo> regardless of our prompt.
+                // We extract the last complete block's content, or strip orphaned tags.
+                let cleanedOutput = result;
+                const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
+                if (memoBlocks.length > 0) {
+                    // Take the last complete <memo>...</memo> block
+                    cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
+                } else {
+                    // Strip any orphaned <memo> / </memo> tags
+                    cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+                }
+
+                // Also sanitize the current stored memo in case it was previously
+                // contaminated by a prior session that saved raw tags.
+                const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+
+                const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+
+                if (settings.debugMode) {
+                    console.log(`[RPG Tracker] Memo ${merged !== sanitizedCurrent ? 'updated (partial merge)' : 'unchanged'}.`);
+                }
+
+                // Push snapshot to rolling history (max 5)
                 const delta = computeDelta(sanitizedCurrent, merged);
-                settings.lastDelta = delta;
                 settings.memoHistory.unshift(sanitizedCurrent);
                 if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
 
-                const dp = document.getElementById('rpg-tracker-delta-content');
-                if (dp) dp.innerHTML = delta;
+                // Persist delta and update panel
+                settings.lastDelta = delta;
+                const deltaPanel = document.getElementById('rpg-tracker-delta-content');
+                if (deltaPanel) deltaPanel.innerHTML = delta;
 
+                // Rotation logic (legacy compat)
                 settings.prevMemo2 = settings.prevMemo1;
                 settings.prevMemo1 = sanitizedCurrent;
                 settings.currentMemo = merged;
@@ -1280,296 +1183,393 @@ async function sendDirectPrompt(message) {
                 syncMemoView();
                 refreshRenderedView();
                 saveSettingsDebounced();
-                toastr['success']('Tracker updated.', 'RPG Tracker');
-            } else {
-                toastr['info']('No changes were made.', 'RPG Tracker');
+
+                if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
+
+                // Check for Level Up
+                if (/LEVEL_UP=true/i.test(merged)) {
+                    handleLevelUp();
+                }
             }
+        } catch (error) {
+            console.error("[RPG Tracker] State Model pass failed:", error);
+        } finally {
+            _stateModelRunning = false;
+            updateStatusIndicator('active');
         }
-    } catch (err) {
-        console.error('[RPG Tracker] Direct prompt failed:', err);
-        toastr['error']('Direct prompt failed. Check console.', 'RPG Tracker');
-    } finally {
-        _stateModelRunning = false;
-        updateStatusIndicator('active');
     }
-}
+
+    function handleLevelUp() {
+        const { sendSystemMessage } = SillyTavern.getContext();
+        toastr['success']("Level Up Detected! System prompt injected.", "RPG Tracker");
+
+        if (sendSystemMessage) {
+            sendSystemMessage('generic', "SYSTEM: Level Up Detected! The character has gained a level. Acknowledge this immediately and prompt the user to make their level-up choices or grant them their logical boons.");
+        }
+    }
+
+    /**
+     * Send a direct instruction to the State Model bypassing the narrative pipeline.
+     * Used for initial character setup and manual corrections.
+     */
+    async function sendDirectPrompt(message) {
+        if (_stateModelRunning) {
+            toastr['info']('State Model is already running. Please wait.', 'RPG Tracker');
+            return;
+        }
+
+        const settings = getSettings();
+        const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
+        if (!generateRaw) return;
+
+        try {
+            _stateModelRunning = true;
+            updateStatusIndicator('running');
+
+            let modulesText = '';
+            const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
+            for (const [key, prompt] of Object.entries(promptsMap)) {
+                if (settings.modules[key]) {
+                    modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
+                }
+            }
+            if (settings.customFields && settings.customFields.length > 0) {
+                settings.customFields.forEach(f => {
+                    if (f.enabled && f.tag && f.prompt) {
+                        modulesText += `- [${f.tag.toUpperCase()}]: ${f.prompt}\n`;
+                    }
+                });
+            }
+
+            const systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
+
+            const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+
+            const userPrompt =
+                `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
+                `## USER INSTRUCTION\n${message}\n\n` +
+                `## OUTPUT ONLY CHANGED OR NEW SECTIONS:`;
+
+            const result = await sendStateRequest(settings, systemPrompt, userPrompt);
+
+            if (result && typeof result === 'string') {
+                let cleanedOutput = result;
+                const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
+                if (memoBlocks.length > 0) {
+                    cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
+                } else {
+                    cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+                }
+
+                const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+
+                if (merged !== sanitizedCurrent) {
+                    const delta = computeDelta(sanitizedCurrent, merged);
+                    settings.lastDelta = delta;
+                    settings.memoHistory.unshift(sanitizedCurrent);
+                    if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
+
+                    const dp = document.getElementById('rpg-tracker-delta-content');
+                    if (dp) dp.innerHTML = delta;
+
+                    settings.prevMemo2 = settings.prevMemo1;
+                    settings.prevMemo1 = sanitizedCurrent;
+                    settings.currentMemo = merged;
+
+                    updateUIMemo(merged);
+                    syncMemoView();
+                    refreshRenderedView();
+                    saveSettingsDebounced();
+                    toastr['success']('Tracker updated.', 'RPG Tracker');
+                } else {
+                    toastr['info']('No changes were made.', 'RPG Tracker');
+                }
+            }
+        } catch (err) {
+            console.error('[RPG Tracker] Direct prompt failed:', err);
+            toastr['error']('Direct prompt failed. Check console.', 'RPG Tracker');
+        } finally {
+            _stateModelRunning = false;
+            updateStatusIndicator('active');
+        }
+    }
 
 
 
-/**
- * Panel geometry persistence
- */
-const GEOMETRY_KEY = 'rpg_tracker_geometry';
+    /**
+     * Panel geometry persistence
+     */
+    const GEOMETRY_KEY = 'rpg_tracker_geometry';
 
-/**
- * @param {HTMLElement} panel
- */
-function savePanelGeometry(panel) {
-    const rect = panel.getBoundingClientRect();
-    localStorage.setItem(GEOMETRY_KEY, JSON.stringify({
-        left: rect.left, top: rect.top,
-        width: rect.width, height: rect.height
-    }));
-}
+    /**
+     * @param {HTMLElement} panel
+     */
+    function savePanelGeometry(panel) {
+        const rect = panel.getBoundingClientRect();
+        localStorage.setItem(GEOMETRY_KEY, JSON.stringify({
+            left: rect.left, top: rect.top,
+            width: rect.width, height: rect.height
+        }));
+    }
 
-/**
- * @param {HTMLElement} panel
- */
-function loadPanelGeometry(panel) {
-    try {
-        const saved = JSON.parse(localStorage.getItem(GEOMETRY_KEY));
-        if (!saved) return;
+    /**
+     * @param {HTMLElement} panel
+     */
+    function loadPanelGeometry(panel) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(GEOMETRY_KEY));
+            if (!saved) return;
 
-        // Sanitize coordinates to prevent "bricking" off-screen
-        const left = saved.left !== undefined ? Math.max(0, Math.min(window.innerWidth - 50, saved.left)) : undefined;
-        const top = saved.top !== undefined ? Math.max(0, Math.min(window.innerHeight - 50, saved.top)) : undefined;
+            // Sanitize coordinates to prevent "bricking" off-screen
+            const left = saved.left !== undefined ? Math.max(0, Math.min(window.innerWidth - 50, saved.left)) : undefined;
+            const top = saved.top !== undefined ? Math.max(0, Math.min(window.innerHeight - 50, saved.top)) : undefined;
 
-        if (left !== undefined) { panel.style.left = left + 'px'; panel.style.right = 'auto'; }
-        if (top !== undefined) { panel.style.top = top + 'px'; panel.style.bottom = 'auto'; }
-        if (saved.width) panel.style.width = saved.width + 'px';
-        if (saved.height) panel.style.height = saved.height + 'px';
-    } catch { /* ignore */ }
-}
+            if (left !== undefined) { panel.style.left = left + 'px'; panel.style.right = 'auto'; }
+            if (top !== undefined) { panel.style.top = top + 'px'; panel.style.bottom = 'auto'; }
+            if (saved.width) panel.style.width = saved.width + 'px';
+            if (saved.height) panel.style.height = saved.height + 'px';
+        } catch { /* ignore */ }
+    }
 
-const DELTA_HEIGHT_KEY = 'rpg_tracker_delta_height';
+    const DELTA_HEIGHT_KEY = 'rpg_tracker_delta_height';
 
-function saveDeltaHeight(height) {
-    localStorage.setItem(DELTA_HEIGHT_KEY, String(height));
-}
+    function saveDeltaHeight(height) {
+        localStorage.setItem(DELTA_HEIGHT_KEY, String(height));
+    }
 
-function loadDeltaHeight() {
-    const v = parseInt(localStorage.getItem(DELTA_HEIGHT_KEY) || '');
-    return isNaN(v) ? 120 : Math.max(40, v);
-}
+    function loadDeltaHeight() {
+        const v = parseInt(localStorage.getItem(DELTA_HEIGHT_KEY) || '');
+        return isNaN(v) ? 120 : Math.max(40, v);
+    }
 
-/**
- * Profile system
- */
-function saveProfile(name) {
-    const s = getSettings();
-    if (!name) return;
-    if (!s.profiles) s.profiles = {};
-    s.profiles[name] = {
-        currentMemo: s.currentMemo,
-        memoHistory: JSON.parse(JSON.stringify(s.memoHistory)),
-        modules: JSON.parse(JSON.stringify(s.modules)),
-        blockOrder: JSON.parse(JSON.stringify(s.blockOrder || BLOCK_ORDER)),
-        stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
-        customFields: JSON.parse(JSON.stringify(s.customFields || [])),
-        lastDelta: s.lastDelta || ''
+    /**
+     * Profile system
+     */
+    function saveProfile(name) {
+        const s = getSettings();
+        if (!name) return;
+        if (!s.profiles) s.profiles = {};
+        s.profiles[name] = {
+            currentMemo: s.currentMemo,
+            memoHistory: JSON.parse(JSON.stringify(s.memoHistory)),
+            modules: JSON.parse(JSON.stringify(s.modules)),
+            blockOrder: JSON.parse(JSON.stringify(s.blockOrder || BLOCK_ORDER)),
+            stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
+            customFields: JSON.parse(JSON.stringify(s.customFields || [])),
+            lastDelta: s.lastDelta || ''
+        };
+        s.activeProfile = name;
+        SillyTavern.getContext().saveSettingsDebounced();
+    }
+
+    function loadProfile(name) {
+        const s = getSettings();
+        const p = s.profiles?.[name];
+        if (!p) return;
+        s.currentMemo = p.currentMemo ?? '';
+        s.memoHistory = p.memoHistory ?? [];
+        s.modules = { ...s.modules, ...p.modules };
+        s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
+        s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
+        s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
+        s.lastDelta = p.lastDelta ?? '';
+        s.activeProfile = name;
+        _historyViewIndex = -1;
+        SillyTavern.getContext().saveSettingsDebounced();
+        // Refresh UI
+        refreshOrderList();
+        // Refresh delta panel
+        const dp = document.getElementById('rpg-tracker-delta-content');
+        if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
+        syncMemoView();
+    }
+
+    function deleteProfile(name) {
+        const s = getSettings();
+        if (!s.profiles?.[name]) return;
+        delete s.profiles[name];
+        if (s.activeProfile === name) s.activeProfile = '';
+        SillyTavern.getContext().saveSettingsDebounced();
+    }
+
+    function refreshProfileDropdown() {
+        const s = getSettings();
+        const sel = document.getElementById('rpg_tracker_profile_select');
+        if (!sel) return;
+        const names = Object.keys(s.profiles || {});
+        sel.innerHTML = '<option value="">-- No Profile --</option>' +
+            names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    }
+
+    /**
+     * Line-level delta between two memo strings.
+     * Returns an HTML string for the delta panel.
+     */
+    function computeDelta(oldMemo, newMemo) {
+        if (!oldMemo && !newMemo) return '<span class="delta-empty">No memo yet.</span>';
+        if (!oldMemo) return '<span class="delta-added">+ (initial memo created)</span>';
+
+        const oldLines = new Set(oldMemo.split('\n').map(l => l.trim()).filter(Boolean));
+        const newLines = new Set(newMemo.split('\n').map(l => l.trim()).filter(Boolean));
+
+        const added = [...newLines].filter(l => !oldLines.has(l));
+        const removed = [...oldLines].filter(l => !newLines.has(l));
+
+        if (added.length === 0 && removed.length === 0) {
+            return '<span class="delta-empty">No changes detected.</span>';
+        }
+
+        const html = [
+            ...removed.map(l => `<div class="delta-removed">- ${escapeHtml(l)}</div>`),
+            ...added.map(l => `<div class="delta-added">+ ${escapeHtml(l)}</div>`),
+        ];
+        return html.join('');
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    const splitSmart = (text) => {
+        const res = [];
+        let cur = '', depth = 0;
+        for (const c of text) {
+            if (c === '(') depth++; else if (c === ')') depth--;
+            if (c === ',' && depth === 0) { res.push(cur.trim()); cur = ''; }
+            else cur += c;
+        }
+        if (cur.trim()) res.push(cur.trim());
+        return res;
     };
-    s.activeProfile = name;
-    SillyTavern.getContext().saveSettingsDebounced();
-}
 
-function loadProfile(name) {
-    const s = getSettings();
-    const p = s.profiles?.[name];
-    if (!p) return;
-    s.currentMemo = p.currentMemo ?? '';
-    s.memoHistory = p.memoHistory ?? [];
-    s.modules = { ...s.modules, ...p.modules };
-    s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
-    s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
-    s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
-    s.lastDelta = p.lastDelta ?? '';
-    s.activeProfile = name;
-    _historyViewIndex = -1;
-    SillyTavern.getContext().saveSettingsDebounced();
-    // Refresh UI
-    refreshOrderList();
-    // Refresh delta panel
-    const dp = document.getElementById('rpg-tracker-delta-content');
-    if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
-    syncMemoView();
-}
-
-function deleteProfile(name) {
-    const s = getSettings();
-    if (!s.profiles?.[name]) return;
-    delete s.profiles[name];
-    if (s.activeProfile === name) s.activeProfile = '';
-    SillyTavern.getContext().saveSettingsDebounced();
-}
-
-function refreshProfileDropdown() {
-    const s = getSettings();
-    const sel = document.getElementById('rpg_tracker_profile_select');
-    if (!sel) return;
-    const names = Object.keys(s.profiles || {});
-    sel.innerHTML = '<option value="">-- No Profile --</option>' +
-        names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
-}
-
-/**
- * Line-level delta between two memo strings.
- * Returns an HTML string for the delta panel.
- */
-function computeDelta(oldMemo, newMemo) {
-    if (!oldMemo && !newMemo) return '<span class="delta-empty">No memo yet.</span>';
-    if (!oldMemo) return '<span class="delta-added">+ (initial memo created)</span>';
-
-    const oldLines = new Set(oldMemo.split('\n').map(l => l.trim()).filter(Boolean));
-    const newLines = new Set(newMemo.split('\n').map(l => l.trim()).filter(Boolean));
-
-    const added = [...newLines].filter(l => !oldLines.has(l));
-    const removed = [...oldLines].filter(l => !newLines.has(l));
-
-    if (added.length === 0 && removed.length === 0) {
-        return '<span class="delta-empty">No changes detected.</span>';
-    }
-
-    const html = [
-        ...removed.map(l => `<div class="delta-removed">- ${escapeHtml(l)}</div>`),
-        ...added.map(l => `<div class="delta-added">+ ${escapeHtml(l)}</div>`),
-    ];
-    return html.join('');
-}
-
-function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-const splitSmart = (text) => {
-    const res = [];
-    let cur = '', depth = 0;
-    for (const c of text) {
-        if (c === '(') depth++; else if (c === ')') depth--;
-        if (c === ',' && depth === 0) { res.push(cur.trim()); cur = ''; }
-        else cur += c;
-    }
-    if (cur.trim()) res.push(cur.trim());
-    return res;
-};
-
-const renderPills = (text) => {
-    return splitSmart(text).map(t => {
-        // Detect buff/debuff prefix
-        let pillClass = 'rt-unit-pill';
-        let displayText = t;
-        if (t.startsWith('(+)') || t.startsWith('(+) ')) {
-            pillClass += ' rt-pill-buff';
-            displayText = t.replace(/^\(\+\)\s*/, '');
-        } else if (t.startsWith('(-)') || t.startsWith('(-) ')) {
-            pillClass += ' rt-pill-debuff';
-            displayText = t.replace(/^\(-\)\s*/, '');
-        }
-
-        const m = displayText.match(/^(.+?)\s*\((.+)\)$/);
-        if (m) {
-            const [, name, desc] = m;
-
-            // Extract resource count if present (e.g., "2/3")
-            let iconHtml = '';
-            const resourceMatch = desc.match(/(\d+)\s*\/\s*(\d+)/);
-            if (resourceMatch) {
-                iconHtml = `<span class="rt-unit-icon">${escapeHtml(resourceMatch[0])}</span>`;
+    const renderPills = (text) => {
+        return splitSmart(text).map(t => {
+            // Detect buff/debuff prefix
+            let pillClass = 'rt-unit-pill';
+            let displayText = t;
+            if (t.startsWith('(+)') || t.startsWith('(+) ')) {
+                pillClass += ' rt-pill-buff';
+                displayText = t.replace(/^\(\+\)\s*/, '');
+            } else if (t.startsWith('(-)') || t.startsWith('(-) ')) {
+                pillClass += ' rt-pill-debuff';
+                displayText = t.replace(/^\(-\)\s*/, '');
             }
 
-            return `<span class="${pillClass}">
+            const m = displayText.match(/^(.+?)\s*\((.+)\)$/);
+            if (m) {
+                const [, name, desc] = m;
+
+                // Extract resource count if present (e.g., "2/3")
+                let iconHtml = '';
+                const resourceMatch = desc.match(/(\d+)\s*\/\s*(\d+)/);
+                if (resourceMatch) {
+                    iconHtml = `<span class="rt-unit-icon">${escapeHtml(resourceMatch[0])}</span>`;
+                }
+
+                return `<span class="${pillClass}">
                     <span class="rt-unit-name">${escapeHtml(name)}</span>
                     ${iconHtml}
                     <span class="rt-unit-descr">${escapeHtml(desc)}</span>
                 </span>`;
-        }
-        return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtml(displayText)}</span></span>`;
-    }).join('');
-};
-
-// ── History index: -1 means "live", 0 = most recent snapshot, higher = older
-let _historyViewIndex = -1;
-
-/** Whether the rendered card view is active */
-let _renderedViewActive = false;
-
-/**
- * Parse the memo's [TAG]...[/TAG] blocks and return structured object.
- */
-function parseMemoBlocks(memo) {
-    const blocks = {};
-    const pattern = /\[([^\]\/][^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
-    for (const [, tag, content] of memo.matchAll(pattern)) {
-        blocks[tag.trim().toUpperCase()] = content.trim();
-    }
-    return blocks;
-}
-
-
-
-const BLOCK_ICONS = { TIME: '🕒', XP: '🇽🇵', CHARACTER: '🧙', PARTY: '👥', COMBAT: '⚔️', INVENTORY: '🎒', ABILITIES: '✨', SPELLS: '📖' };
-const BLOCK_ORDER = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
-const PAGE_SIZE = 8;
-// Sections that should NEVER be paginated (show all entries always)
-const NO_PAGINATE = new Set(['CHARACTER', 'ABILITIES']);
-const COLLAPSE_KEY = 'rpg_tracker_collapsed';
-const DETACHED_KEY = 'rpg_tracker_detached';
-
-const _sectionPages = {};
-
-function getPageSize(renderType) {
-    return renderType === 'SPELLS' ? 5 : PAGE_SIZE;
-}
-
-function loadCollapsed() {
-    try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
-    catch { return new Set(); }
-}
-function saveCollapsed(set) {
-    localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set]));
-}
-
-function loadDetached() {
-    try { return new Set(JSON.parse(localStorage.getItem(DETACHED_KEY) || '[]')); }
-    catch { return new Set(); }
-}
-function saveDetached(set) {
-    localStorage.setItem(DETACHED_KEY, JSON.stringify([...set]));
-}
-
-
-
-function blockToItems(tag, content) {
-    const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-    let renderType = tag;
-    const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-    if (customField && customField.renderType) {
-        renderType = customField.renderType;
-    }
-
-    const highlightParens = (text) => {
-        return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
+            }
+            return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtml(displayText)}</span></span>`;
+        }).join('');
     };
 
-    switch (renderType) {
-        case 'COMBAT':
-        case 'PARTY':
-        case 'CHARACTER': {
-            const results = [];
-            let lastEntityIdx = -1;
+    // ── History index: -1 means "live", 0 = most recent snapshot, higher = older
+    let _historyViewIndex = -1;
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+    /** Whether the rendered card view is active */
+    let _renderedViewActive = false;
 
-                // Check for Combat Round header
-                if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
-                    results.push(`<div class="rt-combat-round">${escapeHtml(line)}</div>`);
-                    lastEntityIdx = -1;
-                    continue;
-                }
+    /**
+     * Parse the memo's [TAG]...[/TAG] blocks and return structured object.
+     */
+    function parseMemoBlocks(memo) {
+        const blocks = {};
+        const pattern = /\[([^\]\/][^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
+        for (const [, tag, content] of memo.matchAll(pattern)) {
+            blocks[tag.trim().toUpperCase()] = content.trim();
+        }
+        return blocks;
+    }
 
-                const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
-                if (hpMatch) {
-                    const [, name, curRaw, maxRaw, rest] = hpMatch;
-                    const cur = Number(curRaw.replace(/,/g, ''));
-                    const max = maxRaw ? Number(maxRaw.replace(/,/g, '')) : undefined;
-                    const hasMax = max !== undefined;
-                    const pct = hasMax ? Math.max(0, Math.min(100, (cur / max) * 100)) : 100;
-                    const hpColor = !hasMax ? '#00ffaa' : pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
-                    const status = rest.trim().replace(/^\|\s*/, '');
-                    const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
 
-                    lastEntityIdx = results.length;
-                    results.push(`<div class="rt-entity-row">
+
+    const BLOCK_ICONS = { TIME: '🕒', XP: '🇽🇵', CHARACTER: '🧙', PARTY: '👥', COMBAT: '⚔️', INVENTORY: '🎒', ABILITIES: '✨', SPELLS: '📖' };
+    const BLOCK_ORDER = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
+    const PAGE_SIZE = 8;
+    // Sections that should NEVER be paginated (show all entries always)
+    const NO_PAGINATE = new Set(['CHARACTER', 'ABILITIES']);
+    const COLLAPSE_KEY = 'rpg_tracker_collapsed';
+    const DETACHED_KEY = 'rpg_tracker_detached';
+
+    const _sectionPages = {};
+
+    function getPageSize(renderType) {
+        return renderType === 'SPELLS' ? 5 : PAGE_SIZE;
+    }
+
+    function loadCollapsed() {
+        try { return new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }
+        catch { return new Set(); }
+    }
+    function saveCollapsed(set) {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set]));
+    }
+
+    function loadDetached() {
+        try { return new Set(JSON.parse(localStorage.getItem(DETACHED_KEY) || '[]')); }
+        catch { return new Set(); }
+    }
+    function saveDetached(set) {
+        localStorage.setItem(DETACHED_KEY, JSON.stringify([...set]));
+    }
+
+
+
+    function blockToItems(tag, content) {
+        const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+        let renderType = tag;
+        const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+        if (customField && customField.renderType) {
+            renderType = customField.renderType;
+        }
+
+        const highlightParens = (text) => {
+            return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
+        };
+
+        switch (renderType) {
+            case 'COMBAT':
+            case 'PARTY':
+            case 'CHARACTER': {
+                const results = [];
+                let lastEntityIdx = -1;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+
+                    // Check for Combat Round header
+                    if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
+                        results.push(`<div class="rt-combat-round">${escapeHtml(line)}</div>`);
+                        lastEntityIdx = -1;
+                        continue;
+                    }
+
+                    const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
+                    if (hpMatch) {
+                        const [, name, curRaw, maxRaw, rest] = hpMatch;
+                        const cur = Number(curRaw.replace(/,/g, ''));
+                        const max = maxRaw ? Number(maxRaw.replace(/,/g, '')) : undefined;
+                        const hasMax = max !== undefined;
+                        const pct = hasMax ? Math.max(0, Math.min(100, (cur / max) * 100)) : 100;
+                        const hpColor = !hasMax ? '#00ffaa' : pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
+                        const status = rest.trim().replace(/^\|\s*/, '');
+                        const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
+
+                        lastEntityIdx = results.length;
+                        results.push(`<div class="rt-entity-row">
                             <div class="rt-entity-name">${escapeHtml(name.trim())}</div>
                             <div class="rt-hp-bar-wrap" title="${label} HP">
                                 <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
@@ -1577,316 +1577,316 @@ function blockToItems(tag, content) {
                             <span class="rt-hp-label">${label}</span>
                         </div>`);
 
-                    if (status) {
-                        // Split inline status by pipe to find AC, Saves, etc.
-                        const parts = status.split('|').map(p => p.trim()).filter(Boolean);
-                        let genericInfo = [];
+                        if (status) {
+                            // Split inline status by pipe to find AC, Saves, etc.
+                            const parts = status.split('|').map(p => p.trim()).filter(Boolean);
+                            let genericInfo = [];
 
-                        for (const part of parts) {
-                            if (part.toLowerCase().startsWith('ac:')) {
-                                results[lastEntityIdx] += `<div class="rt-entity-sub-line">
+                            for (const part of parts) {
+                                if (part.toLowerCase().startsWith('ac:')) {
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line">
                                         <span class="rt-entity-sub-label">AC:</span> ${escapeHtml(part.substring(3).trim())}
                                     </div>`;
-                            } else if (part.toLowerCase().startsWith('saves:')) {
-                                results[lastEntityIdx] += `<div class="rt-entity-sub-line">
+                                } else if (part.toLowerCase().startsWith('saves:')) {
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line">
                                         <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(part.substring(6).trim()))}
                                     </div>`;
-                            } else if (part.toLowerCase().startsWith('status:')) {
-                                results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
+                                } else if (part.toLowerCase().startsWith('status:')) {
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
                                         <span class="rt-entity-sub-label">Status:</span> ${renderPills(part.substring(7).trim())}
                                     </div>`;
-                            } else if (part.toLowerCase().startsWith('other:') || part.toLowerCase().startsWith('res:')) {
-                                const label = part.toLowerCase().startsWith('res:') ? 'Res:' : 'Other:';
-                                const start = part.toLowerCase().startsWith('res:') ? 4 : 6;
-                                const text = part.substring(start).trim();
-                                results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
+                                } else if (part.toLowerCase().startsWith('other:') || part.toLowerCase().startsWith('res:')) {
+                                    const label = part.toLowerCase().startsWith('res:') ? 'Res:' : 'Other:';
+                                    const start = part.toLowerCase().startsWith('res:') ? 4 : 6;
+                                    const text = part.substring(start).trim();
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
                                         <span class="rt-entity-sub-label">${label}</span> ${renderPills(text)}
                                     </div>`;
-                            } else {
-                                genericInfo.push(part);
+                                } else {
+                                    genericInfo.push(part);
+                                }
                             }
-                        }
 
-                        if (genericInfo.length > 0) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line">
+                            if (genericInfo.length > 0) {
+                                results[lastEntityIdx] += `<div class="rt-entity-sub-line">
                                     <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtml(genericInfo.join(' | ')))}
                                 </div>`;
+                            }
                         }
-                    }
-                } else if ((line.toLowerCase().startsWith('attributes:') || line.toLowerCase().startsWith('attr:')) && lastEntityIdx !== -1) {
-                    const label = line.toLowerCase().startsWith('attr:') ? 'Attr:' : 'Attr:';
-                    const startIdx = line.indexOf(':') + 1;
-                    const attrText = line.substring(startIdx).trim();
-                    const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
+                    } else if ((line.toLowerCase().startsWith('attributes:') || line.toLowerCase().startsWith('attr:')) && lastEntityIdx !== -1) {
+                        const label = line.toLowerCase().startsWith('attr:') ? 'Attr:' : 'Attr:';
+                        const startIdx = line.indexOf(':') + 1;
+                        const attrText = line.substring(startIdx).trim();
+                        const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
                             <span class="rt-entity-sub-label">${label}</span> ${escapeHtml(attrText)}
                         </div>`;
-                    results[lastEntityIdx] += attrHtml;
-                } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
-                    // Append bundled skills below the entity row
-                    const skillsMatch = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
-                    const skillsText = skillsMatch ? skillsMatch[1].trim() : line.split(':')[1]?.trim() || '';
-                    const skillsHtml = `<div class="rt-entity-sub-line">
+                        results[lastEntityIdx] += attrHtml;
+                    } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
+                        // Append bundled skills below the entity row
+                        const skillsMatch = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
+                        const skillsText = skillsMatch ? skillsMatch[1].trim() : line.split(':')[1]?.trim() || '';
+                        const skillsHtml = `<div class="rt-entity-sub-line">
                             <span class="rt-entity-sub-label">Skills:</span> ${escapeHtml(skillsText)}
                         </div>`;
-                    results[lastEntityIdx] += skillsHtml;
-                } else if (line.toLowerCase().startsWith('saves:') && lastEntityIdx !== -1) {
-                    const startIdx = line.indexOf(':') + 1;
-                    const savesText = line.substring(startIdx).trim();
-                    const savesHtml = `<div class="rt-entity-sub-line">
+                        results[lastEntityIdx] += skillsHtml;
+                    } else if (line.toLowerCase().startsWith('saves:') && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        const savesText = line.substring(startIdx).trim();
+                        const savesHtml = `<div class="rt-entity-sub-line">
                             <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(savesText))}
                         </div>`;
-                    results[lastEntityIdx] += savesHtml;
-                } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
-                    const statusText = line.substring(7).trim();
-                    const statusHtml = `<div class="rt-entity-sub-line rt-units-container">
+                        results[lastEntityIdx] += savesHtml;
+                    } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
+                        const statusText = line.substring(7).trim();
+                        const statusHtml = `<div class="rt-entity-sub-line rt-units-container">
                             <span class="rt-entity-sub-label">Status:</span> ${renderPills(statusText)}
                         </div>`;
-                    results[lastEntityIdx] += statusHtml;
-                } else if ((line.toLowerCase().startsWith('primary weapon:') || line.toLowerCase().startsWith('att/def:')) && lastEntityIdx !== -1) {
-                    const startIdx = line.indexOf(':') + 1;
-                    const label = line.toLowerCase().startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
-                    const weaponText = line.substring(startIdx).trim();
-                    const weaponHtml = `<div class="rt-entity-sub-line">
+                        results[lastEntityIdx] += statusHtml;
+                    } else if ((line.toLowerCase().startsWith('primary weapon:') || line.toLowerCase().startsWith('att/def:')) && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        const label = line.toLowerCase().startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
+                        const weaponText = line.substring(startIdx).trim();
+                        const weaponHtml = `<div class="rt-entity-sub-line">
                             <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtml(weaponText))}
                         </div>`;
-                    results[lastEntityIdx] += weaponHtml;
-                } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
-                    const startIdx = line.indexOf(':') + 1;
-                    let hdText = line.substring(startIdx).trim();
-                    let pipsHtml = escapeHtml(hdText);
-                    const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
-                    if (m) {
-                        const [, dice, curStr, maxStr] = m;
-                        if (curStr && maxStr) {
-                            const cur = parseInt(curStr.replace(/,/g, ''), 10);
-                            const max = parseInt(maxStr.replace(/,/g, ''), 10);
-                            const pips = Array.from({ length: max }, (_, i) =>
-                                `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
-                            ).join('');
-                            pipsHtml = `<span class="rt-hd-label">[ ${escapeHtml(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
+                        results[lastEntityIdx] += weaponHtml;
+                    } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        let hdText = line.substring(startIdx).trim();
+                        let pipsHtml = escapeHtml(hdText);
+                        const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
+                        if (m) {
+                            const [, dice, curStr, maxStr] = m;
+                            if (curStr && maxStr) {
+                                const cur = parseInt(curStr.replace(/,/g, ''), 10);
+                                const max = parseInt(maxStr.replace(/,/g, ''), 10);
+                                const pips = Array.from({ length: max }, (_, i) =>
+                                    `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
+                                ).join('');
+                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtml(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
+                            }
                         }
-                    }
-                    const hdHtml = `<div class="rt-entity-sub-line">
+                        const hdHtml = `<div class="rt-entity-sub-line">
                             <span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span>
                         </div>`;
-                    results[lastEntityIdx] += hdHtml;
-                } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
-                    const traitsText = line.substring(7).trim();
-                    const traitsHtml = `<div class="rt-entity-sub-line rt-units-container">
+                        results[lastEntityIdx] += hdHtml;
+                    } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
+                        const traitsText = line.substring(7).trim();
+                        const traitsHtml = `<div class="rt-entity-sub-line rt-units-container">
                             <span class="rt-entity-sub-label">Traits:</span> ${renderPills(traitsText)}
                         </div>`;
-                    results[lastEntityIdx] += traitsHtml;
-                } else if ((line.toLowerCase().startsWith('other:') || line.toLowerCase().startsWith('resistances:')) && lastEntityIdx !== -1) {
-                    const startIdx = line.indexOf(':') + 1;
-                    const otherText = line.substring(startIdx).trim();
-                    const otherHtml = `<div class="rt-entity-sub-line rt-units-container">
+                        results[lastEntityIdx] += traitsHtml;
+                    } else if ((line.toLowerCase().startsWith('other:') || line.toLowerCase().startsWith('resistances:')) && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        const otherText = line.substring(startIdx).trim();
+                        const otherHtml = `<div class="rt-entity-sub-line rt-units-container">
                             <span class="rt-entity-sub-label">Other:</span> ${renderPills(otherText)}
                         </div>`;
-                    results[lastEntityIdx] += otherHtml;
-                } else if (line.toLowerCase().startsWith('spells:') && lastEntityIdx !== -1) {
-                    const startIdx = line.indexOf(':') + 1;
-                    const spellLine = line.substring(startIdx).trim();
+                        results[lastEntityIdx] += otherHtml;
+                    } else if (line.toLowerCase().startsWith('spells:') && lastEntityIdx !== -1) {
+                        const startIdx = line.indexOf(':') + 1;
+                        const spellLine = line.substring(startIdx).trim();
 
-                    // Helper to render a single parsed spell-level group
-                    const renderSpellGroup = (groupStr) => {
-                        const m = groupStr.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
-                        if (!m) return null;
-                        const [, label, availStr, maxStr, spellList] = m;
-                        const isCantrip = /cantrip/i.test(label);
-                        let pipsHtml = '';
-                        if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
-                            const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
-                            const pips = Array.from({ length: maxSlots }, (_, i) =>
-                                `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`
-                            ).join('');
-                            pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
-                        }
-                        let spellsHtml = '';
-                        if (spellList) {
-                            const spells = spellList.split(',').map(s => {
-                                const name = s.trim();
-                                const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
-                                const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                                return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
-                            }).join('');
-                            spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
-                        }
-                        // Mirror the exact HTML structure of the standalone SPELLS block:
-                        // rt-spell-row (2-col grid): level label | inline-group(pips + list)
-                        return `<div class="rt-spell-row">
+                        // Helper to render a single parsed spell-level group
+                        const renderSpellGroup = (groupStr) => {
+                            const m = groupStr.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
+                            if (!m) return null;
+                            const [, label, availStr, maxStr, spellList] = m;
+                            const isCantrip = /cantrip/i.test(label);
+                            let pipsHtml = '';
+                            if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
+                                const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
+                                const pips = Array.from({ length: maxSlots }, (_, i) =>
+                                    `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`
+                                ).join('');
+                                pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
+                            }
+                            let spellsHtml = '';
+                            if (spellList) {
+                                const spells = spellList.split(',').map(s => {
+                                    const name = s.trim();
+                                    const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
+                                    const url = `https://dnd5e.wikidot.com/spell:${slug}`;
+                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                                }).join('');
+                                spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
+                            }
+                            // Mirror the exact HTML structure of the standalone SPELLS block:
+                            // rt-spell-row (2-col grid): level label | inline-group(pips + list)
+                            return `<div class="rt-spell-row">
                                 <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
                                 <div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div>
                             </div>`;
-                    };
+                        };
 
-                    // Support BOTH formats:
-                    // New (standard): one Spells: line per level
-                    //   e.g. "Spells: Cantrips: Guidance"
-                    //        "Spells: Level 1 (2/2): Hunter's Mark, Goodberry"
-                    // Legacy (compound): pipe-separated levels on one Spells: line
-                    //   e.g. "Spells: Cantrips: Guidance | Level 1 (2/2): Hunter's Mark, Goodberry"
-                    const isCompound = /\|/.test(spellLine) && /(?:Level\s*\d+|Cantrips?)/i.test(spellLine);
-                    const groups = isCompound
-                        ? spellLine.split(/\s*\|\s*/)
-                        : [spellLine];
+                        // Support BOTH formats:
+                        // New (standard): one Spells: line per level
+                        //   e.g. "Spells: Cantrips: Guidance"
+                        //        "Spells: Level 1 (2/2): Hunter's Mark, Goodberry"
+                        // Legacy (compound): pipe-separated levels on one Spells: line
+                        //   e.g. "Spells: Cantrips: Guidance | Level 1 (2/2): Hunter's Mark, Goodberry"
+                        const isCompound = /\|/.test(spellLine) && /(?:Level\s*\d+|Cantrips?)/i.test(spellLine);
+                        const groups = isCompound
+                            ? spellLine.split(/\s*\|\s*/)
+                            : [spellLine];
 
-                    let renderedAny = false;
-                    for (const group of groups) {
-                        const rowHtml = renderSpellGroup(group);
-                        if (rowHtml) {
-                            results[lastEntityIdx] += rowHtml;
-                            renderedAny = true;
+                        let renderedAny = false;
+                        for (const group of groups) {
+                            const rowHtml = renderSpellGroup(group);
+                            if (rowHtml) {
+                                results[lastEntityIdx] += rowHtml;
+                                renderedAny = true;
+                            }
+                        }
+                        if (!renderedAny) {
+                            // Fallback if model format is unrecognizable
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
+                        }
+                    } else {
+                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
+                        lastEntityIdx = -1;
+                    }
+                }
+                return results;
+            }
+            case 'TIME': {
+                let currentTotalMins = 0;
+                let parsedCurrent = false;
+
+                const parseTimeStr = (str) => {
+                    let d = 0, h = 0, m = 0;
+                    const dayMatch = str.match(/(?:Day|D)\s*(\d+)/i);
+                    if (dayMatch) d = parseInt(dayMatch[1], 10);
+                    const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+                    if (timeMatch) {
+                        let tmph = parseInt(timeMatch[1], 10);
+                        m = parseInt(timeMatch[2], 10);
+                        if (timeMatch[3]) {
+                            const ampm = timeMatch[3].toUpperCase();
+                            if (ampm === 'PM' && tmph < 12) tmph += 12;
+                            if (ampm === 'AM' && tmph === 12) tmph = 0;
+                        }
+                        h = tmph;
+                    }
+                    if (!dayMatch && !timeMatch) return null;
+                    return (d * 24 * 60) + (h * 60) + m;
+                };
+
+                for (let line of lines) {
+                    if (line.toLowerCase().startsWith('last rest:')) continue;
+                    if (!parsedCurrent) {
+                        const t = parseTimeStr(line);
+                        if (t !== null) {
+                            currentTotalMins = t;
+                            parsedCurrent = true;
                         }
                     }
-                    if (!renderedAny) {
-                        // Fallback if model format is unrecognizable
-                        results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
-                    }
-                } else {
-                    results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
-                    lastEntityIdx = -1;
                 }
-            }
-            return results;
-        }
-        case 'TIME': {
-            let currentTotalMins = 0;
-            let parsedCurrent = false;
 
-            const parseTimeStr = (str) => {
-                let d = 0, h = 0, m = 0;
-                const dayMatch = str.match(/(?:Day|D)\s*(\d+)/i);
-                if (dayMatch) d = parseInt(dayMatch[1], 10);
-                const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-                if (timeMatch) {
-                    let tmph = parseInt(timeMatch[1], 10);
-                    m = parseInt(timeMatch[2], 10);
-                    if (timeMatch[3]) {
-                        const ampm = timeMatch[3].toUpperCase();
-                        if (ampm === 'PM' && tmph < 12) tmph += 12;
-                        if (ampm === 'AM' && tmph === 12) tmph = 0;
-                    }
-                    h = tmph;
-                }
-                if (!dayMatch && !timeMatch) return null;
-                return (d * 24 * 60) + (h * 60) + m;
-            };
-
-            for (let line of lines) {
-                if (line.toLowerCase().startsWith('last rest:')) continue;
-                if (!parsedCurrent) {
-                    const t = parseTimeStr(line);
-                    if (t !== null) {
-                        currentTotalMins = t;
-                        parsedCurrent = true;
-                    }
-                }
-            }
-
-            return lines.map(line => {
-                if (line.toLowerCase().startsWith('last rest:')) {
-                    const restVal = line.substring(line.indexOf(':') + 1).trim();
-                    let append = "";
-                    if (parsedCurrent) {
-                        const restMins = parseTimeStr(restVal);
-                        if (restMins !== null) {
-                            const diff = currentTotalMins - restMins;
-                            if (diff >= 0) {
-                                const dH = Math.floor(diff / 60);
-                                const dM = diff % 60;
-                                append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
-                                if (diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
-                                if (dH >= 24) {
-                                    const dDays = Math.floor(dH / 24);
-                                    const dRemH = dH % 24;
-                                    append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
+                return lines.map(line => {
+                    if (line.toLowerCase().startsWith('last rest:')) {
+                        const restVal = line.substring(line.indexOf(':') + 1).trim();
+                        let append = "";
+                        if (parsedCurrent) {
+                            const restMins = parseTimeStr(restVal);
+                            if (restMins !== null) {
+                                const diff = currentTotalMins - restMins;
+                                if (diff >= 0) {
+                                    const dH = Math.floor(diff / 60);
+                                    const dM = diff % 60;
+                                    append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
+                                    if (diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
+                                    if (dH >= 24) {
+                                        const dDays = Math.floor(dH / 24);
+                                        const dRemH = dH % 24;
+                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
+                                    }
                                 }
                             }
                         }
+                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtml(restVal)}${append}</div>`;
                     }
-                    return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtml(restVal)}${append}</div>`;
-                }
-                return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-            });
-        }
-        case 'XP':
-            return lines.map(line => {
-                const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*([\d,]+)\/([\d,]+)/i);
-                if (!xpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                const [, level, curRaw, maxRaw] = xpMatch;
-                const cur = Number(curRaw.replace(/,/g, ''));
-                const max = Number(maxRaw.replace(/,/g, ''));
-                const pct = Math.max(0, Math.min(100, (cur / max) * 100));
-                const levelHtml = level ? `<span>Level ${level}</span>` : '';
-                return `<div class="rt-xp-row">
+                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                });
+            }
+            case 'XP':
+                return lines.map(line => {
+                    const xpMatch = line.match(/(?:Level:\s*(\d+)\s*\|?\s*)?XP:\s*([\d,]+)\/([\d,]+)/i);
+                    if (!xpMatch) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    const [, level, curRaw, maxRaw] = xpMatch;
+                    const cur = Number(curRaw.replace(/,/g, ''));
+                    const max = Number(maxRaw.replace(/,/g, ''));
+                    const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+                    const levelHtml = level ? `<span>Level ${level}</span>` : '';
+                    return `<div class="rt-xp-row">
                         <div class="rt-xp-label">${levelHtml}<span>XP: ${curRaw} / ${maxRaw}</span></div>
                         <div class="rt-xp-bar-wrap">
                             <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
                         </div>
                     </div>`;
-            });
-        case 'SPELLS': {
-            // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
-            return lines.map(line => {
-                const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
-                if (!m) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-                const [, label, availStr, maxStr, spellList] = m;
-                const isCantrip = /cantrip/i.test(label);
-                let pipsHtml = '';
-                if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
-                    const avail = parseInt(availStr, 10), max = parseInt(maxStr, 10);
-                    const pips = Array.from({ length: max }, (_, i) =>
-                        `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`
-                    ).join('');
-                    pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
-                }
-                const spells = spellList.split(',').map(s => {
-                    const name = s.trim();
-                    const slug = name.toLowerCase()
-                        .replace(/'/g, '')
-                        .replace(/[^a-z0-9]+/g, '-');
-                    const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
-                }).join('');
-                return `<div class="rt-spell-row">
+                });
+            case 'SPELLS': {
+                // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
+                return lines.map(line => {
+                    const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
+                    if (!m) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    const [, label, availStr, maxStr, spellList] = m;
+                    const isCantrip = /cantrip/i.test(label);
+                    let pipsHtml = '';
+                    if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
+                        const avail = parseInt(availStr, 10), max = parseInt(maxStr, 10);
+                        const pips = Array.from({ length: max }, (_, i) =>
+                            `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`
+                        ).join('');
+                        pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
+                    }
+                    const spells = spellList.split(',').map(s => {
+                        const name = s.trim();
+                        const slug = name.toLowerCase()
+                            .replace(/'/g, '')
+                            .replace(/[^a-z0-9]+/g, '-');
+                        const url = `https://dnd5e.wikidot.com/spell:${slug}`;
+                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                    }).join('');
+                    return `<div class="rt-spell-row">
                         <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
                         <div class="rt-spell-inline-group">${pipsHtml}<div class="rt-spell-list">${spells}</div></div>
                     </div>`;
-            });
-        }
-        case 'INVENTORY': {
-            const allItems = lines.flatMap(line => {
-                // If the line starts with a bullet point, treat it as a single item
-                if (line.trim().match(/^[-*]\s+/)) {
-                    return [line.trim()];
-                }
-                // Otherwise split by commas that aren't inside parentheses
-                return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
-            });
-            return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
-        }
-        case 'ABILITIES': {
-            const allAbilities = lines.flatMap(line => {
-                const l = line.trim();
-                if (l.match(/^[-*]\s+/)) return [l.replace(/^[-*]\s*/, '')];
-                return splitSmart(l);
-            });
+                });
+            }
+            case 'INVENTORY': {
+                const allItems = lines.flatMap(line => {
+                    // If the line starts with a bullet point, treat it as a single item
+                    if (line.trim().match(/^[-*]\s+/)) {
+                        return [line.trim()];
+                    }
+                    // Otherwise split by commas that aren't inside parentheses
+                    return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
+                });
+                return allItems.map(l => l.replace(/^[-*]\s*/, ''))
+                    .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
+            }
+            case 'ABILITIES': {
+                const allAbilities = lines.flatMap(line => {
+                    const l = line.trim();
+                    if (l.match(/^[-*]\s+/)) return [l.replace(/^[-*]\s*/, '')];
+                    return splitSmart(l);
+                });
 
-            return allAbilities.map(t => renderPills(t));
+                return allAbilities.map(t => renderPills(t));
+            }
+            default:
+                return lines.map(line => {
+                    const kv = line.match(/^([^:]+):\s*(.+)$/);
+                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
+                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                });
         }
-        default:
-            return lines.map(line => {
-                const kv = line.match(/^([^:]+):\s*(.+)$/);
-                if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
-                return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
-            });
     }
-}
 
-function renderMemoAsCards(memo) {
-    if (!memo || !memo.trim()) {
-        return `<div class="rt-empty" style="text-align: left; align-items: flex-start; padding: 12px; gap: 10px; overflow-y: auto;">
+    function renderMemoAsCards(memo) {
+        if (!memo || !memo.trim()) {
+            return `<div class="rt-empty" style="text-align: left; align-items: flex-start; padding: 12px; gap: 10px; overflow-y: auto;">
                 <div style="text-align: center; width: 100%; margin-bottom: 4px; flex-shrink: 0;">
                     <div class="rt-empty-icon">📜</div>
                     <div style="font-size: 17px; font-weight: bold; color: var(--rt-text);">Fatbody D&D Framework</div>
@@ -1919,79 +1919,79 @@ function renderMemoAsCards(memo) {
                     <div><b style="color: var(--rt-accent);">Validation:</b> Use the Delta Log (δ) to verify changes. If the AI ever makes a mistake, step backwards using the Snapshot Navigation (←/→) to restore a clean state.</div>
                 </div>
             </div>`;
-    }
-
-    const blocks = parseMemoBlocks(memo);
-    if (Object.keys(blocks).length === 0) {
-        return `<div class="rt-empty">No structured blocks found.<br><small>Switch to Raw view to inspect the memo.</small></div>`;
-    }
-
-    const s = getSettings();
-    const order = s.blockOrder || BLOCK_ORDER;
-    const sorted = [
-        ...order.filter(k => blocks[k] !== undefined),
-        ...Object.keys(blocks).filter(k => !order.includes(k)).sort()
-    ];
-
-    const collapsed = loadCollapsed();
-    const detached = loadDetached();
-
-    // If filtering by a single tag (detached window context)
-    const tagsToRender = arguments[1] ? [arguments[1]] : sorted;
-
-    return tagsToRender.map(tag => {
-        const content = blocks[tag];
-        if (content === undefined && arguments[1]) {
-            return `<div class="rt-empty">Waiting for ${tag} data...</div>`;
         }
-        if (content === undefined) return '';
 
-        // If main panel context, filter out detached windows
-        if (!arguments[1] && detached.has(tag)) {
-            return `<div class="rt-detached-placeholder" data-tag="${tag}">
+        const blocks = parseMemoBlocks(memo);
+        if (Object.keys(blocks).length === 0) {
+            return `<div class="rt-empty">No structured blocks found.<br><small>Switch to Raw view to inspect the memo.</small></div>`;
+        }
+
+        const s = getSettings();
+        const order = s.blockOrder || BLOCK_ORDER;
+        const sorted = [
+            ...order.filter(k => blocks[k] !== undefined),
+            ...Object.keys(blocks).filter(k => !order.includes(k)).sort()
+        ];
+
+        const collapsed = loadCollapsed();
+        const detached = loadDetached();
+
+        // If filtering by a single tag (detached window context)
+        const tagsToRender = arguments[1] ? [arguments[1]] : sorted;
+
+        return tagsToRender.map(tag => {
+            const content = blocks[tag];
+            if (content === undefined && arguments[1]) {
+                return `<div class="rt-empty">Waiting for ${tag} data...</div>`;
+            }
+            if (content === undefined) return '';
+
+            // If main panel context, filter out detached windows
+            if (!arguments[1] && detached.has(tag)) {
+                return `<div class="rt-detached-placeholder" data-tag="${tag}">
                     <span class="rt-placeholder-icon">⧉</span> ${tag} is detached
                     <button class="rt-reattach-btn-inline" data-tag="${tag}" title="Re-attach">↓</button>
                 </div>`;
-        }
+            }
 
-        const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-        const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
-        const items = blockToItems(tag, content);
-        const isCollapsed = collapsed.has(tag);
+            const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+            const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+            const items = blockToItems(tag, content);
+            const isCollapsed = collapsed.has(tag);
 
-        const renderType = customField?.renderType || tag;
-        const isFullView = getSettings().fullViewSections.includes(tag) || NO_PAGINATE.has(renderType);
-        const localPageSize = getPageSize(renderType);
+            const renderType = customField?.renderType || tag;
+            const isFullView = getSettings().fullViewSections.includes(tag) || NO_PAGINATE.has(renderType);
+            const localPageSize = getPageSize(renderType);
 
-        const page = isFullView ? 0 : (_sectionPages[tag] ?? 0);
-        const totalPages = isFullView ? 1 : Math.ceil(items.length / localPageSize);
-        const safePage = Math.min(page, Math.max(0, totalPages - 1));
-        if (!isFullView) _sectionPages[tag] = safePage;
+            const page = isFullView ? 0 : (_sectionPages[tag] ?? 0);
+            const totalPages = isFullView ? 1 : Math.ceil(items.length / localPageSize);
+            const safePage = Math.min(page, Math.max(0, totalPages - 1));
+            if (!isFullView) _sectionPages[tag] = safePage;
 
-        const pageItems = isFullView ? items : items.slice(safePage * localPageSize, (safePage + 1) * localPageSize);
-        const bodyClass = `rt-section-body${renderType === 'ABILITIES' ? ' rt-abilities-body' : ''}`;
+            const pageItems = isFullView ? items : items.slice(safePage * localPageSize, (safePage + 1) * localPageSize);
+            const bodyClass = `rt-section-body${renderType === 'ABILITIES' ? ' rt-abilities-body' : ''}`;
 
-        const pagination = totalPages > 1 ? `
+            const pagination = totalPages > 1 ? `
                 <div class="rt-pagination">
                     <button class="rt-page-btn" data-tag="${tag}" data-dir="-1"${safePage === 0 ? ' disabled' : ''}>&#8249;</button>
                     <span>${safePage + 1}&thinsp;/&thinsp;${totalPages}</span>
                     <button class="rt-page-btn" data-tag="${tag}" data-dir="1"${safePage >= totalPages - 1 ? ' disabled' : ''}>&#8250;</button>
                 </div>` : '';
 
-        // Don't show detach button if already in detached context (filterTag provided)
-        const detachBtn = !arguments[1] ? `
+            // Don't show detach button if already in detached context (filterTag provided)
+            const detachBtn = !arguments[1] ? `
                 <button class="rt-detach-btn" data-tag="${tag}" title="Detach panel">
                     ⧉
                 </button>
             ` : '';
 
-        const fullViewBtn = NO_PAGINATE.has(renderType) ? '' : `
+            const fullViewBtn = NO_PAGINATE.has(renderType) ? '' : `
                 <button class="rt-fullview-btn${isFullView ? ' active' : ''}" data-tag="${tag}" title="${isFullView ? 'Switch to Paged View' : 'Switch to Full List'}">
                     ${isFullView ? '📜' : '📑'}
                 </button>
             `;
 
-        return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${tag}">
+            return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${tag}">
                 <div class="rt-section-header" data-tag="${tag}">
                     <span>${icon} ${tag}</span>
                     <div class="rt-section-header-right">
@@ -2003,173 +2003,173 @@ function renderMemoAsCards(memo) {
                 </div>
                 <div class="${bodyClass}">${pageItems.join('')}${pagination}</div>
             </div>`;
-    }).join('');
-}
-
-function bindRenderedCardEvents(el, memo, isDetachedContext = false) {
-    el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const archetype = btn.dataset.archetype;
-            const level = el.querySelector('#rt-starting-level')?.value || 1;
-            const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...' };
-            const prompts = {
-                magic: `Generate a random Level ${level} D&D Magic User (Wizard, Sorcerer, or Warlock). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes consistent with Level ${level}.`,
-                melee: `Generate a random Level ${level} D&D Melee Fighter (Fighter, Barbarian, or Paladin). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons consistent with Level ${level}.`,
-                rogue: `Generate a random Level ${level} D&D Rogue or Thief-style character. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack consistent with Level ${level}.`
-            };
-
-            el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
-            btn.textContent = labels[archetype] || '🎲 Rolling...';
-            await sendDirectPrompt(prompts[archetype]);
-        });
-    });
-
-    el.querySelectorAll('.rt-section-header').forEach(header => {
-        // Unbind to prevent duplicate listeners
-        const oldHeader = header;
-        const newHeader = oldHeader.cloneNode(true);
-        oldHeader.parentNode.replaceChild(newHeader, oldHeader);
-
-        newHeader.addEventListener('click', (e) => {
-            // Prevent toggle if clicking on a button
-            if (e.target.closest('button')) return;
-            const tag = newHeader.dataset.tag;
-            if (!tag) return;
-            const col = loadCollapsed();
-            if (col.has(tag)) col.delete(tag); else col.add(tag);
-            saveCollapsed(col);
-            refreshRenderedView();
-        });
-    });
-
-    el.querySelectorAll('.rt-page-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const tag = btn.dataset.tag;
-            const dir = parseInt(btn.dataset.dir);
-            if (!tag) return;
-            const curBlocks = parseMemoBlocks(memo);
-            const items = blockToItems(tag, curBlocks[tag] ?? '');
-
-            const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-            const renderType = customField?.renderType || tag;
-            const localPageSize = getPageSize(renderType);
-
-            const totalPages = Math.ceil(items.length / localPageSize);
-            const cur = _sectionPages[tag] ?? 0;
-            _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
-            refreshRenderedView();
-        });
-    });
-
-    el.querySelectorAll('.rt-fullview-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const tag = btn.dataset.tag;
-            if (!tag) return;
-            const s = getSettings();
-            const idx = s.fullViewSections.indexOf(tag);
-            if (idx === -1) s.fullViewSections.push(tag);
-            else s.fullViewSections.splice(idx, 1);
-            SillyTavern.getContext().saveSettingsDebounced();
-            refreshRenderedView();
-        });
-    });
-
-    if (!isDetachedContext) {
-        el.querySelectorAll('.rt-detach-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tag = btn.dataset.tag;
-                if (!tag) return;
-                const detached = loadDetached();
-                detached.add(tag);
-                saveDetached(detached);
-                createDetachedPanel(tag);
-                refreshRenderedView();
-            });
-        });
-
-        el.querySelectorAll('.rt-reattach-btn-inline').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tag = btn.dataset.tag;
-                if (!tag) return;
-                const detached = loadDetached();
-                detached.delete(tag);
-                saveDetached(detached);
-                const panel = document.getElementById(`rt-detached-panel-${tag}`);
-                if (panel) panel.remove();
-                refreshRenderedView();
-            });
-        });
+        }).join('');
     }
 
-    // Add toggle behavior for Unit Pills (Traits/Abilities)
-    el.querySelectorAll('.rt-unit-pill').forEach(unit => {
-        unit.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Toggle active class to show/hide description
-            const wasActive = unit.classList.contains('active');
-            // Close others first for a clean experience
-            el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
-            if (!wasActive) unit.classList.add('active');
-        });
-    });
+    function bindRenderedCardEvents(el, memo, isDetachedContext = false) {
+        el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const archetype = btn.dataset.archetype;
+                const level = el.querySelector('#rt-starting-level')?.value || 1;
+                const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...' };
+                const prompts = {
+                    magic: `Generate a random Level ${level} D&D Magic User (Wizard, Sorcerer, or Warlock). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes consistent with Level ${level}.`,
+                    melee: `Generate a random Level ${level} D&D Melee Fighter (Fighter, Barbarian, or Paladin). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons consistent with Level ${level}.`,
+                    rogue: `Generate a random Level ${level} D&D Rogue or Thief-style character. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack consistent with Level ${level}.`
+                };
 
-    // Global deselect when clicking anything else
-    const deselectHandler = (e) => {
-        if (!e.target.closest('.rt-unit-pill')) {
-            el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+                el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
+                btn.textContent = labels[archetype] || '🎲 Rolling...';
+                await sendDirectPrompt(prompts[archetype]);
+            });
+        });
+
+        el.querySelectorAll('.rt-section-header').forEach(header => {
+            // Unbind to prevent duplicate listeners
+            const oldHeader = header;
+            const newHeader = oldHeader.cloneNode(true);
+            oldHeader.parentNode.replaceChild(newHeader, oldHeader);
+
+            newHeader.addEventListener('click', (e) => {
+                // Prevent toggle if clicking on a button
+                if (e.target.closest('button')) return;
+                const tag = newHeader.dataset.tag;
+                if (!tag) return;
+                const col = loadCollapsed();
+                if (col.has(tag)) col.delete(tag); else col.add(tag);
+                saveCollapsed(col);
+                refreshRenderedView();
+            });
+        });
+
+        el.querySelectorAll('.rt-page-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tag = btn.dataset.tag;
+                const dir = parseInt(btn.dataset.dir);
+                if (!tag) return;
+                const curBlocks = parseMemoBlocks(memo);
+                const items = blockToItems(tag, curBlocks[tag] ?? '');
+
+                const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+                const renderType = customField?.renderType || tag;
+                const localPageSize = getPageSize(renderType);
+
+                const totalPages = Math.ceil(items.length / localPageSize);
+                const cur = _sectionPages[tag] ?? 0;
+                _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
+                refreshRenderedView();
+            });
+        });
+
+        el.querySelectorAll('.rt-fullview-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tag = btn.dataset.tag;
+                if (!tag) return;
+                const s = getSettings();
+                const idx = s.fullViewSections.indexOf(tag);
+                if (idx === -1) s.fullViewSections.push(tag);
+                else s.fullViewSections.splice(idx, 1);
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
+            });
+        });
+
+        if (!isDetachedContext) {
+            el.querySelectorAll('.rt-detach-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tag = btn.dataset.tag;
+                    if (!tag) return;
+                    const detached = loadDetached();
+                    detached.add(tag);
+                    saveDetached(detached);
+                    createDetachedPanel(tag);
+                    refreshRenderedView();
+                });
+            });
+
+            el.querySelectorAll('.rt-reattach-btn-inline').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tag = btn.dataset.tag;
+                    if (!tag) return;
+                    const detached = loadDetached();
+                    detached.delete(tag);
+                    saveDetached(detached);
+                    const panel = document.getElementById(`rt-detached-panel-${tag}`);
+                    if (panel) panel.remove();
+                    refreshRenderedView();
+                });
+            });
         }
-    };
-    // Use capture phase or just a standard listener on the panel/document
-    // Adding it to document is most reliable for "any empty space"
-    document.addEventListener('click', deselectHandler);
-    // Note: We might want to clean this up later in an unmount/cleanup phase if ST supports it,
-    // but for now this is standard ST extension behavior.
-}
 
-function refreshRenderedView() {
-    if (!_renderedViewActive) return;
-    const s = getSettings();
-    const memo = _historyViewIndex === -1
-        ? s.currentMemo
-        : (s.memoHistory[_historyViewIndex] ?? '');
-    const el = document.getElementById('rpg-tracker-render');
-    if (el) {
-        el.innerHTML = renderMemoAsCards(memo);
-        bindRenderedCardEvents(el, memo, false);
-    }
+        // Add toggle behavior for Unit Pills (Traits/Abilities)
+        el.querySelectorAll('.rt-unit-pill').forEach(unit => {
+            unit.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Toggle active class to show/hide description
+                const wasActive = unit.classList.contains('active');
+                // Close others first for a clean experience
+                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+                if (!wasActive) unit.classList.add('active');
+            });
+        });
 
-    // Update any detached panels
-    const detached = loadDetached();
-    detached.forEach(tag => {
-        const panel = document.getElementById(`rt-detached-panel-${tag}`);
-        if (panel) {
-            const body = panel.querySelector('.rpg-tracker-detached-body');
-            if (body) {
-                body.innerHTML = renderMemoAsCards(memo, tag);
-                bindRenderedCardEvents(body, memo, true);
+        // Global deselect when clicking anything else
+        const deselectHandler = (e) => {
+            if (!e.target.closest('.rt-unit-pill')) {
+                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
             }
-        } else {
-            // Panel missing, recreate it
-            createDetachedPanel(tag);
+        };
+        // Use capture phase or just a standard listener on the panel/document
+        // Adding it to document is most reliable for "any empty space"
+        document.addEventListener('click', deselectHandler);
+        // Note: We might want to clean this up later in an unmount/cleanup phase if ST supports it,
+        // but for now this is standard ST extension behavior.
+    }
+
+    function refreshRenderedView() {
+        if (!_renderedViewActive) return;
+        const s = getSettings();
+        const memo = _historyViewIndex === -1
+            ? s.currentMemo
+            : (s.memoHistory[_historyViewIndex] ?? '');
+        const el = document.getElementById('rpg-tracker-render');
+        if (el) {
+            el.innerHTML = renderMemoAsCards(memo);
+            bindRenderedCardEvents(el, memo, false);
         }
-    });
-}
 
-function createDetachedPanel(tag) {
-    if (document.getElementById(`rt-detached-panel-${tag}`)) return;
+        // Update any detached panels
+        const detached = loadDetached();
+        detached.forEach(tag => {
+            const panel = document.getElementById(`rt-detached-panel-${tag}`);
+            if (panel) {
+                const body = panel.querySelector('.rpg-tracker-detached-body');
+                if (body) {
+                    body.innerHTML = renderMemoAsCards(memo, tag);
+                    bindRenderedCardEvents(body, memo, true);
+                }
+            } else {
+                // Panel missing, recreate it
+                createDetachedPanel(tag);
+            }
+        });
+    }
 
-    const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-    const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+    function createDetachedPanel(tag) {
+        if (document.getElementById(`rt-detached-panel-${tag}`)) return;
 
-    const settings = getSettings();
-    const panel = document.createElement('div');
-    panel.id = `rt-detached-panel-${tag}`;
-    panel.className = `rpg-tracker-panel rpg-tracker-detached-panel ${settings.trackerTheme || 'rt-theme-native'}`;
-    panel.innerHTML = `
+        const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+        const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+
+        const settings = getSettings();
+        const panel = document.createElement('div');
+        panel.id = `rt-detached-panel-${tag}`;
+        panel.className = `rpg-tracker-panel rpg-tracker-detached-panel ${settings.trackerTheme || 'rt-theme-native'}`;
+        panel.innerHTML = `
             <div class="rpg-tracker-header rt-detached-header">
                 <div class="rpg-tracker-header-left">
                     <span>${icon} ${tag}</span>
@@ -2183,82 +2183,82 @@ function createDetachedPanel(tag) {
             </div>
         `;
 
-    document.body.appendChild(panel);
+        document.body.appendChild(panel);
 
-    const header = panel.querySelector('.rt-detached-header');
-    if (header instanceof HTMLElement) {
-        makeDraggable(panel, header, `rpg_tracker_geometry_${tag}`);
+        const header = panel.querySelector('.rt-detached-header');
+        if (header instanceof HTMLElement) {
+            makeDraggable(panel, header, `rpg_tracker_geometry_${tag}`);
+        }
+
+        // Setup specialized geometry keys
+        const geoKey = `rpg_tracker_geometry_${tag}`;
+
+        try {
+            const saved = JSON.parse(localStorage.getItem(geoKey));
+            if (saved && saved.left !== undefined) {
+                // Sanitize coordinates
+                const left = Math.max(0, Math.min(window.innerWidth - 50, saved.left));
+                const top = Math.max(0, Math.min(window.innerHeight - 50, saved.top));
+
+                panel.style.left = left + 'px'; panel.style.right = 'auto';
+                panel.style.top = top + 'px'; panel.style.bottom = 'auto';
+                if (saved.width) panel.style.width = saved.width + 'px';
+                if (saved.height) panel.style.height = saved.height + 'px';
+            } else {
+                const mainPanel = document.getElementById('rpg-tracker-panel');
+                if (mainPanel) {
+                    const rect = mainPanel.getBoundingClientRect();
+                    // spawn adjacent to the main panel if no stored position
+                    let spawnLeft = rect.left - 270;
+                    if (spawnLeft < 0) spawnLeft = rect.right + 10;
+                    panel.style.left = Math.max(10, spawnLeft) + 'px';
+                    panel.style.top = rect.top + 'px';
+                    panel.style.right = 'auto';
+                    panel.style.bottom = 'auto';
+                }
+            }
+        } catch { /* ignore */ }
+
+        // Debounced save geometry
+        let _resizeTimer;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => {
+                const rect = panel.getBoundingClientRect();
+                localStorage.setItem(geoKey, JSON.stringify({
+                    left: rect.left, top: rect.top,
+                    width: rect.width, height: rect.height
+                }));
+            }, 300);
+        });
+        ro.observe(panel);
+
+        panel.querySelector('.rt-reattach-btn').addEventListener('click', () => {
+            const detached = loadDetached();
+            detached.delete(tag);
+            saveDetached(detached);
+            panel.remove();
+            refreshRenderedView();
+        });
+
+        // Trigger an initial render to fill its body
+        refreshRenderedView();
     }
 
-    // Setup specialized geometry keys
-    const geoKey = `rpg_tracker_geometry_${tag}`;
-
-    try {
-        const saved = JSON.parse(localStorage.getItem(geoKey));
-        if (saved && saved.left !== undefined) {
-            // Sanitize coordinates
-            const left = Math.max(0, Math.min(window.innerWidth - 50, saved.left));
-            const top = Math.max(0, Math.min(window.innerHeight - 50, saved.top));
-
-            panel.style.left = left + 'px'; panel.style.right = 'auto';
-            panel.style.top = top + 'px'; panel.style.bottom = 'auto';
-            if (saved.width) panel.style.width = saved.width + 'px';
-            if (saved.height) panel.style.height = saved.height + 'px';
-        } else {
-            const mainPanel = document.getElementById('rpg-tracker-panel');
-            if (mainPanel) {
-                const rect = mainPanel.getBoundingClientRect();
-                // spawn adjacent to the main panel if no stored position
-                let spawnLeft = rect.left - 270;
-                if (spawnLeft < 0) spawnLeft = rect.right + 10;
-                panel.style.left = Math.max(10, spawnLeft) + 'px';
-                panel.style.top = rect.top + 'px';
-                panel.style.right = 'auto';
-                panel.style.bottom = 'auto';
-            }
-        }
-    } catch { /* ignore */ }
-
-    // Debounced save geometry
-    let _resizeTimer;
-    const ro = new ResizeObserver(() => {
-        clearTimeout(_resizeTimer);
-        _resizeTimer = setTimeout(() => {
-            const rect = panel.getBoundingClientRect();
-            localStorage.setItem(geoKey, JSON.stringify({
-                left: rect.left, top: rect.top,
-                width: rect.width, height: rect.height
-            }));
-        }, 300);
-    });
-    ro.observe(panel);
-
-    panel.querySelector('.rt-reattach-btn').addEventListener('click', () => {
-        const detached = loadDetached();
-        detached.delete(tag);
-        saveDetached(detached);
-        panel.remove();
-        refreshRenderedView();
-    });
-
-    // Trigger an initial render to fill its body
-    refreshRenderedView();
-}
 
 
 
 
+    /**
+     * UI Implementation
+     */
+    function createPanel() {
+        const settings = getSettings();
 
-/**
- * UI Implementation
- */
-function createPanel() {
-    const settings = getSettings();
-
-    const panel = document.createElement('div');
-    panel.id = 'rpg-tracker-panel';
-    panel.className = `rpg-tracker-panel ${settings.trackerTheme || 'rt-theme-native'}`;
-    panel.innerHTML = `
+        const panel = document.createElement('div');
+        panel.id = 'rpg-tracker-panel';
+        panel.className = `rpg-tracker-panel ${settings.trackerTheme || 'rt-theme-native'}`;
+        panel.innerHTML = `
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
                     <span>Fatbody D&D Framework</span>
@@ -2324,105 +2324,105 @@ function createPanel() {
             </div>
         `;
 
-    document.body.appendChild(panel);
+        document.body.appendChild(panel);
 
-    const header = panel.querySelector('#rpg-tracker-header');
-    if (header instanceof HTMLElement) {
-        makeDraggable(/** @type {HTMLElement} */(panel), header);
-    }
-    setupResizeObserver(/** @type {HTMLElement} */(panel));
-    loadPanelGeometry(/** @type {HTMLElement} */(panel));
+        const header = panel.querySelector('#rpg-tracker-header');
+        if (header instanceof HTMLElement) {
+            makeDraggable(/** @type {HTMLElement} */(panel), header);
+        }
+        setupResizeObserver(/** @type {HTMLElement} */(panel));
+        loadPanelGeometry(/** @type {HTMLElement} */(panel));
 
-    const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
-    if (stopBtn) {
-        stopBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const { stopGeneration } = SillyTavern.getContext();
-            if (stopGeneration) stopGeneration();
-        });
-    }
+        const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
+        if (stopBtn) {
+            stopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const { stopGeneration } = SillyTavern.getContext();
+                if (stopGeneration) stopGeneration();
+            });
+        }
 
-    const pauseBtn = panel.querySelector('#rpg-tracker-pause-btn');
-    if (pauseBtn) {
-        pauseBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const s = getSettings();
-            s.enabled = !s.enabled;
+        const pauseBtn = panel.querySelector('#rpg-tracker-pause-btn');
+        if (pauseBtn) {
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const s = getSettings();
+                s.enabled = !s.enabled;
+                SillyTavern.getContext().saveSettingsDebounced();
+
+                // Update settings UI checkbox if it exists
+                const cb = document.getElementById('rpg_tracker_enabled');
+                if (cb instanceof HTMLInputElement) cb.checked = s.enabled;
+
+                updatePanelStatus();
+            });
+        }
+
+        updatePanelStatus();
+
+        // Handle manual edits to live memo
+        const textarea = panel.querySelector('#rpg-tracker-memo');
+        textarea.addEventListener('input', (e) => {
+            if (_historyViewIndex !== -1) return;
+            settings.currentMemo = /** @type {HTMLTextAreaElement} */ (e.target).value;
+            panel.querySelector('#rpg-tracker-count').textContent = `chars: ${settings.currentMemo.length}`;
             SillyTavern.getContext().saveSettingsDebounced();
-
-            // Update settings UI checkbox if it exists
-            const cb = document.getElementById('rpg_tracker_enabled');
-            if (cb instanceof HTMLInputElement) cb.checked = s.enabled;
-
-            updatePanelStatus();
         });
-    }
 
-    updatePanelStatus();
+        // ── RNG & Dice Toggle Logic ──
+        const rngBtn = panel.querySelector('#rt-rng-toggle-overlay');
+        const diceToolBtn = panel.querySelector('#rt-dice-tool-toggle');
 
-    // Handle manual edits to live memo
-    const textarea = panel.querySelector('#rpg-tracker-memo');
-    textarea.addEventListener('input', (e) => {
-        if (_historyViewIndex !== -1) return;
-        settings.currentMemo = /** @type {HTMLTextAreaElement} */ (e.target).value;
-        panel.querySelector('#rpg-tracker-count').textContent = `chars: ${settings.currentMemo.length}`;
-        SillyTavern.getContext().saveSettingsDebounced();
-    });
+        const syncFooterToggles = () => {
+            const s = getSettings();
 
-    // ── RNG & Dice Toggle Logic ──
-    const rngBtn = panel.querySelector('#rt-rng-toggle-overlay');
-    const diceToolBtn = panel.querySelector('#rt-dice-tool-toggle');
+            // Sync RNG Engine
+            const rngText = panel.querySelector('#rt-rng-status-text');
+            if (rngText) rngText.textContent = s.rngEnabled ? 'ON' : 'OFF';
+            if (rngBtn) {
+                if (s.rngEnabled) rngBtn.classList.add('active');
+                else rngBtn.classList.remove('active');
+            }
+            const rngCb = document.getElementById('rpg_tracker_rng_enabled');
+            if (rngCb) /** @type {HTMLInputElement} */ (rngCb).checked = s.rngEnabled;
 
-    const syncFooterToggles = () => {
-        const s = getSettings();
+            // Sync AI Dice Tool
+            const diceText = panel.querySelector('#rt-dice-tool-status-text');
+            if (diceText) diceText.textContent = s.diceFunctionTool ? 'ON' : 'OFF';
+            if (diceToolBtn) {
+                if (s.diceFunctionTool) diceToolBtn.classList.add('active');
+                else diceToolBtn.classList.remove('active');
+            }
+            const diceCb = document.getElementById('rpg_tracker_dice_function_tool');
+            if (diceCb) /** @type {HTMLInputElement} */ (diceCb).checked = s.diceFunctionTool;
+        };
 
-        // Sync RNG Engine
-        const rngText = panel.querySelector('#rt-rng-status-text');
-        if (rngText) rngText.textContent = s.rngEnabled ? 'ON' : 'OFF';
         if (rngBtn) {
-            if (s.rngEnabled) rngBtn.classList.add('active');
-            else rngBtn.classList.remove('active');
+            rngBtn.addEventListener('click', () => {
+                const s = getSettings();
+                s.rngEnabled = !s.rngEnabled;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncFooterToggles();
+                toastr['info'](`RNG Queue ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+            });
         }
-        const rngCb = document.getElementById('rpg_tracker_rng_enabled');
-        if (rngCb) /** @type {HTMLInputElement} */ (rngCb).checked = s.rngEnabled;
 
-        // Sync AI Dice Tool
-        const diceText = panel.querySelector('#rt-dice-tool-status-text');
-        if (diceText) diceText.textContent = s.diceFunctionTool ? 'ON' : 'OFF';
         if (diceToolBtn) {
-            if (s.diceFunctionTool) diceToolBtn.classList.add('active');
-            else diceToolBtn.classList.remove('active');
+            diceToolBtn.addEventListener('click', () => {
+                const s = getSettings();
+                s.diceFunctionTool = !s.diceFunctionTool;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncFooterToggles();
+                registerDiceFunctionTool();
+                toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+            });
         }
-        const diceCb = document.getElementById('rpg_tracker_dice_function_tool');
-        if (diceCb) /** @type {HTMLInputElement} */ (diceCb).checked = s.diceFunctionTool;
-    };
 
-    if (rngBtn) {
-        rngBtn.addEventListener('click', () => {
-            const s = getSettings();
-            s.rngEnabled = !s.rngEnabled;
-            SillyTavern.getContext().saveSettingsDebounced();
-            syncFooterToggles();
-            toastr['info'](`RNG Queue ${s.rngEnabled ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-        });
-    }
-
-    if (diceToolBtn) {
-        diceToolBtn.addEventListener('click', () => {
-            const s = getSettings();
-            s.diceFunctionTool = !s.diceFunctionTool;
-            SillyTavern.getContext().saveSettingsDebounced();
-            syncFooterToggles();
-            registerDiceFunctionTool();
-            toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-        });
-    }
-
-    const helpBtn = panel.querySelector('#rt-rng-help-btn');
-    if (helpBtn) {
-        helpBtn.addEventListener('click', () => {
-            const { Popup } = SillyTavern.getContext();
-            const content = `
+        const helpBtn = panel.querySelector('#rt-rng-help-btn');
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => {
+                const { Popup } = SillyTavern.getContext();
+                const content = `
                     <div style="text-align: left; line-height: 1.4; max-height: 70vh; overflow-y: auto; padding-right: 5px;">
                         <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
                         <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
@@ -2442,433 +2442,433 @@ function createPanel() {
                         </ul>
                     </div>
                 `;
-            Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
-        });
-    }
+                Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
+            });
+        }
 
-    syncFooterToggles();
+        syncFooterToggles();
 
-    // View toggle (Raw ↔ Rendered)
-    let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
-    const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
-    const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
+        // View toggle (Raw ↔ Rendered)
+        let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
+        const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
+        const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
 
-    if (settings.renderedViewActive !== undefined) {
-        _renderedViewActive = settings.renderedViewActive;
-    } else {
-        _renderedViewActive = true;
-        settings.renderedViewActive = true;
-    }
-
-    const applyViewState = () => {
-        if (_renderedViewActive) {
-            ta.style.display = 'none';
-            rv.style.display = 'block';
-            _viewBtn.textContent = '≡';
-            _viewBtn.title = 'Switch to Raw view';
-            refreshRenderedView();
+        if (settings.renderedViewActive !== undefined) {
+            _renderedViewActive = settings.renderedViewActive;
         } else {
-            ta.style.display = '';
-            rv.style.display = 'none';
-            _viewBtn.textContent = '⊞';
-            _viewBtn.title = 'Switch to Rendered view';
+            _renderedViewActive = true;
+            settings.renderedViewActive = true;
         }
-    };
 
-    applyViewState();
+        const applyViewState = () => {
+            if (_renderedViewActive) {
+                ta.style.display = 'none';
+                rv.style.display = 'block';
+                _viewBtn.textContent = '≡';
+                _viewBtn.title = 'Switch to Raw view';
+                refreshRenderedView();
+            } else {
+                ta.style.display = '';
+                rv.style.display = 'none';
+                _viewBtn.textContent = '⊞';
+                _viewBtn.title = 'Switch to Rendered view';
+            }
+        };
 
-    _viewBtn.addEventListener('click', () => {
-        _renderedViewActive = !_renderedViewActive;
-        settings.renderedViewActive = _renderedViewActive;
-        SillyTavern.getContext().saveSettingsDebounced();
         applyViewState();
-    });
 
-    // Delta toggle — also shows/hides the resize handle
-    panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
-        const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
-        const handleEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
-        const isVisible = deltaEl.style.display !== 'none';
-        deltaEl.style.display = isVisible ? 'none' : 'flex';
-        handleEl.style.display = isVisible ? 'none' : 'block';
-        if (!isVisible) {
-            const h = loadDeltaHeight();
-            deltaEl.style.height = h + 'px';
-        }
-    });
+        _viewBtn.addEventListener('click', () => {
+            _renderedViewActive = !_renderedViewActive;
+            settings.renderedViewActive = _renderedViewActive;
+            SillyTavern.getContext().saveSettingsDebounced();
+            applyViewState();
+        });
 
-    // Delta clear button
-    panel.querySelector('#rpg-tracker-delta-clear').addEventListener('click', () => {
-        settings.lastDelta = '';
-        const dp = document.getElementById('rpg-tracker-delta-content');
-        if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-        SillyTavern.getContext().saveSettingsDebounced();
-    });
+        // Delta toggle — also shows/hides the resize handle
+        panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
+            const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
+            const handleEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
+            const isVisible = deltaEl.style.display !== 'none';
+            deltaEl.style.display = isVisible ? 'none' : 'flex';
+            handleEl.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                const h = loadDeltaHeight();
+                deltaEl.style.height = h + 'px';
+            }
+        });
 
-    // Delta resize handle drag
-    setupDeltaResize(/** @type {HTMLElement} */(panel));
+        // Delta clear button
+        panel.querySelector('#rpg-tracker-delta-clear').addEventListener('click', () => {
+            settings.lastDelta = '';
+            const dp = document.getElementById('rpg-tracker-delta-content');
+            if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+            SillyTavern.getContext().saveSettingsDebounced();
+        });
 
-    // Close panel
-    panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
-        panel.style.display = 'none';
-    });
+        // Delta resize handle drag
+        setupDeltaResize(/** @type {HTMLElement} */(panel));
 
-    // Direct prompt toggle
-    panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', () => {
-        const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
-        const isVisible = bar.style.display !== 'none';
-        bar.style.display = isVisible ? 'none' : 'flex';
-        if (!isVisible) /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-input')).focus();
-    });
+        // Close panel
+        panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
+            panel.style.display = 'none';
+        });
 
-    // Direct prompt send
-    const promptSend = async () => {
-        const input = /** @type {HTMLTextAreaElement} */ (panel.querySelector('#rpg-tracker-prompt-input'));
-        const msg = input.value.trim();
-        if (!msg) return;
-        input.value = '';
-        await sendDirectPrompt(msg);
-    };
-    panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
-    panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
-    });
+        // Direct prompt toggle
+        panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', () => {
+            const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
+            const isVisible = bar.style.display !== 'none';
+            bar.style.display = isVisible ? 'none' : 'flex';
+            if (!isVisible) /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-input')).focus();
+        });
 
-    // Manual update from panel button
-    const manualUpdate = async (type = 'regular') => {
-        const { chat, Popup } = SillyTavern.getContext();
-        let narrative = "";
-        let isFullAudit = false;
+        // Direct prompt send
+        const promptSend = async () => {
+            const input = /** @type {HTMLTextAreaElement} */ (panel.querySelector('#rpg-tracker-prompt-input'));
+            const msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+            await sendDirectPrompt(msg);
+        };
+        panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
+        panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
+        });
 
-        if (type === 'regular') {
-            narrative = getNarrativeBlocks(chat, -1);
-        } else if (type === 'full') {
-            isFullAudit = true;
-        } else if (type === 'custom') {
-            const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
-            if (!count || isNaN(parseInt(count))) return;
-            narrative = getNarrativeBlocks(chat, parseInt(count));
-        }
+        // Manual update from panel button
+        const manualUpdate = async (type = 'regular') => {
+            const { chat, Popup } = SillyTavern.getContext();
+            let narrative = "";
+            let isFullAudit = false;
 
-        if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+            if (type === 'regular') {
+                narrative = getNarrativeBlocks(chat, -1);
+            } else if (type === 'full') {
+                isFullAudit = true;
+            } else if (type === 'custom') {
+                const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
+                if (!count || isNaN(parseInt(count))) return;
+                narrative = getNarrativeBlocks(chat, parseInt(count));
+            }
 
-        toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
-        await runStateModelPass(narrative, isFullAudit);
-    };
+            if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
 
-    const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
-    const updateMenu = document.createElement('div');
-    updateMenu.className = 'rt-update-menu';
-    updateMenu.style.display = 'none';
-    updateMenu.innerHTML = `
+            toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
+            await runStateModelPass(narrative, isFullAudit);
+        };
+
+        const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
+        const updateMenu = document.createElement('div');
+        updateMenu.className = 'rt-update-menu';
+        updateMenu.style.display = 'none';
+        updateMenu.innerHTML = `
             <div class="rt-menu-item" id="rt-update-regular"><b>Regular Update</b><small>Since last user message</small></div>
             <div class="rt-menu-item" id="rt-update-custom"><b>Lookback Update</b><small>Last N messages</small></div>
             <div class="rt-menu-item" id="rt-update-full"><b>Full Context Audit</b><small>Re-examine whole history</small></div>
         `;
-    panel.appendChild(updateMenu);
+        panel.appendChild(updateMenu);
 
-    updateBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isVisible = updateMenu.style.display !== 'none';
+        updateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = updateMenu.style.display !== 'none';
 
-        // Close all other menus possibly
-        document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */(m).style.display = 'none');
+            // Close all other menus possibly
+            document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */(m).style.display = 'none');
 
-        if (!isVisible) {
-            const rect = updateBtn.getBoundingClientRect();
-            const panelRect = panel.getBoundingClientRect();
-            updateMenu.style.top = (rect.bottom - panelRect.top + 5) + 'px';
-            updateMenu.style.right = (panelRect.right - rect.right) + 'px';
-            updateMenu.style.display = 'flex';
+            if (!isVisible) {
+                const rect = updateBtn.getBoundingClientRect();
+                const panelRect = panel.getBoundingClientRect();
+                updateMenu.style.top = (rect.bottom - panelRect.top + 5) + 'px';
+                updateMenu.style.right = (panelRect.right - rect.right) + 'px';
+                updateMenu.style.display = 'flex';
 
-            const closeMenu = () => {
-                updateMenu.style.display = 'none';
-                document.removeEventListener('click', closeMenu);
-            };
-            setTimeout(() => document.addEventListener('click', closeMenu), 10);
-        }
-    });
+                const closeMenu = () => {
+                    updateMenu.style.display = 'none';
+                    document.removeEventListener('click', closeMenu);
+                };
+                setTimeout(() => document.addEventListener('click', closeMenu), 10);
+            }
+        });
 
-    updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate('regular'));
-    updateMenu.querySelector('#rt-update-custom').addEventListener('click', () => manualUpdate('custom'));
-    updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate('full'));
+        updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate('regular'));
+        updateMenu.querySelector('#rt-update-custom').addEventListener('click', () => manualUpdate('custom'));
+        updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate('full'));
 
-    // Link the settings button too if it's already rendered
-    // For settings button, we'll keep it simple or just trigger regular
-    $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate('regular'));
+        // Link the settings button too if it's already rendered
+        // For settings button, we'll keep it simple or just trigger regular
+        $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate('regular'));
 
-    // Snapshot navigation
-    panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
-    panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
+        // Snapshot navigation
+        panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
+        panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
 
-    // Footer Expand/Collapse (Mobile)
-    panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
-        const footer = document.getElementById('rt-main-footer');
-        if (footer) {
-            footer.classList.toggle('rt-footer-expanded');
-            const icon = footer.querySelector('#rt-footer-expand-btn i');
-            if (icon) {
-                if (footer.classList.contains('rt-footer-expanded')) {
-                    icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
-                } else {
-                    icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+        // Footer Expand/Collapse (Mobile)
+        panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
+            const footer = document.getElementById('rt-main-footer');
+            if (footer) {
+                footer.classList.toggle('rt-footer-expanded');
+                const icon = footer.querySelector('#rt-footer-expand-btn i');
+                if (icon) {
+                    if (footer.classList.contains('rt-footer-expanded')) {
+                        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                    } else {
+                        icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+                    }
                 }
             }
-        }
-    });
+        });
 
-    // Restore via label click
-    panel.querySelector('#rpg-tracker-nav-label').addEventListener('click', () => {
-        const s = getSettings();
-        if (_historyViewIndex === -1) return;
-        const snapshot = s.memoHistory[_historyViewIndex];
-        if (snapshot === undefined) return;
+        // Restore via label click
+        panel.querySelector('#rpg-tracker-nav-label').addEventListener('click', () => {
+            const s = getSettings();
+            if (_historyViewIndex === -1) return;
+            const snapshot = s.memoHistory[_historyViewIndex];
+            if (snapshot === undefined) return;
 
-        // Restore: set currentMemo, trim history forward from this point (discarding the 'future' snapshots)
-        s.memoHistory = s.memoHistory.slice(_historyViewIndex + 1);
-        s.currentMemo = snapshot;
-        _historyViewIndex = -1;
-        SillyTavern.getContext().saveSettingsDebounced();
-        syncMemoView();
-    });
-
-    // Clear memo button
-    panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
-        if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
-            settings.currentMemo = "";
-            settings.prevMemo1 = "";
-            settings.prevMemo2 = "";
-            settings.memoHistory = [];
-            settings.lastDelta = "";
+            // Restore: set currentMemo, trim history forward from this point (discarding the 'future' snapshots)
+            s.memoHistory = s.memoHistory.slice(_historyViewIndex + 1);
+            s.currentMemo = snapshot;
             _historyViewIndex = -1;
             SillyTavern.getContext().saveSettingsDebounced();
             syncMemoView();
-            const dp = document.getElementById('rpg-tracker-delta-content');
-            if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-            toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
-        }
-    });
+        });
 
-    // Copy System Prompt logic
-    const syspromptMenu = /** @type {HTMLElement} */ (panel.querySelector('#rt-sysprompt-menu'));
-    const syspromptBtn = /** @type {HTMLElement} */ (panel.querySelector('#rt-copy-sysprompt'));
-
-    syspromptBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isVisible = syspromptMenu.style.display === 'flex';
-        syspromptMenu.style.display = isVisible ? 'none' : 'flex';
-    });
-
-    panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
-            const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
-            const content = RT_PROMPTS[fileName];
-            if (!content) {
-                toastr['error'](`Prompt not found: ${fileName}`, "Fatbody Framework");
-                return;
-            }
-            // Use a hidden textarea fallback — works on HTTP (Termux) where navigator.clipboard is blocked
-            const ta = document.createElement('textarea');
-            ta.value = content;
-            ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            try {
-                document.execCommand('copy');
-                toastr['success'](`${fileName} copied to clipboard!`, "Fatbody Framework");
-                syspromptMenu.style.display = 'none';
-            } catch (err) {
-                console.error("[Fatbody Framework] execCommand copy failed:", err);
-                toastr['error']('Could not copy to clipboard.', "Fatbody Framework");
-            } finally {
-                document.body.removeChild(ta);
+        // Clear memo button
+        panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
+            if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
+                settings.currentMemo = "";
+                settings.prevMemo1 = "";
+                settings.prevMemo2 = "";
+                settings.memoHistory = [];
+                settings.lastDelta = "";
+                _historyViewIndex = -1;
+                SillyTavern.getContext().saveSettingsDebounced();
+                syncMemoView();
+                const dp = document.getElementById('rpg-tracker-delta-content');
+                if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+                toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
             }
         });
-    });
 
-    // Close menu when clicking outside
-    window.addEventListener('click', (e) => {
-        if (syspromptMenu && syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(/** @type {Node} */(e.target)) && e.target !== syspromptBtn) {
-            syspromptMenu.style.display = 'none';
-        }
-    });
+        // Copy System Prompt logic
+        const syspromptMenu = /** @type {HTMLElement} */ (panel.querySelector('#rt-sysprompt-menu'));
+        const syspromptBtn = /** @type {HTMLElement} */ (panel.querySelector('#rt-copy-sysprompt'));
 
-    syncMemoView();
-}
+        syspromptBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = syspromptMenu.style.display === 'flex';
+            syspromptMenu.style.display = isVisible ? 'none' : 'flex';
+        });
 
-function navigateSnapshot(direction) {
-    const s = getSettings();
-    const maxIndex = s.memoHistory.length - 1;
-    const newIndex = _historyViewIndex + direction;
+        panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
+            opt.addEventListener('click', (e) => {
+                const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
+                const content = RT_PROMPTS[fileName];
+                if (!content) {
+                    toastr['error'](`Prompt not found: ${fileName}`, "Fatbody Framework");
+                    return;
+                }
+                // Use a hidden textarea fallback — works on HTTP (Termux) where navigator.clipboard is blocked
+                const ta = document.createElement('textarea');
+                ta.value = content;
+                ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    toastr['success'](`${fileName} copied to clipboard!`, "Fatbody Framework");
+                    syspromptMenu.style.display = 'none';
+                } catch (err) {
+                    console.error("[Fatbody Framework] execCommand copy failed:", err);
+                    toastr['error']('Could not copy to clipboard.', "Fatbody Framework");
+                } finally {
+                    document.body.removeChild(ta);
+                }
+            });
+        });
 
-    if (newIndex < -1 || newIndex > maxIndex) return;
-    _historyViewIndex = newIndex;
-    syncMemoView();
-}
-
-function syncMemoView() {
-    const s = getSettings();
-    const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
-    const navLabel = document.getElementById('rpg-tracker-nav-label');
-    const btnBack = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-back'));
-    const btnFwd = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-fwd'));
-    const counter = document.getElementById('rpg-tracker-count');
-    if (!textarea || !navLabel) return;
-
-    const histLen = s.memoHistory.length;
-
-    if (_historyViewIndex === -1) {
-        // Live view
-        textarea.value = s.currentMemo;
-        textarea.readOnly = false;
-        navLabel.textContent = '[ LIVE ]';
-        navLabel.classList.remove('clickable');
-        navLabel.title = 'Current Live State';
-        btnBack.disabled = histLen === 0;
-        btnFwd.disabled = true;
-        if (counter) counter.textContent = `chars: ${s.currentMemo.length}`;
-    } else {
-        // Snapshot view
-        const snapshot = s.memoHistory[_historyViewIndex];
-        textarea.value = snapshot ?? '';
-        textarea.readOnly = true;
-        navLabel.textContent = `[ -${_historyViewIndex + 1} 🔄 ]`;
-        navLabel.classList.add('clickable');
-        navLabel.title = 'Click to RESTORE this snapshot to Live';
-        btnBack.disabled = _historyViewIndex >= histLen - 1;
-        btnFwd.disabled = false; // can always navigate forward toward Live
-        if (counter) counter.textContent = `chars: ${(snapshot ?? '').length}`;
-    }
-    refreshRenderedView();
-}
-
-/**
- * @param {HTMLElement} panel
- * @param {HTMLElement} handle
- */
-function makeDraggable(panel, handle, customKey = null) {
-    let isDragging = false;
-    let startX, startY, startLeft, startTop;
-
-    handle.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        // Ignore clicks on buttons inside the header
-        if (e.target instanceof Element && e.target.closest('button')) return;
-        isDragging = true;
-        const rect = panel.getBoundingClientRect();
-        startX = e.clientX; startY = e.clientY;
-        startLeft = rect.left; startTop = rect.top;
-        panel.style.left = startLeft + 'px';
-        panel.style.top = startTop + 'px';
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
-        e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const left = startLeft + (e.clientX - startX);
-        const top = startTop + (e.clientY - startY);
-
-        // Constrain to viewport (ensure header stays reachable)
-        const boundedLeft = Math.max(0, Math.min(window.innerWidth - 100, left));
-        const boundedTop = Math.max(0, Math.min(window.innerHeight - 50, top));
-
-        panel.style.left = boundedLeft + 'px';
-        panel.style.top = boundedTop + 'px';
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (isDragging) {
-            isDragging = false;
-            if (customKey) {
-                const rect = panel.getBoundingClientRect();
-                localStorage.setItem(customKey, JSON.stringify({
-                    left: rect.left, top: rect.top,
-                    width: rect.width, height: rect.height
-                }));
-            } else {
-                savePanelGeometry(panel);
+        // Close menu when clicking outside
+        window.addEventListener('click', (e) => {
+            if (syspromptMenu && syspromptMenu.style.display === 'flex' && !syspromptMenu.contains(/** @type {Node} */(e.target)) && e.target !== syspromptBtn) {
+                syspromptMenu.style.display = 'none';
             }
-        }
-    });
-}
+        });
 
-function setupResizeObserver(panel) {
-    // Debounced save on resize
-    let _resizeTimer;
-    const ro = new ResizeObserver(() => {
-        clearTimeout(_resizeTimer);
-        _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
-    });
-    ro.observe(panel);
-}
-
-function setupDeltaResize(panel) {
-    const handle = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
-    const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
-    let startY, startH;
-
-    handle.addEventListener('mousedown', (e) => {
-        startY = e.clientY;
-        startH = deltaEl.offsetHeight;
-        e.preventDefault();
-
-        const onMove = (ev) => {
-            // dragging up = bigger console
-            const newH = Math.max(40, startH - (ev.clientY - startY));
-            deltaEl.style.height = newH + 'px';
-        };
-        const onUp = () => {
-            saveDeltaHeight(deltaEl.offsetHeight);
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-    });
-}
-
-function updateUIMemo(text) {
-    if (_historyViewIndex !== -1) return; // don't clobber snapshot view
-    const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
-    if (textarea) textarea.value = text;
-    const counter = document.getElementById('rpg-tracker-count');
-    if (counter) counter.textContent = `chars: ${text.length}`;
-}
-
-function updateStatusIndicator(state) {
-    const indicator = document.getElementById('rpg-tracker-status');
-    const stopBtn = /** @type {HTMLElement} */ (document.getElementById('rpg-tracker-stop-btn'));
-    if (!indicator) return;
-
-    indicator.className = 'rpg-tracker-status-indicator ' + state;
-    if (stopBtn) {
-        stopBtn.style.display = (state === 'running') ? 'flex' : 'none';
+        syncMemoView();
     }
-}
 
-function openCustomFieldEditor(index) {
-    const s = getSettings();
-    const field = s.customFields[index];
-    if (!field) return;
+    function navigateSnapshot(direction) {
+        const s = getSettings();
+        const maxIndex = s.memoHistory.length - 1;
+        const newIndex = _historyViewIndex + direction;
 
-    let overlay = document.getElementById('rt_cfe_overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'rt_cfe_overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-        overlay.style.zIndex = '10000000';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        overlay.innerHTML = `
+        if (newIndex < -1 || newIndex > maxIndex) return;
+        _historyViewIndex = newIndex;
+        syncMemoView();
+    }
+
+    function syncMemoView() {
+        const s = getSettings();
+        const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
+        const navLabel = document.getElementById('rpg-tracker-nav-label');
+        const btnBack = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-back'));
+        const btnFwd = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-fwd'));
+        const counter = document.getElementById('rpg-tracker-count');
+        if (!textarea || !navLabel) return;
+
+        const histLen = s.memoHistory.length;
+
+        if (_historyViewIndex === -1) {
+            // Live view
+            textarea.value = s.currentMemo;
+            textarea.readOnly = false;
+            navLabel.textContent = '[ LIVE ]';
+            navLabel.classList.remove('clickable');
+            navLabel.title = 'Current Live State';
+            btnBack.disabled = histLen === 0;
+            btnFwd.disabled = true;
+            if (counter) counter.textContent = `chars: ${s.currentMemo.length}`;
+        } else {
+            // Snapshot view
+            const snapshot = s.memoHistory[_historyViewIndex];
+            textarea.value = snapshot ?? '';
+            textarea.readOnly = true;
+            navLabel.textContent = `[ -${_historyViewIndex + 1} 🔄 ]`;
+            navLabel.classList.add('clickable');
+            navLabel.title = 'Click to RESTORE this snapshot to Live';
+            btnBack.disabled = _historyViewIndex >= histLen - 1;
+            btnFwd.disabled = false; // can always navigate forward toward Live
+            if (counter) counter.textContent = `chars: ${(snapshot ?? '').length}`;
+        }
+        refreshRenderedView();
+    }
+
+    /**
+     * @param {HTMLElement} panel
+     * @param {HTMLElement} handle
+     */
+    function makeDraggable(panel, handle, customKey = null) {
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+
+        handle.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            // Ignore clicks on buttons inside the header
+            if (e.target instanceof Element && e.target.closest('button')) return;
+            isDragging = true;
+            const rect = panel.getBoundingClientRect();
+            startX = e.clientX; startY = e.clientY;
+            startLeft = rect.left; startTop = rect.top;
+            panel.style.left = startLeft + 'px';
+            panel.style.top = startTop + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const left = startLeft + (e.clientX - startX);
+            const top = startTop + (e.clientY - startY);
+
+            // Constrain to viewport (ensure header stays reachable)
+            const boundedLeft = Math.max(0, Math.min(window.innerWidth - 100, left));
+            const boundedTop = Math.max(0, Math.min(window.innerHeight - 50, top));
+
+            panel.style.left = boundedLeft + 'px';
+            panel.style.top = boundedTop + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                if (customKey) {
+                    const rect = panel.getBoundingClientRect();
+                    localStorage.setItem(customKey, JSON.stringify({
+                        left: rect.left, top: rect.top,
+                        width: rect.width, height: rect.height
+                    }));
+                } else {
+                    savePanelGeometry(panel);
+                }
+            }
+        });
+    }
+
+    function setupResizeObserver(panel) {
+        // Debounced save on resize
+        let _resizeTimer;
+        const ro = new ResizeObserver(() => {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
+        });
+        ro.observe(panel);
+    }
+
+    function setupDeltaResize(panel) {
+        const handle = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
+        const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
+        let startY, startH;
+
+        handle.addEventListener('mousedown', (e) => {
+            startY = e.clientY;
+            startH = deltaEl.offsetHeight;
+            e.preventDefault();
+
+            const onMove = (ev) => {
+                // dragging up = bigger console
+                const newH = Math.max(40, startH - (ev.clientY - startY));
+                deltaEl.style.height = newH + 'px';
+            };
+            const onUp = () => {
+                saveDeltaHeight(deltaEl.offsetHeight);
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+
+    function updateUIMemo(text) {
+        if (_historyViewIndex !== -1) return; // don't clobber snapshot view
+        const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
+        if (textarea) textarea.value = text;
+        const counter = document.getElementById('rpg-tracker-count');
+        if (counter) counter.textContent = `chars: ${text.length}`;
+    }
+
+    function updateStatusIndicator(state) {
+        const indicator = document.getElementById('rpg-tracker-status');
+        const stopBtn = /** @type {HTMLElement} */ (document.getElementById('rpg-tracker-stop-btn'));
+        if (!indicator) return;
+
+        indicator.className = 'rpg-tracker-status-indicator ' + state;
+        if (stopBtn) {
+            stopBtn.style.display = (state === 'running') ? 'flex' : 'none';
+        }
+    }
+
+    function openCustomFieldEditor(index) {
+        const s = getSettings();
+        const field = s.customFields[index];
+        if (!field) return;
+
+        let overlay = document.getElementById('rt_cfe_overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'rt_cfe_overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            overlay.style.zIndex = '10000000';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.innerHTML = `
                 <div class="popup shadowBase" style="min-width: 400px; max-width: 550px;">
                     <div class="popup-header">
                         <h3 class="margin0">Edit Custom Field</h3>
@@ -2899,118 +2899,118 @@ function openCustomFieldEditor(index) {
                     </div>
                 </div>
             `;
-        document.body.appendChild(overlay);
-    }
-
-    const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
-    const tagEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_tag'));
-    const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
-    const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
-    const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
-
-    iconEl.value = field.icon;
-    tagEl.value = field.tag;
-    labelEl.value = field.label;
-    rtEl.value = field.renderType;
-    promptEl.value = field.prompt;
-
-    overlay.style.display = 'flex';
-
-    const save = () => {
-        field.icon = iconEl.value;
-        const newTag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-        if (!newTag) {
-            toastr['error']('Tag cannot be empty.', 'RPG Tracker');
-            return;
+            document.body.appendChild(overlay);
         }
 
-        const isStock = BLOCK_ORDER.includes(newTag);
-        if (isStock) {
-            toastr['error'](`Tag [${newTag}] is a reserved stock module name.`, 'RPG Tracker');
-            return;
-        }
+        const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
+        const tagEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_tag'));
+        const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
+        const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
+        const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
 
-        const duplicate = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
-        if (duplicate) {
-            toastr['error'](`Tag [${newTag}] is already in use by another custom field.`, 'RPG Tracker');
-            return;
-        }
+        iconEl.value = field.icon;
+        tagEl.value = field.tag;
+        labelEl.value = field.label;
+        rtEl.value = field.renderType;
+        promptEl.value = field.prompt;
 
-        field.tag = newTag;
-        field.label = labelEl.value;
-        field.renderType = rtEl.value;
-        field.prompt = promptEl.value;
+        overlay.style.display = 'flex';
 
-        overlay.style.display = 'none';
-        cleanup();
-        SillyTavern.getContext().saveSettingsDebounced();
-        refreshOrderList();
-        refreshRenderedView();
-    };
-
-    const del = () => {
-        const tagToDelete = field.tag.toUpperCase();
-        if (confirm(`Delete custom field [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
-            // 1. Remove from custom fields array
-            s.customFields.splice(index, 1);
-
-            // 2. Remove from block reordering list
-            if (s.blockOrder) {
-                s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
+        const save = () => {
+            field.icon = iconEl.value;
+            const newTag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+            if (!newTag) {
+                toastr['error']('Tag cannot be empty.', 'RPG Tracker');
+                return;
             }
 
-            // 3. Strip the data block from the current memo
-            const memoBlocks = parseMemoBlocks(s.currentMemo || "");
-            if (memoBlocks[tagToDelete] !== undefined) {
-                delete memoBlocks[tagToDelete];
-                // Reconstruct memo from remaining blocks
-                s.currentMemo = Object.entries(memoBlocks)
-                    .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
-                    .join('\n\n');
-
-                // Update UI components
-                updateUIMemo(s.currentMemo);
+            const isStock = BLOCK_ORDER.includes(newTag);
+            if (isStock) {
+                toastr['error'](`Tag [${newTag}] is a reserved stock module name.`, 'RPG Tracker');
+                return;
             }
+
+            const duplicate = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
+            if (duplicate) {
+                toastr['error'](`Tag [${newTag}] is already in use by another custom field.`, 'RPG Tracker');
+                return;
+            }
+
+            field.tag = newTag;
+            field.label = labelEl.value;
+            field.renderType = rtEl.value;
+            field.prompt = promptEl.value;
 
             overlay.style.display = 'none';
             cleanup();
             SillyTavern.getContext().saveSettingsDebounced();
             refreshOrderList();
             refreshRenderedView();
-        }
-    };
+        };
 
-    const close = () => { overlay.style.display = 'none'; cleanup(); };
+        const del = () => {
+            const tagToDelete = field.tag.toUpperCase();
+            if (confirm(`Delete custom field [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
+                // 1. Remove from custom fields array
+                s.customFields.splice(index, 1);
 
-    const cleanup = () => {
-        document.getElementById('rt_cfe_save').onclick = null;
-        document.getElementById('rt_cfe_delete').onclick = null;
-        document.getElementById('rt_cfe_cancel').onclick = null;
-        document.getElementById('rt_cfe_close').onclick = null;
-    };
+                // 2. Remove from block reordering list
+                if (s.blockOrder) {
+                    s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
+                }
 
-    document.getElementById('rt_cfe_save').onclick = save;
-    document.getElementById('rt_cfe_delete').onclick = del;
-    document.getElementById('rt_cfe_cancel').onclick = close;
-    document.getElementById('rt_cfe_close').onclick = close;
-}
+                // 3. Strip the data block from the current memo
+                const memoBlocks = parseMemoBlocks(s.currentMemo || "");
+                if (memoBlocks[tagToDelete] !== undefined) {
+                    delete memoBlocks[tagToDelete];
+                    // Reconstruct memo from remaining blocks
+                    s.currentMemo = Object.entries(memoBlocks)
+                        .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
+                        .join('\n\n');
 
-function openPromptEditor(title, currentText, defaultText, onSave) {
-    let overlay = document.getElementById('rt_pe_overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'rt_pe_overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.width = '100vw';
-        overlay.style.height = '100vh';
-        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-        overlay.style.zIndex = '10000000';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        overlay.innerHTML = `
+                    // Update UI components
+                    updateUIMemo(s.currentMemo);
+                }
+
+                overlay.style.display = 'none';
+                cleanup();
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
+            }
+        };
+
+        const close = () => { overlay.style.display = 'none'; cleanup(); };
+
+        const cleanup = () => {
+            document.getElementById('rt_cfe_save').onclick = null;
+            document.getElementById('rt_cfe_delete').onclick = null;
+            document.getElementById('rt_cfe_cancel').onclick = null;
+            document.getElementById('rt_cfe_close').onclick = null;
+        };
+
+        document.getElementById('rt_cfe_save').onclick = save;
+        document.getElementById('rt_cfe_delete').onclick = del;
+        document.getElementById('rt_cfe_cancel').onclick = close;
+        document.getElementById('rt_cfe_close').onclick = close;
+    }
+
+    function openPromptEditor(title, currentText, defaultText, onSave) {
+        let overlay = document.getElementById('rt_pe_overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'rt_pe_overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            overlay.style.zIndex = '10000000';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.innerHTML = `
                 <div class="popup shadowBase" style="min-width: 400px; max-width: 600px;">
                     <div class="popup-header">
                         <h3 class="margin0" id="rt_pe_title">Edit Prompt</h3>
@@ -3026,507 +3026,507 @@ function openPromptEditor(title, currentText, defaultText, onSave) {
                     </div>
                 </div>
             `;
-        document.body.appendChild(overlay);
+            document.body.appendChild(overlay);
+        }
+
+        const titleEl = document.getElementById('rt_pe_title');
+        const textEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_pe_text'));
+        const saveBtn = document.getElementById('rt_pe_save');
+        const resetBtn = document.getElementById('rt_pe_reset');
+        const close = () => { overlay.style.display = 'none'; };
+
+        titleEl.textContent = title;
+        textEl.value = currentText;
+        overlay.style.display = 'flex';
+
+        const saveHandler = () => {
+            onSave(textEl.value);
+            close();
+        };
+
+        const resetHandler = () => {
+            if (confirm("Reset this prompt to the factory default?")) {
+                textEl.value = defaultText;
+            }
+        };
+
+        const cleanup = () => {
+            saveBtn.removeEventListener('click', saveHandler);
+            resetBtn.removeEventListener('click', resetHandler);
+            document.getElementById('rt_pe_close').removeEventListener('click', close);
+            document.getElementById('rt_pe_cancel').removeEventListener('click', close);
+        };
+
+        saveBtn.onclick = saveHandler;
+        resetBtn.onclick = resetHandler;
+        document.getElementById('rt_pe_close').onclick = close;
+        document.getElementById('rt_pe_cancel').onclick = close;
     }
 
-    const titleEl = document.getElementById('rt_pe_title');
-    const textEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_pe_text'));
-    const saveBtn = document.getElementById('rt_pe_save');
-    const resetBtn = document.getElementById('rt_pe_reset');
-    const close = () => { overlay.style.display = 'none'; };
+    function refreshOrderList() {
+        const s = getSettings();
+        const list = document.getElementById('rpg_tracker_order_list');
+        if (!list) return;
 
-    titleEl.textContent = title;
-    textEl.value = currentText;
-    overlay.style.display = 'flex';
+        list.innerHTML = '';
 
-    const saveHandler = () => {
-        onSave(textEl.value);
-        close();
-    };
+        const getIcon = (tag) => {
+            if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
+            const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
+            return custom?.icon || '📄';
+        };
 
-    const resetHandler = () => {
-        if (confirm("Reset this prompt to the factory default?")) {
-            textEl.value = defaultText;
-        }
-    };
+        if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
 
-    const cleanup = () => {
-        saveBtn.removeEventListener('click', saveHandler);
-        resetBtn.removeEventListener('click', resetHandler);
-        document.getElementById('rt_pe_close').removeEventListener('click', close);
-        document.getElementById('rt_pe_cancel').removeEventListener('click', close);
-    };
-
-    saveBtn.onclick = saveHandler;
-    resetBtn.onclick = resetHandler;
-    document.getElementById('rt_pe_close').onclick = close;
-    document.getElementById('rt_pe_cancel').onclick = close;
-}
-
-function refreshOrderList() {
-    const s = getSettings();
-    const list = document.getElementById('rpg_tracker_order_list');
-    if (!list) return;
-
-    list.innerHTML = '';
-
-    const getIcon = (tag) => {
-        if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
-        const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
-        return custom?.icon || '📄';
-    };
-
-    if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
-
-    // --- Sanitization Pass: Ensure unique tags and no stock conflicts ---
-    const seenTags = new Set(BLOCK_ORDER);
-    (s.customFields || []).forEach(f => {
-        let baseTag = f.tag.toUpperCase().replace(/[^A-Z0-9_]/g, '');
-        if (!baseTag) baseTag = 'CUSTOM';
-        let finalTag = baseTag;
-        let counter = 1;
-        while (seenTags.has(finalTag)) {
-            finalTag = `${baseTag}_${counter++}`;
-        }
-        if (f.tag !== finalTag) {
-            console.log(`[RPG Tracker] Sanitized tag: ${f.tag} -> ${finalTag}`);
-            f.tag = finalTag;
-        }
-        seenTags.add(finalTag);
-    });
-
-    // Add any missing tags to blockOrder
-    const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
-    [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
-        if (!s.blockOrder.includes(tag)) s.blockOrder.push(tag);
-    });
-
-    // Current order, filtered for validity
-    const validCustomTags = new Set(allCustomTags);
-    const order = s.blockOrder.filter(tag => BLOCK_ORDER.includes(tag) || validCustomTags.has(tag));
-    s.blockOrder = order;
-
-    order.forEach((tag, index) => {
-        const isStock = BLOCK_ORDER.includes(tag);
-        const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
-        const field = isStock ? null : s.customFields[customIndex];
-
-        const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
-
-        const item = document.createElement('div');
-        item.className = 'flex-container gap-1 alignitemscenter rt-order-item';
-        item.style.padding = '5px';
-        item.style.background = isEnabled ? 'var(--black30a)' : 'transparent';
-        item.style.opacity = isEnabled ? '1' : '0.6';
-        item.style.borderRadius = '4px';
-        item.style.border = '1px solid var(--smartThemeBorderColor)';
-
-        // 1. Checkbox
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = isEnabled;
-        cb.style.margin = '0 5px';
-        cb.onchange = () => {
-            if (isStock) {
-                s.modules[tag.toLowerCase()] = cb.checked;
-            } else {
-                field.enabled = cb.checked;
+        // --- Sanitization Pass: Ensure unique tags and no stock conflicts ---
+        const seenTags = new Set(BLOCK_ORDER);
+        (s.customFields || []).forEach(f => {
+            let baseTag = f.tag.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+            if (!baseTag) baseTag = 'CUSTOM';
+            let finalTag = baseTag;
+            let counter = 1;
+            while (seenTags.has(finalTag)) {
+                finalTag = `${baseTag}_${counter++}`;
             }
-            SillyTavern.getContext().saveSettingsDebounced();
-            refreshOrderList();
-            refreshRenderedView();
-        };
-
-        // 2. Label
-        const label = document.createElement('span');
-        label.style.flex = '1';
-        label.style.fontSize = '12px';
-        label.style.cursor = 'default';
-        label.textContent = `${getIcon(tag)} ${tag}`;
-
-        // 3. Button Group
-        const btnGroup = document.createElement('div');
-        btnGroup.className = 'flex-container gap-1';
-
-        // Edit Button
-        const editBtn = document.createElement('button');
-        editBtn.className = 'menu_button interactable rt-order-btn';
-        editBtn.style.padding = '2px 6px';
-        editBtn.title = isStock ? 'Edit Prompt' : 'Edit Custom Field';
-        editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
-        editBtn.onclick = () => {
-            if (isStock) {
-                const mod = tag.toLowerCase();
-                if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
-                openPromptEditor(
-                    `Edit Default [${tag}] Prompt`,
-                    s.stockPrompts[mod],
-                    DEFAULT_STOCK_PROMPTS[mod],
-                    (newVal) => {
-                        s.stockPrompts[mod] = newVal;
-                        SillyTavern.getContext().saveSettingsDebounced();
-                        toastr['success'](`[${tag}] prompt updated.`, 'RPG Tracker');
-                    }
-                );
-            } else {
-                openCustomFieldEditor(customIndex);
+            if (f.tag !== finalTag) {
+                console.log(`[RPG Tracker] Sanitized tag: ${f.tag} -> ${finalTag}`);
+                f.tag = finalTag;
             }
-        };
-
-        // Up/Down Arrows
-        const upBtn = document.createElement('button');
-        upBtn.className = 'menu_button interactable rt-order-btn';
-        upBtn.style.padding = '2px 6px';
-        upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
-        upBtn.disabled = index === 0;
-        upBtn.onclick = () => {
-            const newOrder = [...order];
-            [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-            s.blockOrder = newOrder;
-            SillyTavern.getContext().saveSettingsDebounced();
-            refreshOrderList();
-            refreshRenderedView();
-        };
-
-        const downBtn = document.createElement('button');
-        downBtn.className = 'menu_button interactable rt-order-btn';
-        downBtn.style.padding = '2px 6px';
-        downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
-        downBtn.disabled = index === order.length - 1;
-        downBtn.onclick = () => {
-            const newOrder = [...order];
-            [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
-            s.blockOrder = newOrder;
-            SillyTavern.getContext().saveSettingsDebounced();
-            refreshOrderList();
-            refreshRenderedView();
-        };
-
-        item.appendChild(cb);
-        item.appendChild(label);
-        btnGroup.appendChild(editBtn);
-        btnGroup.appendChild(upBtn);
-        btnGroup.appendChild(downBtn);
-        item.appendChild(btnGroup);
-        list.appendChild(item);
-    });
-}
-
-/**
- * Initialization
- */
-(async function init() {
-    const ctx = SillyTavern.getContext();
-    const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
-
-    getSettings();
-    createPanel();
-
-    try {
-        // Load Settings UI using the dynamic folder name
-        // Use a cache-busting parameter to ensure we get the fresh file from the server
-        const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', { v: Date.now() });
-        // Third-party plugins should go to extensions_settings2 (right column) if available
-        if ($('#extensions_settings2').length) {
-            $('#extensions_settings2').append(html);
-        } else {
-            $('#extensions_settings').append(html);
-        }
-
-        const settings = getSettings();
-
-        $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
-            settings.enabled = !!$(this).prop('checked');
-            ctx.saveSettingsDebounced();
+            seenTags.add(finalTag);
         });
 
-        $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
-            settings.debugMode = !!$(this).prop('checked');
-            ctx.saveSettingsDebounced();
+        // Add any missing tags to blockOrder
+        const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
+        [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
+            if (!s.blockOrder.includes(tag)) s.blockOrder.push(tag);
         });
 
-        $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
-            settings.diceFunctionTool = !!$(this).prop('checked');
-            ctx.saveSettingsDebounced();
+        // Current order, filtered for validity
+        const validCustomTags = new Set(allCustomTags);
+        const order = s.blockOrder.filter(tag => BLOCK_ORDER.includes(tag) || validCustomTags.has(tag));
+        s.blockOrder = order;
+
+        order.forEach((tag, index) => {
+            const isStock = BLOCK_ORDER.includes(tag);
+            const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
+            const field = isStock ? null : s.customFields[customIndex];
+
+            const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
+
+            const item = document.createElement('div');
+            item.className = 'flex-container gap-1 alignitemscenter rt-order-item';
+            item.style.padding = '5px';
+            item.style.background = isEnabled ? 'var(--black30a)' : 'transparent';
+            item.style.opacity = isEnabled ? '1' : '0.6';
+            item.style.borderRadius = '4px';
+            item.style.border = '1px solid var(--smartThemeBorderColor)';
+
+            // 1. Checkbox
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = isEnabled;
+            cb.style.margin = '0 5px';
+            cb.onchange = () => {
+                if (isStock) {
+                    s.modules[tag.toLowerCase()] = cb.checked;
+                } else {
+                    field.enabled = cb.checked;
+                }
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
+            };
+
+            // 2. Label
+            const label = document.createElement('span');
+            label.style.flex = '1';
+            label.style.fontSize = '12px';
+            label.style.cursor = 'default';
+            label.textContent = `${getIcon(tag)} ${tag}`;
+
+            // 3. Button Group
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'flex-container gap-1';
+
+            // Edit Button
+            const editBtn = document.createElement('button');
+            editBtn.className = 'menu_button interactable rt-order-btn';
+            editBtn.style.padding = '2px 6px';
+            editBtn.title = isStock ? 'Edit Prompt' : 'Edit Custom Field';
+            editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+            editBtn.onclick = () => {
+                if (isStock) {
+                    const mod = tag.toLowerCase();
+                    if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
+                    openPromptEditor(
+                        `Edit Default [${tag}] Prompt`,
+                        s.stockPrompts[mod],
+                        DEFAULT_STOCK_PROMPTS[mod],
+                        (newVal) => {
+                            s.stockPrompts[mod] = newVal;
+                            SillyTavern.getContext().saveSettingsDebounced();
+                            toastr['success'](`[${tag}] prompt updated.`, 'RPG Tracker');
+                        }
+                    );
+                } else {
+                    openCustomFieldEditor(customIndex);
+                }
+            };
+
+            // Up/Down Arrows
+            const upBtn = document.createElement('button');
+            upBtn.className = 'menu_button interactable rt-order-btn';
+            upBtn.style.padding = '2px 6px';
+            upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+            upBtn.disabled = index === 0;
+            upBtn.onclick = () => {
+                const newOrder = [...order];
+                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+                s.blockOrder = newOrder;
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
+            };
+
+            const downBtn = document.createElement('button');
+            downBtn.className = 'menu_button interactable rt-order-btn';
+            downBtn.style.padding = '2px 6px';
+            downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+            downBtn.disabled = index === order.length - 1;
+            downBtn.onclick = () => {
+                const newOrder = [...order];
+                [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
+                s.blockOrder = newOrder;
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshOrderList();
+                refreshRenderedView();
+            };
+
+            item.appendChild(cb);
+            item.appendChild(label);
+            btnGroup.appendChild(editBtn);
+            btnGroup.appendChild(upBtn);
+            btnGroup.appendChild(downBtn);
+            item.appendChild(btnGroup);
+            list.appendChild(item);
+        });
+    }
+
+    /**
+     * Initialization
+     */
+    (async function init() {
+        const ctx = SillyTavern.getContext();
+        const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
+
+        getSettings();
+        createPanel();
+
+        try {
+            // Load Settings UI using the dynamic folder name
+            // Use a cache-busting parameter to ensure we get the fresh file from the server
+            const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', { v: Date.now() });
+            // Third-party plugins should go to extensions_settings2 (right column) if available
+            if ($('#extensions_settings2').length) {
+                $('#extensions_settings2').append(html);
+            } else {
+                $('#extensions_settings').append(html);
+            }
+
+            const settings = getSettings();
+
+            $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
+                settings.enabled = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
+                settings.debugMode = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
+                settings.diceFunctionTool = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+                registerDiceFunctionTool();
+            });
+
+            // ─── Event Hooks ───
+            eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+            eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+
+            // ─── Dice System ───
             registerDiceFunctionTool();
-        });
+            registerDiceSlashCommand();
 
-        // ─── Event Hooks ───
+            // Connection Settings
+            const sourceSelect = $('#rpg_tracker_connection_source');
+            const profileGroup = $('#rpg_tracker_profile_group');
+            const profileSelect = $('#rpg_tracker_connection_profile');
+            const maxTokensInput = $('#rpg_tracker_max_tokens');
+
+            sourceSelect.val(settings.connectionSource).on('change', function () {
+                settings.connectionSource = $(this).val();
+                profileGroup.toggle(settings.connectionSource === 'profile');
+                ctx.saveSettingsDebounced();
+            });
+            profileGroup.toggle(settings.connectionSource === 'profile');
+
+            maxTokensInput.val(settings.maxTokens || "").on('input', function () {
+                settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
+                ctx.saveSettingsDebounced();
+            });
+
+            // Theme Select
+            const themeSelect = $('#rpg_tracker_theme_select');
+            themeSelect.val(settings.trackerTheme || 'rt-theme-native');
+            themeSelect.on('change', function () {
+                const newTheme = String($(this).val());
+                settings.trackerTheme = newTheme;
+                ctx.saveSettingsDebounced();
+                // Apply immediately
+                const panel = document.getElementById('rpg-tracker-panel');
+                if (panel) {
+                    panel.className = `rpg-tracker-panel ${newTheme}`;
+                    if (!settings.enabled) panel.classList.add('is-paused');
+                }
+                // Apply to detached panels
+                document.querySelectorAll('.rpg-tracker-detached-panel').forEach(dp => {
+                    dp.className = `rpg-tracker-panel rpg-tracker-detached-panel ${newTheme}`;
+                });
+            });
+
+            // Populate profiles using the connection helpers
+            const profiles = await getConnectionProfiles();
+            if (profiles && profiles.length > 0) {
+                profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
+                profiles.forEach(p => {
+                    profileSelect.append($('<option></option>').val(p).text(p));
+                });
+                profileSelect.val(settings.connectionProfileId);
+            } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                // Fallback to legacy service dropdown handling
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
+                profileSelect.val(settings.connectionProfileId);
+            }
+            profileSelect.on('change', function () {
+                settings.connectionProfileId = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            // Populate presets
+            const presetSelect = $('#rpg_tracker_completion_preset');
+            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+            if (pm && typeof pm.getAllPresets === 'function') {
+                const presets = pm.getAllPresets();
+                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+                presets.forEach(p => {
+                    presetSelect.append($('<option></option>').val(p).text(p));
+                });
+                presetSelect.val(settings.completionPresetId || '');
+            } else {
+                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+                if (settings.completionPresetId) {
+                    presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
+                    presetSelect.val(settings.completionPresetId);
+                }
+            }
+            presetSelect.on('change', function () {
+                settings.completionPresetId = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            // Initial order list refresh
+            refreshOrderList();
+
+            $('#rpg_tracker_add_custom_field').on('click', function () {
+                const settings = getSettings();
+                if (!settings.customFields) settings.customFields = [];
+
+                let newTag = 'NEW_FIELD';
+                let counter = 1;
+                const isTagTaken = (tag) => BLOCK_ORDER.includes(tag) || settings.customFields.some(f => f.tag.toUpperCase() === tag);
+
+                while (isTagTaken(counter === 1 ? newTag : `${newTag}_${counter}`)) {
+                    counter++;
+                }
+                if (counter > 1) newTag = `${newTag}_${counter}`;
+
+                settings.customFields.push({
+                    tag: newTag, label: 'New Field', icon: '📝',
+                    prompt: 'What should the AI track for this new field? Describe it here.',
+                    renderType: 'CHARACTER', enabled: true
+                });
+                refreshOrderList();
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
+                settings.systemPromptTemplate = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_btn_reset_prompt').on('click', function () {
+                if (!confirm('Reset the State Model prompt to the built-in default?')) return;
+                // Re-read the default from the defaults object by temporarily clearing the stored value
+                const { extensionSettings } = SillyTavern.getContext();
+                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+                const freshSettings = getSettings(); // re-merges defaults
+                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+                ctx.saveSettingsDebounced();
+                toastr['success']('Core prompt reset to default.', 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
+                if (!confirm('This will reset the Core Prompt, Module Prompts, Active Modules, and Module Order to their factory defaults. This cannot be undone. Proceed?')) return;
+                const { extensionSettings } = SillyTavern.getContext();
+                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+                delete extensionSettings[MODULE_NAME].stockPrompts;
+                delete extensionSettings[MODULE_NAME].blockOrder;
+                delete extensionSettings[MODULE_NAME].modules;
+                const freshSettings = getSettings();
+                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+                refreshOrderList();
+                ctx.saveSettingsDebounced();
+                toastr['success']('All prompts, modules, and layout order reset to factory defaults.', 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_btn_update').on('click', async function () {
+                const { chat } = SillyTavern.getContext();
+                if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
+
+                let lastAssistantMsg = "";
+                for (let i = chat.length - 1; i >= 0; i--) {
+                    if (!chat[i].is_user && !chat[i].is_system) {
+                        lastAssistantMsg = chat[i].mes;
+                        break;
+                    }
+                }
+                if (!lastAssistantMsg) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+
+                toastr['info']("Triggering manual State Update...", "RPG Tracker");
+                await runStateModelPass(lastAssistantMsg);
+            });
+
+            $('#rpg_tracker_btn_clear').on('click', function () {
+                if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
+                    settings.currentMemo = "";
+                    settings.prevMemo1 = "";
+                    settings.prevMemo2 = "";
+                    settings.memoHistory = [];
+                    settings.lastDelta = "";
+                    ctx.saveSettingsDebounced();
+                    updateUIMemo("");
+                    const dp = document.getElementById('rpg-tracker-delta-content');
+                    if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+                    toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+                }
+            });
+
+            $('#rpg_tracker_btn_factory_reset').on('click', function () {
+                if (confirm("⚠️ NUCLEAR OPTION ⚠️\n\nThis will wipe EVERYTHING: all custom fields, character history, saved profiles, and prompt changes. The framework will return to v1.1.0 factory defaults.\n\nProceed?")) {
+                    const { extensionSettings } = SillyTavern.getContext();
+                    delete extensionSettings[MODULE_NAME];
+                    // Force re-initialization of defaults
+                    getSettings();
+                    ctx.saveSettingsDebounced();
+                    toastr['success']("Framework has been reset to factory defaults. Reloading in 2 seconds...", "RPG Tracker");
+                    setTimeout(() => location.reload(), 2000);
+                }
+            });
+
+            // ── Profile System ──
+            refreshProfileDropdown();
+
+            $('#rpg_tracker_profile_save').on('click', function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No profile selected to overwrite. Use "Save As" for new profiles.', 'RPG Tracker');
+                saveProfile(name);
+                toastr['success'](`Profile "${name}" overwritten.`, 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_profile_save_as').on('click', async function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+                const existing = sel.value;
+                const { Popup } = SillyTavern.getContext();
+
+                let name = null;
+                if (Popup && Popup.show && Popup.show.input) {
+                    name = await Popup.show.input('Save Profile', 'Save profile as:', existing || '');
+                } else {
+                    name = prompt('Save profile as:', existing || '');
+                }
+
+                name = name?.trim();
+                if (!name) return;
+                saveProfile(name);
+                refreshProfileDropdown();
+                toastr['success'](`Profile "${name}" saved.`, 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_profile_load').on('click', function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
+                loadProfile(name);
+                toastr['success'](`Profile "${name}" loaded.`, 'RPG Tracker');
+            });
+
+            $('#rpg_tracker_profile_delete').on('click', async function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
+
+                const { Popup, POPUP_RESULT } = SillyTavern.getContext();
+                if (Popup && Popup.show && Popup.show.confirm) {
+                    const confirmResult = await Popup.show.confirm('Delete Profile', `Delete profile "${name}"?`);
+                    if (confirmResult !== POPUP_RESULT.AFFIRMATIVE) return;
+                } else {
+                    if (!confirm(`Delete profile "${name}"?`)) return;
+                }
+
+                deleteProfile(name);
+                refreshProfileDropdown();
+                toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
+            });
+
+        } catch (e) {
+            console.error("[RPG Tracker] Failed to build settings UI", e);
+        }
+
+        // Hook into the end of the generation loop instead of message reception
+        // This prevents the state model from interrupting active Tool Calls or API loops
         eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
         eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
 
-        // ─── Dice System ───
-        registerDiceFunctionTool();
-        registerDiceSlashCommand();
+        // Add wand button to toggle panel visibility
+        addWandButton();
 
-        // Connection Settings
-        const sourceSelect = $('#rpg_tracker_connection_source');
-        const profileGroup = $('#rpg_tracker_profile_group');
-        const profileSelect = $('#rpg_tracker_connection_profile');
-        const maxTokensInput = $('#rpg_tracker_max_tokens');
+        console.log("[RPG Tracker] Phase 2 Full Implementation Loaded.");
+    })();
 
-        sourceSelect.val(settings.connectionSource).on('change', function () {
-            settings.connectionSource = $(this).val();
-            profileGroup.toggle(settings.connectionSource === 'profile');
-            ctx.saveSettingsDebounced();
-        });
-        profileGroup.toggle(settings.connectionSource === 'profile');
+    function addWandButton() {
+        const wandContainer = document.getElementById('extensionsMenu');
+        if (!wandContainer) return;
 
-        maxTokensInput.val(settings.maxTokens || "").on('input', function () {
-            settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
-            ctx.saveSettingsDebounced();
-        });
+        const btn = document.createElement('div');
+        btn.id = 'toggle_rpg_tracker_wand_button';
+        btn.classList.add('list-group-item', 'flex-container', 'flexGap5');
 
-        // Theme Select
-        const themeSelect = $('#rpg_tracker_theme_select');
-        themeSelect.val(settings.trackerTheme || 'rt-theme-native');
-        themeSelect.on('change', function () {
-            const newTheme = String($(this).val());
-            settings.trackerTheme = newTheme;
-            ctx.saveSettingsDebounced();
-            // Apply immediately
-            const panel = document.getElementById('rpg-tracker-panel');
-            if (panel) {
-                panel.className = `rpg-tracker-panel ${newTheme}`;
-                if (!settings.enabled) panel.classList.add('is-paused');
-            }
-            // Apply to detached panels
-            document.querySelectorAll('.rpg-tracker-detached-panel').forEach(dp => {
-                dp.className = `rpg-tracker-panel rpg-tracker-detached-panel ${newTheme}`;
-            });
-        });
-
-        // Populate profiles using the connection helpers
-        const profiles = await getConnectionProfiles();
-        if (profiles && profiles.length > 0) {
-            profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
-            profiles.forEach(p => {
-                profileSelect.append($('<option></option>').val(p).text(p));
-            });
-            profileSelect.val(settings.connectionProfileId);
-        } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                // Fallback to legacy service dropdown handling
-                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
-            profileSelect.val(settings.connectionProfileId);
-        }
-        profileSelect.on('change', function () {
-            settings.connectionProfileId = $(this).val();
-            ctx.saveSettingsDebounced();
-        });
-
-        // Populate presets
-        const presetSelect = $('#rpg_tracker_completion_preset');
-        const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
-        if (pm && typeof pm.getAllPresets === 'function') {
-            const presets = pm.getAllPresets();
-            presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-            presets.forEach(p => {
-                presetSelect.append($('<option></option>').val(p).text(p));
-            });
-            presetSelect.val(settings.completionPresetId || '');
-        } else {
-            presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-            if (settings.completionPresetId) {
-                presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
-                presetSelect.val(settings.completionPresetId);
-            }
-        }
-        presetSelect.on('change', function () {
-            settings.completionPresetId = $(this).val();
-            ctx.saveSettingsDebounced();
-        });
-
-        // Initial order list refresh
-        refreshOrderList();
-
-        $('#rpg_tracker_add_custom_field').on('click', function () {
-            const settings = getSettings();
-            if (!settings.customFields) settings.customFields = [];
-
-            let newTag = 'NEW_FIELD';
-            let counter = 1;
-            const isTagTaken = (tag) => BLOCK_ORDER.includes(tag) || settings.customFields.some(f => f.tag.toUpperCase() === tag);
-
-            while (isTagTaken(counter === 1 ? newTag : `${newTag}_${counter}`)) {
-                counter++;
-            }
-            if (counter > 1) newTag = `${newTag}_${counter}`;
-
-            settings.customFields.push({
-                tag: newTag, label: 'New Field', icon: '📝',
-                prompt: 'What should the AI track for this new field? Describe it here.',
-                renderType: 'CHARACTER', enabled: true
-            });
-            refreshOrderList();
-            ctx.saveSettingsDebounced();
-        });
-
-        $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
-            settings.systemPromptTemplate = $(this).val();
-            ctx.saveSettingsDebounced();
-        });
-
-        $('#rpg_tracker_btn_reset_prompt').on('click', function () {
-            if (!confirm('Reset the State Model prompt to the built-in default?')) return;
-            // Re-read the default from the defaults object by temporarily clearing the stored value
-            const { extensionSettings } = SillyTavern.getContext();
-            delete extensionSettings[MODULE_NAME].systemPromptTemplate;
-            const freshSettings = getSettings(); // re-merges defaults
-            $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
-            ctx.saveSettingsDebounced();
-            toastr['success']('Core prompt reset to default.', 'RPG Tracker');
-        });
-
-        $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
-            if (!confirm('This will reset the Core Prompt, Module Prompts, Active Modules, and Module Order to their factory defaults. This cannot be undone. Proceed?')) return;
-            const { extensionSettings } = SillyTavern.getContext();
-            delete extensionSettings[MODULE_NAME].systemPromptTemplate;
-            delete extensionSettings[MODULE_NAME].stockPrompts;
-            delete extensionSettings[MODULE_NAME].blockOrder;
-            delete extensionSettings[MODULE_NAME].modules;
-            const freshSettings = getSettings();
-            $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
-            refreshOrderList();
-            ctx.saveSettingsDebounced();
-            toastr['success']('All prompts, modules, and layout order reset to factory defaults.', 'RPG Tracker');
-        });
-
-        $('#rpg_tracker_btn_update').on('click', async function () {
-            const { chat } = SillyTavern.getContext();
-            if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
-
-            let lastAssistantMsg = "";
-            for (let i = chat.length - 1; i >= 0; i--) {
-                if (!chat[i].is_user && !chat[i].is_system) {
-                    lastAssistantMsg = chat[i].mes;
-                    break;
-                }
-            }
-            if (!lastAssistantMsg) return toastr['info']("No assistant message to parse.", "RPG Tracker");
-
-            toastr['info']("Triggering manual State Update...", "RPG Tracker");
-            await runStateModelPass(lastAssistantMsg);
-        });
-
-        $('#rpg_tracker_btn_clear').on('click', function () {
-            if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
-                settings.currentMemo = "";
-                settings.prevMemo1 = "";
-                settings.prevMemo2 = "";
-                settings.memoHistory = [];
-                settings.lastDelta = "";
-                ctx.saveSettingsDebounced();
-                updateUIMemo("");
-                const dp = document.getElementById('rpg-tracker-delta-content');
-                if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-                toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
-            }
-        });
-
-        $('#rpg_tracker_btn_factory_reset').on('click', function () {
-            if (confirm("⚠️ NUCLEAR OPTION ⚠️\n\nThis will wipe EVERYTHING: all custom fields, character history, saved profiles, and prompt changes. The framework will return to v1.1.0 factory defaults.\n\nProceed?")) {
-                const { extensionSettings } = SillyTavern.getContext();
-                delete extensionSettings[MODULE_NAME];
-                // Force re-initialization of defaults
-                getSettings();
-                ctx.saveSettingsDebounced();
-                toastr['success']("Framework has been reset to factory defaults. Reloading in 2 seconds...", "RPG Tracker");
-                setTimeout(() => location.reload(), 2000);
-            }
-        });
-
-        // ── Profile System ──
-        refreshProfileDropdown();
-
-        $('#rpg_tracker_profile_save').on('click', function () {
-            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-            const name = sel.value;
-            if (!name) return toastr['info']('No profile selected to overwrite. Use "Save As" for new profiles.', 'RPG Tracker');
-            saveProfile(name);
-            toastr['success'](`Profile "${name}" overwritten.`, 'RPG Tracker');
-        });
-
-        $('#rpg_tracker_profile_save_as').on('click', async function () {
-            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-            const existing = sel.value;
-            const { Popup } = SillyTavern.getContext();
-
-            let name = null;
-            if (Popup && Popup.show && Popup.show.input) {
-                name = await Popup.show.input('Save Profile', 'Save profile as:', existing || '');
-            } else {
-                name = prompt('Save profile as:', existing || '');
-            }
-
-            name = name?.trim();
-            if (!name) return;
-            saveProfile(name);
-            refreshProfileDropdown();
-            toastr['success'](`Profile "${name}" saved.`, 'RPG Tracker');
-        });
-
-        $('#rpg_tracker_profile_load').on('click', function () {
-            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-            const name = sel.value;
-            if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
-            loadProfile(name);
-            toastr['success'](`Profile "${name}" loaded.`, 'RPG Tracker');
-        });
-
-        $('#rpg_tracker_profile_delete').on('click', async function () {
-            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-            const name = sel.value;
-            if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
-
-            const { Popup, POPUP_RESULT } = SillyTavern.getContext();
-            if (Popup && Popup.show && Popup.show.confirm) {
-                const confirmResult = await Popup.show.confirm('Delete Profile', `Delete profile "${name}"?`);
-                if (confirmResult !== POPUP_RESULT.AFFIRMATIVE) return;
-            } else {
-                if (!confirm(`Delete profile "${name}"?`)) return;
-            }
-
-            deleteProfile(name);
-            refreshProfileDropdown();
-            toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
-        });
-
-    } catch (e) {
-        console.error("[RPG Tracker] Failed to build settings UI", e);
-    }
-
-    // Hook into the end of the generation loop instead of message reception
-    // This prevents the state model from interrupting active Tool Calls or API loops
-    eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
-    eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
-
-    // Add wand button to toggle panel visibility
-    addWandButton();
-
-    console.log("[RPG Tracker] Phase 2 Full Implementation Loaded.");
-})();
-
-function addWandButton() {
-    const wandContainer = document.getElementById('extensionsMenu');
-    if (!wandContainer) return;
-
-    const btn = document.createElement('div');
-    btn.id = 'toggle_rpg_tracker_wand_button';
-    btn.classList.add('list-group-item', 'flex-container', 'flexGap5');
-
-    btn.innerHTML = `
+        btn.innerHTML = `
             <div class="fa-solid fa-clipboard-list extensionsMenuExtensionButton"></div>
             <span>Fatbody D&D Framework</span>
         `;
 
-    btn.addEventListener('click', () => {
-        const panel = document.getElementById('rpg-tracker-panel');
-        if (panel) {
-            const isHidden = panel.style.display === 'none';
-            panel.style.display = isHidden ? 'flex' : 'none';
-        }
-    });
+        btn.addEventListener('click', () => {
+            const panel = document.getElementById('rpg-tracker-panel');
+            if (panel) {
+                const isHidden = panel.style.display === 'none';
+                panel.style.display = isHidden ? 'flex' : 'none';
+            }
+        });
 
-    wandContainer.appendChild(btn);
-}
-}) ();
+        wandContainer.appendChild(btn);
+    }
+})();
