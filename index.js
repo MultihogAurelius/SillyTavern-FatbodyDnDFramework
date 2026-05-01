@@ -15,7 +15,89 @@
     })();
 
     const MODULE_NAME = "rpg_tracker";
+
+    const WM_PROMPTS = {
+        'stable': `You are the World Chronicle Engine. You maintain a continuously-updated macro-level record of a simulated world's geopolitical, environmental, and societal state. You receive periodic field reports (event chronicles from across the world's regions) and update your World State to reflect their logical, realistic consequences.
+
+DIRECTIVES:
+- Think in terms of factions, regions, political stability, trade routes, and armed conflict. Never speculate about individuals.
+- Model ripple effects: a faction losing its leadership creates a power vacuum; a disrupted trade route affects dependent settlements; a neutralized threat emboldens neighboring factions.
+- Field reports are imperfect. Information travels slowly and incompletely. Weight repeated confirmations more heavily than single reports.
+- Bias toward gradual, realistic change. Major upheavals require multiple confirmed reports before becoming established fact in the World State.
+- Historical momentum: stable factions remain stable absent evidence otherwise; ongoing conflicts continue until resolved; resolved threads close and age.
+
+OUTPUT:
+Output ONLY the updated [WORLD_STATE] block. No commentary, no explanation.
+
+[WORLD_STATE]
+Last Updated: Day X
+
+REGIONS:
+- [Region Name]: [Current stability/status. 1–2 sentences.]
+
+FACTIONS:
+- [Faction Name]: [Current disposition, internal state, threat level if applicable.]
+
+ACTIVE THREADS:
+- [Thread label]: [Status. Estimated age. Projected resolution window.]
+
+FORECAST:
+- [Near-term development logically expected from current trends.]
+[/WORLD_STATE]`,
+
+        'dynamic': `You are the World Chronicle Engine. You maintain a continuously-updated macro-level record of a simulated world's geopolitical, environmental, and societal state. You receive periodic field reports (event chronicles from across the world's regions) and update your World State to reflect their logical, realistic consequences.
+
+DIRECTIVES:
+- Think in terms of factions, regions, political stability, trade routes, and armed conflict. Never speculate about individuals.
+- Model ripple effects: a faction losing its leadership creates a power vacuum; a disrupted trade route affects dependent settlements; a neutralized threat emboldens neighboring factions.
+- Field reports are imperfect. Information travels slowly and incompletely. Weight repeated confirmations more heavily than single reports.
+- Create interesting developments that evolve. Local developments evolve faster, large, more macroscopic ones slower.
+- Momentum: Ensure there is at least some interesting activity between one update and the next, even if it is local in scope.
+
+OUTPUT:
+Output ONLY the updated [WORLD_STATE] block. No commentary, no explanation.
+
+[WORLD_STATE]
+Last Updated: Day X
+
+REGIONS:
+- [Region Name]: [Current stability/status. 1–2 sentences.]
+
+FACTIONS:
+- [Faction Name]: [Current disposition, internal state, threat level if applicable.]
+
+ACTIVE THREADS:
+- [Thread label]: [Status. Estimated age. Projected resolution window.]
+
+FORECAST:
+- [Near-term development logically expected from current trends.]
+[/WORLD_STATE]`
+    };
+
+    const DEFAULT_WORLD_MODEL_PROMPT = WM_PROMPTS['stable'];
+
+    const DEFAULT_SANITIZATION_PROMPT = `You are a Chronicle Anonymizer. Your task is to receive raw narrative text and transform it into a clean, anonymous, passive-voice event chronicle. The chronicle will be used for geopolitical and historical analysis.
+
+RULES — non-negotiable:
+1. Remove ALL references to specific individuals: names, pronouns (he/she/they/you/I), and role descriptors like "the warrior," "the hero," "the travelers." When possible, state only the consequence with no agent at all. When an agent is grammatically unavoidable, use "unknown actors" or "a group."
+2. Retain ALL: faction names, creature type names, location names, settlement names, organization names, geographic features.
+3. Transform cause into consequence.
+   "The warrior slew the goblin king" → "The goblin king's leadership was eliminated."
+   "They rescued the caravan" → "A merchant caravan near [location] was secured."
+   "You discovered a passage" → "An underground passage was accessed in [location]."
+4. Never speculate about who caused an event. State only outcomes and their implications.
+5. Be thorough. It is better to produce a lengthy chronicle than to omit detail.
+6. Output ONLY the anonymized chronicle. No preamble, no commentary, no explanation.
+
+OUTPUT FORMAT:
+[CHRONICLE]
+- [Location or Region]: [Passive-voice event. Consequence. Implication if clear.]
+- [Location or Region]: [Passive-voice event.]
+...
+[/CHRONICLE]`;
+
     let _stateModelRunning = false;
+    let _worldModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
         character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
@@ -521,7 +603,31 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             profiles: {},
             activeProfile: "",
             fullViewSections: [],
-            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
+            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
+            worldModel: {
+                enabled: false,
+                sanitizationEnabled: true,
+                dayInterval: 3,
+                lastFireDay: -1,
+                lookbackMessages: 40,
+                currentWorldState: '',
+                lorebookName: '',
+                sanitizationConnectionProfileId: '',
+                sanitizationCompletionPresetId: '',
+                worldModelConnectionProfileId: '',
+                worldModelCompletionPresetId: '',
+                maxTokensSanitization: 0,
+                maxTokensWorldModel: 0,
+                sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT,
+                worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT,
+                debugMode: true,
+                // Context Sources
+                ctxWorldInfo: true,
+                ctxPersona: false,
+                ctxAuthorNote: false,
+                lorebookFilter: [],
+                systemPromptPreset: "stable"
+            }
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -790,7 +896,408 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (!combinedNarrative) return;
 
         if (settings.debugMode) console.log("[RPG Tracker] Assistant generation ended. Triggering State Model pass...", combinedNarrative);
-        runStateModelPass(combinedNarrative);
+        await runStateModelPass(combinedNarrative);
+
+        // Stage 1: World Model Trigger check
+        if (settings.worldModel?.enabled) {
+            checkWorldModelTrigger();
+        }
+    }
+
+    /**
+     * Parses the current Day from the State Memo.
+     * Expected format in [TIME] block: "... Day X"
+     * @param {string} memo 
+     * @returns {number} The current day, or -1 if not found.
+     */
+    function parseTimeFromMemo(memo) {
+        if (!memo) return -1;
+        const timeBlock = memo.match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
+        if (!timeBlock) return -1;
+        
+        const content = timeBlock[1];
+        // Look for "Day X" or "Day: X"
+        const dayMatch = content.match(/Day\s*:?\s*(\d+)/i);
+        if (dayMatch) {
+            return parseInt(dayMatch[1]);
+        }
+        return -1;
+    }
+
+    /**
+     * Checks if the World Model should fire based on the passage of in-game time.
+     * @param {boolean} force - If true, ignores the day interval and fires immediately.
+     */
+    function checkWorldModelTrigger(force = false) {
+        const settings = getSettings();
+        const currentDay = parseTimeFromMemo(settings.currentMemo);
+        
+        if (currentDay === -1 && !force) {
+            if (settings.worldModel.debugMode) console.log("[World Model] Trigger Check: No valid Day found in [TIME] block.");
+            return false;
+        }
+
+        // Initialize lastFireDay if it's the first run
+        if (settings.worldModel.lastFireDay === -1 || settings.worldModel.lastFireDay > currentDay) {
+            if (settings.worldModel.debugMode) console.log(`[World Model] Trigger Init/Reset: Setting lastFireDay to ${currentDay}.`);
+            settings.worldModel.lastFireDay = currentDay;
+            SillyTavern.getContext().saveSettingsDebounced();
+            if (!force) return false;
+        }
+
+        const delta = currentDay - settings.worldModel.lastFireDay;
+        const shouldFire = force || (delta >= settings.worldModel.dayInterval);
+
+        if (settings.worldModel.debugMode) {
+            console.log(`[World Model] Trigger Check: Day ${currentDay} (Last fire: ${settings.worldModel.lastFireDay}, Interval: ${settings.worldModel.dayInterval}) -> ${shouldFire ? 'FIRE!' : 'Wait'}`);
+        }
+
+        if (shouldFire) {
+            fireWorldModel(currentDay).catch(e => console.error(e));
+        }
+    }
+
+    /**
+     * Stage 2: Narrative Lookback
+     * Unlike getNarrativeBlocks (which strips summaries for the State Model),
+     * this function INCLUDES visible summary messages from Summaryception/similar
+     * extensions. Those summaries cover ghosted (is_hidden) messages and are the
+     * only window into history older than the lookback window.
+     */
+    function buildNarrativeDigest() {
+        const settings = getSettings();
+        const { chat } = SillyTavern.getContext();
+        if (!chat || chat.length === 0) return '';
+
+        const limit = settings.worldModel?.lookbackMessages ?? 40;
+        const blocks = [];
+        let foundCount = 0;
+
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (limit !== -1 && foundCount >= limit) break;
+
+            const msg = chat[i];
+
+            // Skip ghosted originals — their content is already covered by the
+            // visible summary message that replaced them.
+            if (/** @type {any} */ (msg).is_hidden) continue;
+
+            let mes = (msg.mes || '').trim();
+            if (!mes) continue;
+
+            // Strip tool-call / thinking UI — same as getNarrativeBlocks
+            mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
+            mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
+            mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
+            mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
+            mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
+            mes = mes.trim();
+
+            if (mes) {
+                blocks.unshift(mes);
+                foundCount++;
+            }
+        }
+
+        return blocks.join('\n\n');
+    }
+
+    /**
+     * Stage 2: Sanitization Pass
+     */
+    async function runSanitizationPass(rawDigest) {
+        const settings = getSettings();
+        const wm = settings.worldModel;
+
+        const sanitizationSettings = {
+            ...settings,
+            connectionSource: wm.sanitizationConnectionProfileId ? 'profile' : 'default',
+            connectionProfileId: wm.sanitizationConnectionProfileId || '',
+            completionPresetId: wm.sanitizationCompletionPresetId || '',
+            maxTokens: wm.maxTokensSanitization || 0,
+        };
+
+        const userPrompt =
+            `## RAW NARRATIVE\n${rawDigest}\n\n` +
+            `## OUTPUT THE ANONYMIZED CHRONICLE:`;
+
+        const result = await sendStateRequest(
+            sanitizationSettings,
+            wm.sanitizationSystemPrompt,
+            userPrompt
+        );
+
+        return result || '';
+    }
+
+    /**
+     * Stage 3: Builds the supplemental context to inject into the World Model prompt.
+     * Reads context sources (Lorebooks, Persona, Author's Note) from user settings
+     * and assembles them into blocks that are prepended to the user prompt.
+     */
+    async function buildWorldModelContext(chronicle) {
+        const settings = getSettings();
+        const wm = settings.worldModel;
+        const ctx = SillyTavern.getContext();
+        const parts = [];
+
+        // ── Lorebooks / World Info ──
+        if (wm.ctxWorldInfo) {
+            try {
+                const allowedBooks = wm.lorebookFilter || [];
+
+                // Determine which books to load — always exclude the output lorebook to prevent circular reads
+                const outputBook = (wm.lorebookName || '').trim();
+                let booksToLoad = allowedBooks.length > 0
+                    ? allowedBooks
+                    : (await ctx.getWorldInfoNames() || []);
+
+                if (outputBook) {
+                    booksToLoad = booksToLoad.filter(n => n !== outputBook);
+                }
+
+                const entries = [];
+                for (const bookName of booksToLoad) {
+                    try {
+                        const bookData = await ctx.loadWorldInfo(bookName);
+                        if (!bookData?.entries) {
+                            console.warn(`[World Model] Lorebook "${bookName}" loaded but has no entries.`);
+                            continue;
+                        }
+                        for (const entry of Object.values(/** @type {any} */ (bookData).entries)) {
+                            const e = /** @type {any} */ (entry);
+                            if (!e.disable && e.content) entries.push(e.content);
+                        }
+                    } catch (bookErr) {
+                        console.warn(`[World Model] Failed to load lorebook "${bookName}":`, bookErr);
+                    }
+                }
+
+                if (entries.length > 0) {
+                    const label = allowedBooks.length > 0 ? `Filtered: ${allowedBooks.join(', ')}` : 'All Books';
+                    parts.push(`## WORLD LORE (${label})\n${entries.join('\n---\n')}`);
+                    console.log(`[World Model] Injected ${entries.length} lorebook entries from ${booksToLoad.length} book(s).`);
+                } else {
+                    console.warn('[World Model] Lorebook injection: no usable entries found.');
+                }
+            } catch (e) {
+                console.warn('[World Model] Could not inject World Info:', e);
+            }
+        }
+
+        // ── Character Persona ──
+        if (wm.ctxPersona) {
+            try {
+                const persona = ctx.persona || ctx.name2 || '';
+                const charDescription = ctx.characters?.[ctx.characterId]?.description || '';
+                const personaText = [persona ? `Name: ${persona}` : '', charDescription].filter(Boolean).join('\n');
+                if (personaText) parts.push(`## CHARACTER PERSONA\n${personaText}`);
+            } catch (e) {
+                console.warn('[World Model] Could not inject Persona:', e);
+            }
+        }
+
+        // ── Author's Note ──
+        if (wm.ctxAuthorNote) {
+            try {
+                const note = ctx.authorNote || /** @type {any} */ (window).note_text || '';
+                if (note) parts.push(`## AUTHOR'S NOTE\n${note}`);
+            } catch (e) {
+                console.warn('[World Model] Could not inject Author Note:', e);
+            }
+        }
+
+        return parts.join('\n\n');
+    }
+
+    /**
+     * Stage 3: World Simulation Pass
+     */
+    async function runWorldModelPass(sanitizedChronicle, currentWorldState, currentDay) {
+        const settings = getSettings();
+        const wm = settings.worldModel;
+
+        const wmSettings = {
+            ...settings,
+            connectionSource: wm.worldModelConnectionProfileId ? 'profile' : 'default',
+            connectionProfileId: wm.worldModelConnectionProfileId || '',
+            completionPresetId: wm.worldModelCompletionPresetId || '',
+            maxTokens: wm.maxTokensWorldModel || 0,
+        };
+
+        // Build supplemental context (Lorebooks, Persona, Author's Note per user config)
+        const extraContext = await buildWorldModelContext(sanitizedChronicle);
+
+        const userPrompt =
+            (extraContext ? `${extraContext}\n\n` : '') +
+            `## CURRENT NARRATIVE TIME: Day ${currentDay}\n\n` +
+            `## PRIOR WORLD STATE\n${currentWorldState || 'No prior state recorded.'}\n\n` +
+            `## NEW FIELD REPORTS (CHRONICLE)\n${sanitizedChronicle || 'No new events reported for this interval.'}\n\n` +
+            `## UPDATE WORLD STATE (Set 'Last Updated' to Day ${currentDay}):`;
+
+        // Always use bypassAll: true — context is injected manually above.
+        const result = await sendStateRequest(
+            wmSettings,
+            wm.worldModelSystemPrompt,
+            userPrompt,
+            true
+        );
+
+        return result || '';
+    }
+
+    /**
+     * Stage 4: Writes the evolved [WORLD_STATE] into a designated Lorebook entry.
+     * Creates the lorebook if it doesn't exist. Creates/updates the entry with comment = 'WORLD_STATE'.
+     */
+    async function writeWorldStateToLorebook(worldState) {
+        const settings = getSettings();
+        const wm = settings.worldModel;
+        const ctx = SillyTavern.getContext();
+        const lorebookName = (wm.lorebookName || '').trim();
+
+        console.log(`[World Model] writeWorldStateToLorebook() called. lorebookName="${lorebookName}"`);
+
+        if (!lorebookName) {
+            console.warn('[World Model] No output lorebook configured (lorebookName is empty). Skipping lorebook write.');
+            return;
+        }
+
+        try {
+            // 1. Load existing book data
+            const allNames = await ctx.getWorldInfoNames();
+            console.log(`[World Model] Known lorebooks: [${allNames.join(', ')}]`);
+            
+            let bookData = null;
+            if (allNames.includes(lorebookName)) {
+                bookData = await ctx.loadWorldInfo(lorebookName);
+                console.log(`[World Model] Loaded lorebook "${lorebookName}". Entries:`, Object.keys(bookData?.entries || {}).length);
+            } else {
+                console.warn(`[World Model] Lorebook "${lorebookName}" not in known list — will attempt create.`);
+                bookData = { entries: {} };
+            }
+
+            if (!bookData) bookData = { entries: {} };
+
+            // 2. Find the WORLD_STATE entry by comment tag
+            let targetUid = null;
+            for (const [uid, entry] of Object.entries(bookData.entries)) {
+                if (/** @type {any} */ (entry).comment === 'WORLD_STATE') {
+                    targetUid = uid;
+                    console.log(`[World Model] Found existing WORLD_STATE entry at uid=${uid}`);
+                    break;
+                }
+            }
+
+            // 3. Update or create entry
+            if (targetUid !== null) {
+                /** @type {any} */ (bookData.entries)[targetUid].content = worldState;
+                /** @type {any} */ (bookData.entries)[targetUid].key = ['[WORLD_STATE]'];
+                /** @type {any} */ (bookData.entries)[targetUid].constant = true;
+            } else {
+                const existingUids = Object.keys(bookData.entries).map(Number).filter(n => !isNaN(n));
+                const nextUid = existingUids.length > 0 ? Math.max(...existingUids) + 1 : 0;
+                bookData.entries[nextUid] = {
+                    uid: nextUid,
+                    key: ['[WORLD_STATE]'],
+                    keysecondary: [],
+                    comment: 'WORLD_STATE',
+                    content: worldState,
+                    constant: true,
+                    selective: false,
+                    selectiveLogic: 0,
+                    addMemo: true,
+                    order: 100,
+                    position: 0,
+                    disable: false,
+                    probability: 100,
+                    useProbability: false,
+                    depth: 4,
+                    group: '',
+                    groupOverride: false,
+                    groupWeight: 100,
+                    scanDepth: null,
+                    caseSensitive: null,
+                    matchWholeWords: null,
+                };
+                console.log(`[World Model] Created new WORLD_STATE entry (uid=${nextUid}) in "${lorebookName}".`);
+            }
+
+            // 4. Save and refresh the editor so the UI reflects the change
+            console.log(`[World Model] Calling saveWorldInfo("${lorebookName}", data)...`);
+            await ctx.saveWorldInfo(lorebookName, bookData);
+            console.log(`[World Model] saveWorldInfo completed.`);
+
+            // Reload editor UI if it's currently open on this lorebook
+            if (ctx.reloadWorldInfoEditor) {
+                ctx.reloadWorldInfoEditor(lorebookName);
+            }
+
+            toastr['success'](`World State written to lorebook: "${lorebookName}"`, 'World Model');
+        } catch (e) {
+            console.error('[World Model] Failed to write World State to lorebook:', e);
+            toastr['error']('Failed to write World State to lorebook.', 'World Model');
+        }
+    }
+
+    /**
+     * Orchestrates the full World Model pipeline (Stage 2 + Stage 3 + Stage 4)
+     */
+    async function fireWorldModel(currentDay) {
+        if (_worldModelRunning) return;
+        _worldModelRunning = true;
+        
+        try {
+            const settings = getSettings();
+            if (settings.worldModel.debugMode) console.log("%c[World Model] FIRE INITIATED (Full Pipeline)", "color: #00ff00; font-weight: bold;");
+            
+            // 1. Build Digest (Stage 2)
+            const rawDigest = buildNarrativeDigest() || "";
+            if (!rawDigest && settings.worldModel.debugMode) {
+                console.log("[World Model] No narrative blocks found. Proceeding with empty chronicle (Bootstrap Mode).");
+            }
+            
+            // 2. Sanitization (Stage 2)
+            let finalInput = '';
+            if (rawDigest && settings.worldModel.sanitizationEnabled) {
+                if (settings.worldModel.debugMode) console.log("[World Model] Phase 1: Running Sanitization...");
+                const sanitized = await runSanitizationPass(rawDigest);
+                if (!sanitized) {
+                    console.warn("[World Model] Aborting: Sanitization returned empty result.");
+                    _worldModelRunning = false;
+                    return;
+                }
+                finalInput = sanitized;
+                if (settings.worldModel.debugMode) console.log("[World Model] Sanitized Chronicle:", finalInput);
+            } else {
+                if (settings.worldModel.debugMode) console.log("[World Model] Skipping sanitization (no input or disabled).");
+                finalInput = rawDigest;
+            }
+            
+            // 3. World Simulation (Stage 3)
+            if (settings.worldModel.debugMode) console.log("[World Model] Phase 2: Running Simulation...");
+            const updatedState = await runWorldModelPass(finalInput, settings.worldModel.currentWorldState, currentDay);
+            if (!updatedState) {
+                console.warn("[World Model] Aborting: World Model returned empty result.");
+                return;
+            }
+            
+            // 4. Persistence
+            settings.worldModel.currentWorldState = updatedState;
+            settings.worldModel.lastFireDay = currentDay;
+            SillyTavern.getContext().saveSettingsDebounced();
+
+            // 5. Lorebook Write-back (Stage 4)
+            await writeWorldStateToLorebook(updatedState);
+
+            if (settings.worldModel.debugMode) console.log("%c[World Model] FIRE SUCCESSFUL", "color: #00ff00; font-weight: bold;", updatedState);
+            toastr['success']("World State updated successfully.", "World Model");
+        } catch (e) {
+            console.error("[World Model] Error during pipeline execution:", e);
+            toastr['error']("Failed to update World State.", "World Model error");
+        } finally {
+            _worldModelRunning = false;
+        }
     }
 
     /**
@@ -870,7 +1377,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     /**
      * Send the request through the configured backend.
      */
-    async function sendStateRequest(settings, systemPrompt, userPrompt) {
+    async function sendStateRequest(settings, systemPrompt, userPrompt, bypassAll = true) {
         const { generateRaw } = SillyTavern.getContext();
         let originalProfile = null;
         let originalPreset = null;
@@ -891,7 +1398,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const options = {
                 prompt: userPrompt,
                 systemPrompt: systemPrompt,
-                bypassAll: true
+                bypassAll: bypassAll
             };
 
             if (settings.maxTokens && settings.maxTokens > 0) {
@@ -1150,7 +1657,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     // Take the last complete <memo>...</memo> block
                     cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
                 } else {
-                    // Strip any orphaned <memo> / </memo> tags
                     cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
                 }
 
@@ -1164,25 +1670,28 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     console.log(`[RPG Tracker] Memo ${merged !== sanitizedCurrent ? 'updated (partial merge)' : 'unchanged'}.`);
                 }
 
-                // Push snapshot to rolling history (max 5)
-                const delta = computeDelta(sanitizedCurrent, merged);
-                settings.memoHistory.unshift(sanitizedCurrent);
-                if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
+                // Only push to history if there was an actual change
+                if (merged !== sanitizedCurrent) {
+                    // Push snapshot to rolling history (max 5)
+                    settings.memoHistory.unshift(sanitizedCurrent);
+                    if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
 
-                // Persist delta and update panel
-                settings.lastDelta = delta;
-                const deltaPanel = document.getElementById('rpg-tracker-delta-content');
-                if (deltaPanel) deltaPanel.innerHTML = delta;
+                    // Persist delta and update panel
+                    const delta = computeDelta(sanitizedCurrent, merged);
+                    settings.lastDelta = delta;
+                    const deltaPanel = document.getElementById('rpg-tracker-delta-content');
+                    if (deltaPanel) deltaPanel.innerHTML = delta;
 
-                // Rotation logic (legacy compat)
-                settings.prevMemo2 = settings.prevMemo1;
-                settings.prevMemo1 = sanitizedCurrent;
-                settings.currentMemo = merged;
+                    // Rotation logic (legacy compat)
+                    settings.prevMemo2 = settings.prevMemo1;
+                    settings.prevMemo1 = sanitizedCurrent;
+                    settings.currentMemo = merged;
 
-                updateUIMemo(merged);
-                syncMemoView();
-                refreshRenderedView();
-                saveSettingsDebounced();
+                    updateUIMemo(merged);
+                    syncMemoView();
+                    refreshRenderedView();
+                    saveSettingsDebounced();
+                }
 
                 if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
 
@@ -3264,6 +3773,213 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
             });
 
+            // ── World Model Settings ──
+            $('#rpg_tracker_wm_enabled').prop('checked', settings.worldModel?.enabled).on('change', function () {
+                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: true, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                settings.worldModel.enabled = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_san_enabled').prop('checked', settings.worldModel?.sanitizationEnabled).on('change', function () {
+                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: true, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                settings.worldModel.sanitizationEnabled = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            async function refreshWorldModelLorebookList() {
+                const $container = $('#rpg_tracker_wm_lorebook_list');
+                $container.empty();
+                
+                const stCtx = SillyTavern.getContext();
+                let worldNames = [];
+                try {
+                    worldNames = await stCtx.getWorldInfoNames() ?? [];
+                } catch (e) {
+                    console.warn('[World Model] getWorldInfoNames() failed:', e);
+                }
+
+                if (!worldNames || worldNames.length === 0) {
+                    $container.append('<i style="opacity:0.6;">No lorebooks found.</i>');
+                    return;
+                }
+                
+                const currentFilter = settings.worldModel.lorebookFilter || [];
+                const outputBook = (settings.worldModel.lorebookName || '').trim();
+                const sortedBooks = [...worldNames].sort();
+                
+                sortedBooks.forEach(bookName => {
+                    const isOutputBook = bookName === outputBook;
+                    const isChecked = !isOutputBook && currentFilter.includes(bookName);
+
+                    const $item = isOutputBook
+                        ? $(`<label class="checkbox_label" style="font-size: 0.9em; opacity: 0.45; pointer-events: none;" title="This is the World State output lorebook — automatically excluded from source reads.">
+                                <input type="checkbox" disabled />
+                                <span>${bookName} <small>⟵ World State Output</small></span>
+                            </label>`)
+                        : $(`<label class="checkbox_label" style="font-size: 0.9em;">
+                                <input type="checkbox" data-book="${bookName}" ${isChecked ? 'checked' : ''} />
+                                <span>${bookName}</span>
+                            </label>`);
+                    
+                    if (!isOutputBook) {
+                        $item.find('input').on('change', function() {
+                            const book = $(this).data('book');
+                            if (!Array.isArray(settings.worldModel.lorebookFilter)) settings.worldModel.lorebookFilter = [];
+                            if ($(this).prop('checked')) {
+                                if (!settings.worldModel.lorebookFilter.includes(book)) {
+                                    settings.worldModel.lorebookFilter.push(book);
+                                }
+                            } else {
+                                settings.worldModel.lorebookFilter = settings.worldModel.lorebookFilter.filter(b => b !== book);
+                            }
+                            ctx.saveSettingsDebounced();
+                        });
+                    }
+                    
+                    $container.append($item);
+                });
+            }
+
+            // ── Output Lorebook Dropdown ──
+            async function refreshOutputLorebookDropdown() {
+                const $sel = $('#rpg_tracker_wm_lorebook_name');
+                const currentVal = settings.worldModel?.lorebookName || '';
+                const names = await SillyTavern.getContext().getWorldInfoNames() || [];
+                $sel.empty().append('<option value="">(None — disable lorebook sync)</option>');
+                names.sort().forEach(name => {
+                    $sel.append(`<option value="${name}" ${name === currentVal ? 'selected' : ''}>${name}</option>`);
+                });
+            }
+
+            await refreshOutputLorebookDropdown();
+
+            $('#rpg_tracker_wm_lorebook_name').on('change', async function () {
+                settings.worldModel.lorebookName = /** @type {string} */($(this).val());
+                ctx.saveSettingsDebounced();
+                // Refresh the source list so the output book is marked excluded
+                if (settings.worldModel.ctxWorldInfo) await refreshWorldModelLorebookList();
+            });
+
+            $('#rpg_tracker_wm_lorebook_name_refresh').on('click', async function () {
+                await refreshOutputLorebookDropdown();
+                if (settings.worldModel.ctxWorldInfo) await refreshWorldModelLorebookList();
+            });
+
+            // ── Context Source Toggles ──
+            $('#rpg_tracker_wm_ctx_worldinfo').prop('checked', settings.worldModel?.ctxWorldInfo ?? true).on('change', async function () {
+                settings.worldModel.ctxWorldInfo = !!$(this).prop('checked');
+                if (settings.worldModel.ctxWorldInfo) await refreshWorldModelLorebookList();
+                $('#rpg_tracker_wm_lorebook_filter_group').toggle(settings.worldModel.ctxWorldInfo);
+                ctx.saveSettingsDebounced();
+            }).trigger('change');
+
+            $('#rpg_tracker_wm_ctx_persona').prop('checked', settings.worldModel?.ctxPersona ?? false).on('change', function () {
+                settings.worldModel.ctxPersona = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_ctx_authornote').prop('checked', settings.worldModel?.ctxAuthorNote ?? false).on('change', function () {
+                settings.worldModel.ctxAuthorNote = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_interval').val(settings.worldModel?.dayInterval || 1).on('input', function () {
+                if (!settings.worldModel) settings.worldModel = { enabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                settings.worldModel.dayInterval = parseInt(/** @type {string} */($(this).val())) || 1;
+                ctx.saveSettingsDebounced();
+            });
+
+            // ── World Model Prompt Listeners ──
+            $('#rpg_tracker_wm_san_prompt').val(settings.worldModel?.sanitizationSystemPrompt).on('input', function () {
+                if (!settings.worldModel) settings.worldModel = { enabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                settings.worldModel.sanitizationSystemPrompt = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_san_prompt_reset').on('click', function () {
+                if (!confirm('Reset the Sanitizer prompt to default?')) return;
+                settings.worldModel.sanitizationSystemPrompt = DEFAULT_SANITIZATION_PROMPT;
+                $('#rpg_tracker_wm_san_prompt').val(DEFAULT_SANITIZATION_PROMPT).trigger('input');
+                toastr['success']('Sanitizer prompt reset.', 'World Model');
+            });
+
+            // ── World Model Prompt Listeners ──
+            $('#rpg_tracker_wm_prompt_preset').val(settings.worldModel?.systemPromptPreset || 'stable').on('change', function () {
+                const preset = /** @type {string} */($(this).val());
+                if (!settings.worldModel) settings.worldModel = {};
+                settings.worldModel.systemPromptPreset = preset;
+                if (preset !== 'custom') {
+                    const prompt = WM_PROMPTS[preset];
+                    $('#rpg_tracker_wm_prompt').val(prompt).trigger('input');
+                }
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_prompt').val(settings.worldModel?.worldModelSystemPrompt).on('input', function () {
+                if (!settings.worldModel) settings.worldModel = {};
+                settings.worldModel.worldModelSystemPrompt = $(this).val();
+
+                // If manual edit doesn't match the current preset, switch to 'custom'
+                const currentPreset = $('#rpg_tracker_wm_prompt_preset').val();
+                if (currentPreset !== 'custom' && $(this).val() !== WM_PROMPTS[currentPreset]) {
+                    $('#rpg_tracker_wm_prompt_preset').val('custom');
+                    settings.worldModel.systemPromptPreset = 'custom';
+                }
+
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_prompt_reset').on('click', function () {
+                if (!confirm('Reset the World Model prompt to default?')) return;
+                const preset = $('#rpg_tracker_wm_prompt_preset').val();
+                const defaultPrompt = (preset !== 'custom' && WM_PROMPTS[preset]) ? WM_PROMPTS[preset] : WM_PROMPTS['stable'];
+                $('#rpg_tracker_wm_prompt').val(defaultPrompt).trigger('input');
+                toastr['success']('World Model prompt reset.', 'World Model');
+            });
+
+            $('#rpg_tracker_wm_current_state').val(settings.worldModel?.currentWorldState).on('input', function () {
+                if (!settings.worldModel) settings.worldModel = { enabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                settings.worldModel.currentWorldState = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_bootstrap').on('click', async function () {
+                const settings = getSettings();
+                if (!settings.worldModel?.enabled) {
+                    toastr['warning']("Enable the World Model first.", "World Model");
+                    return;
+                }
+                const currentDay = parseTimeFromMemo(settings.currentMemo);
+                if (currentDay === -1) {
+                    toastr['error']("Could not find current Day in [TIME] block. Cannot fire simulation.", "World Model");
+                    return;
+                }
+                
+                toastr['info']("Running Full World Simulation...", "World Model");
+                await fireWorldModel(currentDay);
+                
+                // Update UI field
+                $('#rpg_tracker_wm_current_state').val(settings.worldModel.currentWorldState).trigger('input');
+            });
+
+            $('#rpg_tracker_wm_test_sanitization').on('click', async function () {
+                const settings = getSettings();
+                if (!settings.worldModel?.enabled) {
+                    toastr['warning']("Enable the World Model first.", "World Model");
+                    return;
+                }
+                
+                toastr['info']("Running Test Sanitization Pass...", "World Model");
+                const raw = buildNarrativeDigest();
+                console.log("[World Model] Raw Digest for Sanitization:", raw);
+                
+                const result = await runSanitizationPass(raw);
+                console.log("%c[World Model] SANITIZATION RESULT:", "color: #00aaff; font-weight: bold;", result);
+                
+                const { Popup } = SillyTavern.getContext();
+                Popup.show.confirm("Sanitization Result", `<textarea class="text_pole" rows="15" style="width:100%; font-family: monospace; font-size: 11px;" readonly>${result}</textarea>`, { okButton: 'OK', cancelButton: false });
+            });
+
             $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
                 settings.diceFunctionTool = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
@@ -3271,8 +3987,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             });
 
             // ─── Event Hooks ───
-            eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
-            eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+            // Handled at the end of init()
 
             // ─── Dice System ───
             registerDiceFunctionTool();

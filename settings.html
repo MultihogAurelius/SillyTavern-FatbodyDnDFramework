@@ -82,17 +82,6 @@
                 </div>
 
                 <hr>
-                <hr>
-                <b>Modules</b>
-                <small>Enable modules, edit their prompts, and change their display order.</small>
-                <div id="rpg_tracker_order_list" class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
-                    <!-- Populated by JS -->
-                </div>
-                <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px;">
-                    <i class="fa-solid fa-plus"></i> <span>Add Custom Field</span>
-                </button>
-                
-                <hr>
                 <b>State Model Core Instruction</b>
                 <small>Edit the prompt logic the State Model uses. Use <code>{{modulesText}}</code> to inject the active module guidelines.</small>
                 <textarea id="rpg_tracker_core_prompt" class="text_pole autoSetHeight" rows="5"></textarea>
@@ -102,6 +91,98 @@
                 <button id="rpg_tracker_btn_reset_all_prompts" class="menu_button interactable" style="align-self: flex-start; margin-top: 4px;">
                     <i class="fa-solid fa-broom"></i> Reset ALL Prompts (Core + Modules)
                 </button>
+
+                <hr>
+                <b>Modules</b>
+                <small>Enable modules, edit their prompts, and change their display order.</small>
+                <div id="rpg_tracker_order_list" class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
+                    <!-- Populated by JS -->
+                </div>
+                <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fa-solid fa-plus"></i> <span>Add Custom Field</span>
+                </button>
+
+                <hr>
+                <b>World Model (Background Simulation)</b>
+                <small>Evolve the world's geopolitical state in the background as time passes.</small>
+                <div class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
+                    <label class="checkbox_label">
+                        <input id="rpg_tracker_wm_enabled" type="checkbox" />
+                        <span>Enable World Model</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input id="rpg_tracker_wm_san_enabled" type="checkbox" />
+                        <span>Enable Sanitization Firewall (Actor-Agnostic)</span>
+                    </label>
+                    <div class="flex-container alignitemscenter gap-1">
+                        <label for="rpg_tracker_wm_interval">Fire every</label>
+                        <input id="rpg_tracker_wm_interval" type="number" class="text_pole" style="width: 60px;" min="1" />
+                        <span>day(s)</span>
+                    </div>
+                    <button id="rpg_tracker_wm_bootstrap" class="menu_button interactable" style="margin-top: 5px;">
+                        <i class="fa-solid fa-bolt"></i> Run Full Simulation Pass (Manual)
+                    </button>
+                    <button id="rpg_tracker_wm_test_sanitization" class="menu_button interactable" style="margin-top: 5px;">
+                        <i class="fa-solid fa-shield-halved"></i> Test Sanitization Pass
+                    </button>
+
+                    <b style="margin-top: 10px;">World State Output Lorebook</b>
+                    <small>The World Model will write its output to this lorebook. Leave blank to disable lorebook sync. It will be excluded from source reads.</small>
+                    <div class="flex-container gap-1" style="align-items: center;">
+                        <select id="rpg_tracker_wm_lorebook_name" class="text_pole interactable" style="flex: 1;">
+                            <option value="">(None — disable lorebook sync)</option>
+                        </select>
+                        <button id="rpg_tracker_wm_lorebook_name_refresh" class="menu_button interactable" title="Refresh lorebook list" style="padding: 4px 8px;">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+
+                    <b style="margin-top: 10px;">World Model Context Sources</b>
+                    <small>Exactly what the simulation engine is allowed to see. Uncheck all for a fully isolated sandbox.</small>
+                    <label class="checkbox_label" title="Inject active Lorebook/World Info entries matching keywords in the chronicle.">
+                        <input id="rpg_tracker_wm_ctx_worldinfo" type="checkbox" />
+                        <span>Lorebooks / World Info <small>(keyword-matched)</small></span>
+                    </label>
+                    <div id="rpg_tracker_wm_lorebook_filter_group" style="margin-left: 20px; margin-top: 4px; display: none; max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 5px; border-radius: 4px;">
+                        <small>Select Lorebooks to incorporate:</small>
+                        <div id="rpg_tracker_wm_lorebook_list" class="flex-container flexFlowColumn gap-1">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <label class="checkbox_label" title="Include the character persona / character card description.">
+                        <input id="rpg_tracker_wm_ctx_persona" type="checkbox" />
+                        <span>Character Persona <small>({{persona}} / char card)</small></span>
+                    </label>
+                    <label class="checkbox_label" title="Include the currently active Author's Note.">
+                        <input id="rpg_tracker_wm_ctx_authornote" type="checkbox" />
+                        <span>Author's Note</span>
+                    </label>
+
+                    <b style="margin-top: 10px;">Current World State</b>
+                    <small>The evolved geopolitical record stored in memory.</small>
+                    <textarea id="rpg_tracker_wm_current_state" class="text_pole autoSetHeight" rows="6"></textarea>
+
+                    <b style="margin-top: 10px;">Sanitization System Prompt</b>
+                    <small>Turn raw narrative into an anonymous chronicle.</small>
+                    <textarea id="rpg_tracker_wm_san_prompt" class="text_pole autoSetHeight" rows="4"></textarea>
+                    <button id="rpg_tracker_wm_san_prompt_reset" class="menu_button interactable" style="align-self: flex-start; margin-top: 4px;">
+                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset Sanitizer Prompt
+                    </button>
+
+                    <b style="margin-top: 10px;">World Model System Prompt</b>
+                    <small>Evolve the world state based on the chronicle.</small>
+                    <div class="flex-container gap-1" style="margin-top: 4px;">
+                        <select id="rpg_tracker_wm_prompt_preset" class="text_pole interactable">
+                            <option value="stable">Stable (Gradual Change)</option>
+                            <option value="dynamic">Dynamic (More Active/Interesting)</option>
+                            <option value="custom">-- Custom --</option>
+                        </select>
+                    </div>
+                    <textarea id="rpg_tracker_wm_prompt" class="text_pole autoSetHeight" rows="4"></textarea>
+                    <button id="rpg_tracker_wm_prompt_reset" class="menu_button interactable" style="align-self: flex-start; margin-top: 4px;">
+                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset World Model Prompt
+                    </button>
+                </div>
 
                 <hr>
                 <b>Manual Actions</b>
