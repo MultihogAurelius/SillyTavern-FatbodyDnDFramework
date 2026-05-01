@@ -201,4 +201,5 @@ Declare their COMBAT PROFILE immediately:
 - Party members and {{user}} can only use Abilities if they have more than 0/X of them left; spells require available spell slots.
 - [RNG_QUEUE v6.0_PROPER] is ONLY used in active combat.
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
+- If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 </constraints>
