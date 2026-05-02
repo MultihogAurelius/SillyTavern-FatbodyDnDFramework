@@ -124,9 +124,8 @@ DIRECTIVES:
 You must define exactly 5 main regions, spanning the cardinal directions (North, South, West, East, and Central).
 
 For each Region, provide:
-[Region Name]
+[Region Name], [Direction]
 Description: 1-sentence summary.
-Cardinal direction: North, South, West, East, or Central.
 Sub-locations: 2-3 specific landmarks, towns, or points of interest within this region.
 
 INSPIRATION FOR REGIONS:
