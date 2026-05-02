@@ -438,9 +438,25 @@ Declare their COMBAT PROFILE immediately:
 - Party members and {{user}} can only use Abilities if they have more than 0/X of them left; spells require available spell slots.
 - [RNG_QUEUE v6.0_PROPER] is ONLY used in active combat.
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
+- If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 </constraints>
 `
     };
+
+    function getDiceToolName() {
+        const settings = getSettings();
+        return settings.legacyDiceNaming ? 'RollTheDice' : 'FatbodyRollTheDice';
+    }
+
+    function getDiceCommandName() {
+        const settings = getSettings();
+        return settings.legacyDiceNaming ? 'roll' : 'fbroll';
+    }
+
+    function getDiceCommandAliases() {
+        const settings = getSettings();
+        return settings.legacyDiceNaming ? ['r'] : ['fbr'];
+    }
 
     /**
      * Get or initialize extension settings.
@@ -521,7 +537,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             profiles: {},
             activeProfile: "",
             fullViewSections: [],
-            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']
+            blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
+            legacyDiceNaming: false
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -612,10 +629,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             if (!registerFunctionTool || !unregisterFunctionTool) return;
 
             unregisterFunctionTool('RollTheDice');
+            unregisterFunctionTool('FatbodyRollTheDice');
 
             const settings = getSettings();
             if (!settings.diceFunctionTool) return;
 
+            const toolName = getDiceToolName();
             const rollDiceSchema = {
                 type: 'object',
                 properties: {
@@ -627,8 +646,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             };
 
             registerFunctionTool({
-                name: 'RollTheDice',
-                displayName: 'Dice Roll',
+                name: toolName,
+                displayName: settings.legacyDiceNaming ? 'Dice Roll' : 'Dice Roll (Fatbody)',
                 description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
                 parameters: rollDiceSchema,
                 action: async (args) => {
@@ -658,8 +677,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (!SlashCommand || !SlashCommandParser) return;
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-            name: 'roll',
-            aliases: ['r'],
+            name: getDiceCommandName(),
+            aliases: getDiceCommandAliases(),
             callback: async (args, value) => {
                 const quiet = String(args.quiet) === 'true';
                 const result = await doDiceRoll(String(value || '1d20'), quiet);
@@ -2681,11 +2700,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
             opt.addEventListener('click', (e) => {
                 const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
-                const content = RT_PROMPTS[fileName];
+                let content = RT_PROMPTS[fileName];
                 if (!content) {
                     toastr['error'](`Prompt not found: ${fileName}`, "Fatbody Framework");
                     return;
                 }
+
+                // Dynamically replace tool name based on setting
+                content = content.replace(/RollTheDice|FatbodyRollTheDice/g, getDiceToolName());
+
                 // Use a hidden textarea fallback — works on HTTP (Termux) where navigator.clipboard is blocked
                 const ta = document.createElement('textarea');
                 ta.value = content;
@@ -3262,6 +3285,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
                 settings.debugMode = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_legacy_dice').prop('checked', settings.legacyDiceNaming).on('change', function () {
+                settings.legacyDiceNaming = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+                registerDiceFunctionTool();
+                registerDiceSlashCommand();
+                toastr['info']("Dice naming convention updated. Remember to refresh your system prompt!", "RPG Tracker");
             });
 
             $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
