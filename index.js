@@ -3470,8 +3470,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         setupDeltaResize(/** @type {HTMLElement} */(panel));
 
         // Close panel
-        panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
-            panel.style.display = 'none';
+        panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', async () => {
+            const { Popup } = SillyTavern.getContext();
+            const confirmed = await Popup.show.confirm(
+                'Close Tracker?',
+                'Are you sure you want to hide the RPG Tracker? You can reopen it at any time from the <b>Extensions (Wand) Menu</b>.'
+            );
+            if (confirmed) {
+                panel.style.display = 'none';
+            }
         });
 
         // Direct prompt toggle
