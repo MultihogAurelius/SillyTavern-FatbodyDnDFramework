@@ -3689,16 +3689,25 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const toggleBtn = document.getElementById('rpg-tracker-world-toggle-btn');
         if (!statusText || !toggleBtn) return;
 
+        if (!s.worldModel.enabled) {
+            statusText.textContent = 'World Model Disabled';
+            statusText.style.fontSize = '';
+            toggleBtn.textContent = 'Enable';
+            return;
+        }
+
+        const currentTimeStr = extractFullTimeFromMemo(s.currentMemo);
         const nextDay = (s.worldModel.lastFireDay >= 0) 
             ? s.worldModel.lastFireDay + s.worldModel.dayInterval 
             : 'Initial Run';
         const nextTime = s.worldModel.triggerTime || '6:00 AM';
 
-        statusText.textContent = s.worldModel.enabled
-            ? `Next: Day ${nextDay}, ${nextTime}`
-            : 'World Model Disabled';
+        statusText.innerHTML = `
+            <div style="font-size: 0.8em; opacity: 0.7; line-height: 1.1;">Current: ${currentTimeStr}</div>
+            <div style="font-size: 0.85em; font-weight: bold; line-height: 1.1;">Next World Update: Day ${nextDay}, ${nextTime}</div>
+        `;
         statusText.style.color = '';
-        toggleBtn.textContent = s.worldModel.enabled ? 'Disable' : 'Enable';
+        toggleBtn.textContent = 'Disable';
     }
 
     function syncWorldView() {
