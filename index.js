@@ -444,18 +444,15 @@ Declare their COMBAT PROFILE immediately:
     };
 
     function getDiceToolName() {
-        const settings = getSettings();
-        return settings.legacyDiceNaming ? 'RollTheDice' : 'FatbodyRollTheDice';
+        return 'RollTheDice';
     }
 
     function getDiceCommandName() {
-        const settings = getSettings();
-        return settings.legacyDiceNaming ? 'roll' : 'fbroll';
+        return 'roll';
     }
 
     function getDiceCommandAliases() {
-        const settings = getSettings();
-        return settings.legacyDiceNaming ? ['r'] : ['fbr'];
+        return ['r'];
     }
 
     /**
@@ -2721,8 +2718,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     return;
                 }
 
-                // Dynamically replace tool name based on setting
-                content = content.replace(/RollTheDice|FatbodyRollTheDice/g, getDiceToolName());
+                // No longer need to replace tool names since we use 'RollTheDice' for both
+                // content = content.replace(/RollTheDice|FatbodyRollTheDice/g, getDiceToolName());
 
                 // Use a hidden textarea fallback — works on HTTP (Termux) where navigator.clipboard is blocked
                 const ta = document.createElement('textarea');
@@ -3307,7 +3304,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
                 registerDiceFunctionTool();
                 registerDiceSlashCommand();
-                toastr['info']("Dice naming convention updated. Remember to refresh your system prompt!", "RPG Tracker");
+                toastr['info']("Dice logic updated.", "RPG Tracker");
             });
 
             $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
