@@ -375,6 +375,76 @@
     color: var(--rt-text-muted);
 }
 
+/* ── World View ── */
+.rpg-tracker-world-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.rpg-tracker-world-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 10px;
+    color: var(--rt-text-muted);
+}
+
+.rpg-tracker-world-status {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rpg-tracker-world-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--rt-text);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.rpg-tracker-world-btn:hover {
+    background: var(--rt-accent-bg);
+    border-color: var(--rt-accent-dim);
+    color: var(--rt-accent);
+}
+
+.rpg-tracker-world-btn:active {
+    transform: scale(0.95);
+}
+
+.rpg-tracker-world-btn:disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.rpg-tracker-world-area {
+    flex: 1;
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 12px;
+    color: var(--rt-text);
+    font-family: var(--rt-font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    resize: none;
+    outline: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
 /* ── Rendered Card View ── */
 .rpg-tracker-render-view {
     flex: 1;

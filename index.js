@@ -611,10 +611,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 lastFireDay: -1,
                 lastFireMsgDate: null,
                 lookbackMessages: 40,
+                chronicleMode: 'sliding_window', // 'sliding_window' or 'lookback'
                 currentWorldState: '',
+                worldStateHistory: [],
+                maxWorldStateHistory: 5,
                 lorebookName: '',
+                sanitizationConnectionSource: 'default',
                 sanitizationConnectionProfileId: '',
                 sanitizationCompletionPresetId: '',
+                worldModelConnectionSource: 'default',
                 worldModelConnectionProfileId: '',
                 worldModelCompletionPresetId: '',
                 maxTokensSanitization: 0,
@@ -926,6 +931,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * Extracts the full content of the [TIME] block.
+     * @param {string} memo
+     * @returns {string}
+     */
+    function extractFullTimeFromMemo(memo) {
+        if (!memo) return 'Unknown Time';
+        const timeBlock = memo.match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
+        if (!timeBlock) return 'Unknown Time';
+        
+        const lines = timeBlock[1].trim().split('\n');
+        // Find the line that looks most like the current time (contains Day but not Rest)
+        const timeLine = lines.find(l => l.toLowerCase().includes('day') && !l.toLowerCase().includes('rest'));
+        return (timeLine || lines[0] || 'Unknown Time').trim();
+    }
+
+    /**
      * Checks if the World Model should fire based on the passage of in-game time.
      * @param {boolean} force - If true, ignores the day interval and fires immediately.
      */
@@ -954,7 +975,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
 
         if (shouldFire) {
-            fireWorldModel(currentDay).catch(e => console.error(e));
+            const timeStr = extractFullTimeFromMemo(settings.currentMemo);
+            fireWorldModel(currentDay, timeStr).catch(e => console.error(e));
         }
     }
 
@@ -970,6 +992,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const limit = settings.worldModel?.lookbackMessages ?? 40;
         const lastFireMsgDate = settings.worldModel?.lastFireMsgDate;
+        const mode = settings.worldModel?.chronicleMode || 'sliding_window';
         const blocks = [];
         let foundCount = 0;
 
@@ -979,7 +1002,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const msg = chat[i];
 
             // ── Sliding Window: stop when we reach the exact message of the last fire ──
-            if (lastFireMsgDate && msg.send_date === lastFireMsgDate) {
+            if (mode === 'sliding_window' && lastFireMsgDate && msg.send_date === lastFireMsgDate) {
                 break;
             }
 
@@ -1019,7 +1042,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const sanitizationSettings = {
             ...settings,
-            connectionSource: wm.sanitizationConnectionProfileId ? 'profile' : 'default',
+            connectionSource: wm.sanitizationConnectionSource || 'default',
             connectionProfileId: wm.sanitizationConnectionProfileId || '',
             completionPresetId: wm.sanitizationCompletionPresetId || '',
             maxTokens: wm.maxTokensSanitization || 0,
@@ -1121,13 +1144,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     /**
      * Stage 3: World Simulation Pass
      */
-    async function runWorldModelPass(sanitizedChronicle, currentWorldState, currentDay) {
+    async function runWorldModelPass(sanitizedChronicle, currentWorldState, currentDay, currentTimeString) {
         const settings = getSettings();
         const wm = settings.worldModel;
 
         const wmSettings = {
             ...settings,
-            connectionSource: wm.worldModelConnectionProfileId ? 'profile' : 'default',
+            connectionSource: wm.worldModelConnectionSource || 'default',
             connectionProfileId: wm.worldModelConnectionProfileId || '',
             completionPresetId: wm.worldModelCompletionPresetId || '',
             maxTokens: wm.maxTokensWorldModel || 0,
@@ -1136,12 +1159,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         // Build supplemental context (Lorebooks, Persona, Author's Note per user config)
         const extraContext = await buildWorldModelContext(sanitizedChronicle);
 
+        // Build History Context
+        let historyContext = '';
+        if (Array.isArray(wm.worldStateHistory) && wm.worldStateHistory.length > 0) {
+            historyContext = `## HISTORICAL WORLD STATES (Chronological)\n` +
+                             wm.worldStateHistory.map((s, idx) => `--- Historical State ${idx + 1} ---\n${s}`).join('\n\n') +
+                             `\n\n`;
+        }
+
         const userPrompt =
             (extraContext ? `${extraContext}\n\n` : '') +
-            `## CURRENT NARRATIVE TIME: Day ${currentDay}\n\n` +
-            `## PRIOR WORLD STATE\n${currentWorldState || 'No prior state recorded.'}\n\n` +
+            `## CURRENT NARRATIVE TIME: ${currentTimeString || `Day ${currentDay}`}\n\n` +
+            historyContext +
+            `## PRIOR WORLD STATE (Most Recent)\n${currentWorldState || 'No prior state recorded.'}\n\n` +
+
             `## NEW FIELD REPORTS (CHRONICLE)\n${sanitizedChronicle || 'No new events reported for this interval.'}\n\n` +
-            `## UPDATE WORLD STATE (Set 'Last Updated' to Day ${currentDay}):`;
+            `## UPDATE WORLD STATE (Set 'Last Updated' to ${currentTimeString || `Day ${currentDay}`}):`;
 
         // Always use bypassAll: true — context is injected manually above.
         const result = await sendStateRequest(
@@ -1251,7 +1284,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     /**
      * Orchestrates the full World Model pipeline (Stage 2 + Stage 3 + Stage 4)
      */
-    async function fireWorldModel(currentDay) {
+    async function fireWorldModel(currentDay, currentTimeString) {
         if (_worldModelRunning) return;
         _worldModelRunning = true;
         
@@ -1284,7 +1317,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             
             // 3. World Simulation (Stage 3)
             if (settings.worldModel.debugMode) console.log("[World Model] Phase 2: Running Simulation...");
-            const updatedState = await runWorldModelPass(finalInput, settings.worldModel.currentWorldState, currentDay);
+            const updatedState = await runWorldModelPass(finalInput, settings.worldModel.currentWorldState, currentDay, currentTimeString);
             if (!updatedState) {
                 console.warn("[World Model] Aborting: World Model returned empty result.");
                 return;
@@ -1293,6 +1326,18 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             // 4. Persistence
             const { chat } = SillyTavern.getContext();
             const currentMsgDate = chat && chat.length > 0 ? chat[chat.length - 1].send_date : null;
+            
+            // Push old state to history before overwriting
+            if (settings.worldModel.currentWorldState && settings.worldModel.currentWorldState.trim() !== '') {
+                if (!Array.isArray(settings.worldModel.worldStateHistory)) settings.worldModel.worldStateHistory = [];
+                settings.worldModel.worldStateHistory.push(settings.worldModel.currentWorldState);
+                
+                const limit = settings.worldModel.maxWorldStateHistory ?? 5;
+                if (settings.worldModel.worldStateHistory.length > limit) {
+                    settings.worldModel.worldStateHistory = settings.worldModel.worldStateHistory.slice(-limit);
+                }
+            }
+            
             settings.worldModel.currentWorldState = updatedState;
             settings.worldModel.lastFireDay = currentDay;
             if (currentMsgDate) settings.worldModel.lastFireMsgDate = currentMsgDate;
@@ -1300,6 +1345,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             // 5. Lorebook Write-back (Stage 4)
             await writeWorldStateToLorebook(updatedState);
+
+            // Update UI if open
+            const wvTextarea = document.getElementById('rpg-tracker-world-area');
+            if (wvTextarea) /** @type {HTMLTextAreaElement} */(wvTextarea).value = updatedState;
 
             if (settings.worldModel.debugMode) console.log("%c[World Model] FIRE SUCCESSFUL", "color: #00ff00; font-weight: bold;", updatedState);
             toastr['success']("World State updated successfully.", "World Model");
@@ -1998,6 +2047,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
     // ── History index: -1 means "live", 0 = most recent snapshot, higher = older
     let _historyViewIndex = -1;
+    let _worldHistoryIndex = -1;
 
     /** Whether the rendered card view is active */
     let _renderedViewActive = false;
@@ -2809,6 +2859,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-pause-btn" title="Pause Tracker">⏸</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-prompt-btn" title="Toggle direct prompt">💬</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-view-btn" title="Toggle rendered view">⊞</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-world-btn" title="Toggle World View">🌍</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-delta-btn" title="Toggle change log">δ</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-close-btn" title="Hide panel">✕</button>
                 </div>
@@ -2816,6 +2867,19 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             <div class="rpg-tracker-content">
                 <textarea class="rpg-tracker-memo-area" id="rpg-tracker-memo">${settings.currentMemo}</textarea>
                 <div class="rpg-tracker-render-view" id="rpg-tracker-render" style="display:none;"></div>
+                <div class="rpg-tracker-world-view" id="rpg-tracker-world" style="display:none;">
+                    <div class="rpg-tracker-world-toolbar">
+                        <button id="rt-wv-back" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View previous world state"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span class="rpg-tracker-world-status" id="rpg-tracker-world-status-text" style="text-align: center; flex: 1;">World Model Disabled</span>
+                        <button id="rt-wv-fwd" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View next world state"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                    <div class="rpg-tracker-world-toolbar" style="margin-top: 2px; border-top: none;">
+                        <button class="rpg-tracker-world-btn" id="rpg-tracker-world-fire-btn" style="flex:1;" title="Fire World Model Now">Fire Now</button>
+                        <button class="rpg-tracker-world-btn" id="rpg-tracker-world-restore-btn" style="flex:1; display:none;" title="Restore this historical state to live">Restore State</button>
+                        <button class="rpg-tracker-world-btn" id="rpg-tracker-world-toggle-btn" style="flex:1;" title="Toggle World Model Engine">Enable</button>
+                    </div>
+                    <textarea class="rpg-tracker-world-area" id="rpg-tracker-world-area" placeholder="World State will be generated here...">${settings.worldModel?.currentWorldState || ''}</textarea>
+                </div>
             </div>
             <div class="rpg-tracker-delta-resize-handle" id="rpg-tracker-delta-handle" style="display:none;"></div>
             <div class="rpg-tracker-delta-panel" id="rpg-tracker-delta" style="display:none;">
@@ -2987,10 +3051,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         syncFooterToggles();
 
-        // View toggle (Raw ↔ Rendered)
-        let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
+        // View toggle (Raw ↔ Rendered ↔ World)
+        const _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
+        const _worldBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-world-btn'));
         const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
         const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
+        const wv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-world'));
 
         if (settings.renderedViewActive !== undefined) {
             _renderedViewActive = settings.renderedViewActive;
@@ -2999,29 +3065,132 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             settings.renderedViewActive = true;
         }
 
+        // We use a local state to track if world view is active (not saved to settings)
+        let _worldViewActive = false;
+
         const applyViewState = () => {
-            if (_renderedViewActive) {
+            if (_worldViewActive) {
+                ta.style.display = 'none';
+                rv.style.display = 'none';
+                wv.style.display = 'flex';
+                _viewBtn.textContent = '⊞';
+                _worldBtn.style.color = 'var(--rt-accent)';
+                updateWorldViewToolbar();
+            } else if (_renderedViewActive) {
                 ta.style.display = 'none';
                 rv.style.display = 'block';
+                wv.style.display = 'none';
                 _viewBtn.textContent = '≡';
                 _viewBtn.title = 'Switch to Raw view';
+                _worldBtn.style.color = '';
                 refreshRenderedView();
             } else {
                 ta.style.display = '';
                 rv.style.display = 'none';
+                wv.style.display = 'none';
                 _viewBtn.textContent = '⊞';
                 _viewBtn.title = 'Switch to Rendered view';
+                _worldBtn.style.color = '';
             }
         };
 
         applyViewState();
 
         _viewBtn.addEventListener('click', () => {
-            _renderedViewActive = !_renderedViewActive;
-            settings.renderedViewActive = _renderedViewActive;
-            SillyTavern.getContext().saveSettingsDebounced();
+            if (_worldViewActive) {
+                _worldViewActive = false; // Exiting world view restores the previous render/raw state
+            } else {
+                _renderedViewActive = !_renderedViewActive;
+                settings.renderedViewActive = _renderedViewActive;
+                SillyTavern.getContext().saveSettingsDebounced();
+            }
             applyViewState();
         });
+
+        _worldBtn.addEventListener('click', () => {
+            _worldViewActive = !_worldViewActive;
+            applyViewState();
+        });
+
+        // ── World View Logic ──
+        const wvTextarea = /** @type {HTMLTextAreaElement} */ (panel.querySelector('#rpg-tracker-world-area'));
+        const wvStatus = panel.querySelector('#rpg-tracker-world-status-text');
+        const wvToggleBtn = panel.querySelector('#rpg-tracker-world-toggle-btn');
+        const wvFireBtn = panel.querySelector('#rpg-tracker-world-fire-btn');
+
+        wvTextarea.addEventListener('input', (e) => {
+            if (!settings.worldModel) return;
+            const val = /** @type {HTMLTextAreaElement} */ (e.target).value;
+            if (_worldHistoryIndex === -1) {
+                settings.worldModel.currentWorldState = val;
+            } else {
+                const history = settings.worldModel.worldStateHistory || [];
+                const histLen = history.length;
+                const historyIdx = (histLen - 1) - _worldHistoryIndex;
+                if (historyIdx >= 0 && historyIdx < histLen) {
+                    history[historyIdx] = val;
+                }
+            }
+            SillyTavern.getContext().saveSettingsDebounced();
+        });
+
+        wvToggleBtn.addEventListener('click', () => {
+            if (!settings.worldModel) return;
+            settings.worldModel.enabled = !settings.worldModel.enabled;
+            // Also sync the checkbox in the settings menu if it's open
+            const cb = document.getElementById('rpg_tracker_wm_enabled');
+            if (cb) /** @type {HTMLInputElement} */ (cb).checked = settings.worldModel.enabled;
+            SillyTavern.getContext().saveSettingsDebounced();
+            updateWorldViewToolbar();
+        });
+
+        wvFireBtn.addEventListener('click', async () => {
+            const { chat } = SillyTavern.getContext();
+            if (!chat || chat.length === 0) return toastr['warning']('No chat history found.', 'World Model');
+            
+            const currentDay = parseTimeFromMemo(settings.currentMemo);
+            if (currentDay === -1) return toastr['warning']('No [TIME] block with "Day X" found in recent memo. Cannot anchor timeline.', 'World Model');
+            
+            const timeStr = extractFullTimeFromMemo(settings.currentMemo);
+            wvFireBtn.textContent = 'Running...';
+            wvFireBtn.setAttribute('disabled', 'true');
+            await fireWorldModel(currentDay, timeStr);
+            wvFireBtn.textContent = 'Fire Now';
+            wvFireBtn.removeAttribute('disabled');
+            
+            // Refresh textarea and toolbar
+            if (settings.worldModel) {
+                _worldHistoryIndex = -1; // Reset to live on fire
+                syncWorldView();
+            }
+        });
+
+        panel.querySelector('#rt-wv-back').addEventListener('click', () => navigateWorldHistory(1));
+        panel.querySelector('#rt-wv-fwd').addEventListener('click', () => navigateWorldHistory(-1));
+
+        const wvRestoreBtn = panel.querySelector('#rpg-tracker-world-restore-btn');
+        if (wvRestoreBtn) {
+            wvRestoreBtn.addEventListener('click', () => {
+                if (!settings.worldModel || _worldHistoryIndex === -1) return;
+                
+                const history = settings.worldModel.worldStateHistory || [];
+                const histLen = history.length;
+                const historyIdx = (histLen - 1) - _worldHistoryIndex;
+                
+                if (historyIdx >= 0 && historyIdx < histLen) {
+                    if (confirm("Restore this historical state to Live? This will overwrite the current live World State.")) {
+                        settings.worldModel.currentWorldState = history[historyIdx];
+                        SillyTavern.getContext().saveSettingsDebounced();
+                        toastr['success']("World State restored.", "World Model");
+                        _worldHistoryIndex = -1; // Snap back to live
+                        syncWorldView();
+                    }
+                }
+            });
+        }
+
+        // Initial sync for world navigation
+        syncWorldView();
 
         // Delta toggle — also shows/hides the resize handle
         panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
@@ -3244,6 +3413,76 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (newIndex < -1 || newIndex > maxIndex) return;
         _historyViewIndex = newIndex;
         syncMemoView();
+    }
+
+    function navigateWorldHistory(direction) {
+        const s = getSettings();
+        const history = s.worldModel?.worldStateHistory || [];
+        const maxIndex = history.length - 1;
+        
+        // Direction: 1 = older, -1 = newer
+        // Index: -1 = live, 0 = previous, 1 = before that...
+        const newIndex = _worldHistoryIndex + direction;
+        if (newIndex < -1 || newIndex > maxIndex) return;
+        
+        _worldHistoryIndex = newIndex;
+        syncWorldView();
+    }
+
+    function updateWorldViewToolbar() {
+        const s = getSettings();
+        if (!s.worldModel) return;
+        const statusText = document.getElementById('rpg-tracker-world-status-text');
+        const toggleBtn = document.getElementById('rpg-tracker-world-toggle-btn');
+        if (!statusText || !toggleBtn) return;
+
+        statusText.textContent = s.worldModel.enabled 
+            ? `Enabled | Interval: ${s.worldModel.dayInterval} day(s) | Last Fire: Day ${s.worldModel.lastFireDay >= 0 ? s.worldModel.lastFireDay : 'Never'}`
+            : 'World Model Disabled';
+        statusText.style.color = '';
+        toggleBtn.textContent = s.worldModel.enabled ? 'Disable' : 'Enable';
+    }
+
+    function syncWorldView() {
+        const s = getSettings();
+        const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-world-area'));
+        const btnBack = /** @type {HTMLButtonElement|null} */ (document.getElementById('rt-wv-back'));
+        const btnFwd = /** @type {HTMLButtonElement|null} */ (document.getElementById('rt-wv-fwd'));
+        const statusText = document.getElementById('rpg-tracker-world-status-text');
+        const fireBtn = document.getElementById('rpg-tracker-world-fire-btn');
+        const restoreBtn = document.getElementById('rpg-tracker-world-restore-btn');
+        const toggleBtn = document.getElementById('rpg-tracker-world-toggle-btn');
+        
+        if (!textarea || !statusText || !s.worldModel) return;
+
+        const history = s.worldModel.worldStateHistory || [];
+        const histLen = history.length;
+
+        if (_worldHistoryIndex === -1) {
+            // Live view
+            textarea.value = s.worldModel.currentWorldState;
+            textarea.readOnly = false;
+            if (btnBack) btnBack.disabled = histLen === 0;
+            if (btnFwd) btnFwd.disabled = true;
+            if (fireBtn) fireBtn.style.display = '';
+            if (restoreBtn) restoreBtn.style.display = 'none';
+            if (toggleBtn) toggleBtn.style.display = '';
+            updateWorldViewToolbar(); // Set original status
+        } else {
+            // History view
+            const historyIdx = (histLen - 1) - _worldHistoryIndex;
+            textarea.value = history[historyIdx];
+            textarea.readOnly = false; // Allow editing history
+            if (btnBack) btnBack.disabled = _worldHistoryIndex >= histLen - 1;
+            if (btnFwd) btnFwd.disabled = false;
+            
+            if (fireBtn) fireBtn.style.display = 'none';
+            if (restoreBtn) restoreBtn.style.display = '';
+            if (toggleBtn) toggleBtn.style.display = 'none';
+            
+            statusText.textContent = `PREVIOUS: ${_worldHistoryIndex + 1} / ${histLen}`;
+            statusText.style.color = 'var(--rt-accent)';
+        }
     }
 
     function syncMemoView() {
@@ -3797,6 +4036,80 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
             });
 
+            // ── World Model & Sanitization Connection Profile / Preset / Max Tokens ──
+            async function populateConnectionBlock(sourceId, profileGroupId, profileId, presetId, maxTokensId, srcKey, profileKey, presetKey, maxTokensKey) {
+                const $source  = $(`#${sourceId}`);
+                const $group   = $(`#${profileGroupId}`);
+                const $profile = $(`#${profileId}`);
+                const $preset  = $(`#${presetId}`);
+                const $maxTok  = $(`#${maxTokensId}`);
+                const wm = settings.worldModel;
+
+                // Connection Source
+                $source.val(wm[srcKey] || 'default').on('change', function () {
+                    wm[srcKey] = /** @type {string} */($(this).val());
+                    $group.toggle(wm[srcKey] === 'profile');
+                    ctx.saveSettingsDebounced();
+                });
+                $group.toggle((wm[srcKey] || 'default') === 'profile');
+
+                // Connection Profiles
+                const profiles = await getConnectionProfiles();
+                if (profiles && profiles.length > 0) {
+                    $profile.empty().append('<option value="">-- No Profile Selected --</option>');
+                    profiles.forEach(p => $profile.append($('<option></option>').val(p).text(p)));
+                    $profile.val(wm[profileKey] || '');
+                } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                    /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown($profile[0]);
+                    $profile.val(wm[profileKey] || '');
+                }
+                $profile.on('change', function () {
+                    wm[profileKey] = /** @type {string} */($(this).val());
+                    ctx.saveSettingsDebounced();
+                });
+
+                // Completion Presets
+                const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+                if (pm && typeof pm.getAllPresets === 'function') {
+                    const presets = pm.getAllPresets();
+                    $preset.empty().append('<option value="">-- Use Current Settings --</option>');
+                    presets.forEach(p => $preset.append($('<option></option>').val(p).text(p)));
+                    $preset.val(wm[presetKey] || '');
+                } else {
+                    $preset.empty().append('<option value="">-- Use Current Settings --</option>');
+                    if (wm[presetKey]) {
+                        $preset.append($('<option></option>').val(wm[presetKey]).text(wm[presetKey]));
+                        $preset.val(wm[presetKey]);
+                    }
+                }
+                $preset.on('change', function () {
+                    wm[presetKey] = /** @type {string} */($(this).val());
+                    ctx.saveSettingsDebounced();
+                });
+
+                // Max Tokens
+                $maxTok.val(wm[maxTokensKey] || '').on('input', function () {
+                    wm[maxTokensKey] = parseInt(/** @type {string} */($(this).val())) || 0;
+                    ctx.saveSettingsDebounced();
+                });
+            }
+
+            await populateConnectionBlock(
+                'rpg_tracker_wm_connection_source', 'rpg_tracker_wm_profile_group',
+                'rpg_tracker_wm_connection_profile', 'rpg_tracker_wm_completion_preset',
+                'rpg_tracker_wm_max_tokens',
+                'worldModelConnectionSource', 'worldModelConnectionProfileId',
+                'worldModelCompletionPresetId', 'maxTokensWorldModel'
+            );
+
+            await populateConnectionBlock(
+                'rpg_tracker_wm_san_connection_source', 'rpg_tracker_wm_san_profile_group',
+                'rpg_tracker_wm_san_connection_profile', 'rpg_tracker_wm_san_completion_preset',
+                'rpg_tracker_wm_san_max_tokens',
+                'sanitizationConnectionSource', 'sanitizationConnectionProfileId',
+                'sanitizationCompletionPresetId', 'maxTokensSanitization'
+            );
+
             async function refreshWorldModelLorebookList() {
                 const $container = $('#rpg_tracker_wm_lorebook_list');
                 $container.empty();
@@ -3895,8 +4208,27 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             });
 
             $('#rpg_tracker_wm_interval').val(settings.worldModel?.dayInterval || 1).on('input', function () {
-                if (!settings.worldModel) settings.worldModel = { enabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
                 settings.worldModel.dayInterval = parseInt(/** @type {string} */($(this).val())) || 1;
+                ctx.saveSettingsDebounced();
+            });
+
+            $('#rpg_tracker_wm_max_history').val(settings.worldModel?.maxWorldStateHistory ?? 5).on('input', function () {
+                const val = parseInt(/** @type {string} */($(this).val())) || 0;
+                settings.worldModel.maxWorldStateHistory = val;
+                $('#rpg_tracker_wm_max_history_val').text(val);
+                ctx.saveSettingsDebounced();
+            });
+            $('#rpg_tracker_wm_max_history_val').text(settings.worldModel?.maxWorldStateHistory ?? 5);
+
+            $('#rpg_tracker_wm_chronicle_mode').val(settings.worldModel?.chronicleMode || 'sliding_window').on('change', function () {
+                const mode = /** @type {string} */($(this).val());
+                settings.worldModel.chronicleMode = mode;
+                $('#rpg_tracker_wm_lookback_group').toggle(mode === 'lookback');
+                ctx.saveSettingsDebounced();
+            }).trigger('change');
+
+            $('#rpg_tracker_wm_lookback').val(settings.worldModel?.lookbackMessages ?? 40).on('input', function () {
+                settings.worldModel.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 1;
                 ctx.saveSettingsDebounced();
             });
 
@@ -3967,7 +4299,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 }
                 
                 toastr['info']("Running Full World Simulation...", "World Model");
-                await fireWorldModel(currentDay);
+                const timeStr = extractFullTimeFromMemo(settings.currentMemo);
+                await fireWorldModel(currentDay, timeStr);
                 
                 // Update UI field
                 $('#rpg_tracker_wm_current_state').val(settings.worldModel.currentWorldState).trigger('input');
