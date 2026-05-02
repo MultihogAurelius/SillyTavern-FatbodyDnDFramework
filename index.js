@@ -3309,6 +3309,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     const proceed = confirm("Warning: Generating a new structural baseline is meant for empty worlds. This will NOT overwrite your World State, but are you sure you want to run this?");
                     if (!proceed) return;
                 }
+                let customPrompt = null;
+                if (Popup && Popup.show && Popup.show.input) {
+                    customPrompt = await Popup.show.input('World Builder Theme', 'Enter a theme, biome, or genre for the new world. Leave empty for total randomness.', '');
+                } else {
+                    customPrompt = prompt('Enter a theme, biome, or genre for the new world. Leave empty for total randomness.', '');
+                }
+                
+                if (customPrompt === null || customPrompt === undefined) return; // User cancelled
                 
                 wvSeedBtn.disabled = true;
                 const icon = wvSeedBtn.querySelector('i');
@@ -3326,7 +3334,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         debugMode: settings.worldModel?.debugMode
                     };
                     
-                    const response = await sendStateRequest(wmSettings, WORLD_BUILDER_PROMPT, "Generate the World Architect baseline now.", true);
+                    let userMsg = "Generate the World Architect baseline now.";
+                    if (customPrompt.trim().length > 0) {
+                        userMsg += `\n\nADDITIONAL INSTRUCTIONS / THEME:\n${customPrompt.trim()}`;
+                    }
+                    
+                    const response = await sendStateRequest(wmSettings, WORLD_BUILDER_PROMPT, userMsg, true);
                     
                     if (!response) throw new Error("Empty response from AI.");
 
