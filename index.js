@@ -97,7 +97,7 @@ FORECAST:
 [/WORLD_STATE]`
     };
 
-    const DEFAULT_WORLD_MODEL_PROMPT = WM_PROMPTS['stable'];
+    const DEFAULT_WORLD_MODEL_PROMPT = WM_PROMPTS['dynamic'];
 
     const DEFAULT_SANITIZATION_PROMPT = `You are a Chronicle Anonymizer. Your task is to receive raw narrative text and transform it into a clean, anonymous, passive-voice event chronicle. The chronicle will be used for geopolitical and historical analysis.
 
@@ -659,7 +659,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
             worldModel: {
                 enabled: false,
-                sanitizationEnabled: true,
+                sanitizationEnabled: false,
                 dayInterval: 3,
                 lastFireDay: -1,
                 lastFireMsgDate: null,
@@ -4250,13 +4250,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             // ── World Model Settings ──
             $('#rpg_tracker_wm_enabled').prop('checked', settings.worldModel?.enabled).on('change', function () {
-                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: true, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
                 settings.worldModel.enabled = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
             });
 
             $('#rpg_tracker_wm_san_enabled').prop('checked', settings.worldModel?.sanitizationEnabled).on('change', function () {
-                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: true, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
+                if (!settings.worldModel) settings.worldModel = { enabled: false, sanitizationEnabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
                 settings.worldModel.sanitizationEnabled = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
             });
@@ -4505,12 +4505,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 toastr['success']('World Model prompt reset.', 'World Model');
             });
 
-            $('#rpg_tracker_wm_current_state').val(settings.worldModel?.currentWorldState).on('input', function () {
-                if (!settings.worldModel) settings.worldModel = { enabled: false, dayInterval: 3, lastFireDay: -1, currentWorldState: "", debugMode: true, sanitizationSystemPrompt: DEFAULT_SANITIZATION_PROMPT, worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT };
-                settings.worldModel.currentWorldState = $(this).val();
-                ctx.saveSettingsDebounced();
-            });
-
             $('#rpg_tracker_wm_bootstrap').on('click', async function () {
                 const settings = getSettings();
                 if (!settings.worldModel?.enabled) {
@@ -4526,9 +4520,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 toastr['info']("Running Full World Simulation...", "World Model");
                 const timeStr = extractFullTimeFromMemo(settings.currentMemo);
                 await fireWorldModel(currentDay, timeStr);
-                
-                // Update UI field
-                $('#rpg_tracker_wm_current_state').val(settings.worldModel.currentWorldState).trigger('input');
             });
 
             $('#rpg_tracker_wm_test_sanitization').on('click', async function () {
