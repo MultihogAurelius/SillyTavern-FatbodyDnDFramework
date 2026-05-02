@@ -1090,6 +1090,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if ($hint.length) {
             $hint.text(`Next Scheduled: Day ${nextDay}, ${time}`);
         }
+
+        // Also update the tracker UI toolbar if it exists
+        updateWorldViewToolbar();
     }
 
     /**
@@ -3686,8 +3689,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const toggleBtn = document.getElementById('rpg-tracker-world-toggle-btn');
         if (!statusText || !toggleBtn) return;
 
+        const nextDay = (s.worldModel.lastFireDay >= 0) 
+            ? s.worldModel.lastFireDay + s.worldModel.dayInterval 
+            : 'Initial Run';
+        const nextTime = s.worldModel.triggerTime || '6:00 AM';
+
         statusText.textContent = s.worldModel.enabled
-            ? `Enabled | Interval: ${s.worldModel.dayInterval} day(s) | Last Fire: Day ${s.worldModel.lastFireDay >= 0 ? s.worldModel.lastFireDay : 'Never'}`
+            ? `Next: Day ${nextDay}, ${nextTime}`
             : 'World Model Disabled';
         statusText.style.color = '';
         toggleBtn.textContent = s.worldModel.enabled ? 'Disable' : 'Enable';
