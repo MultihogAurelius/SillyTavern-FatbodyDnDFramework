@@ -140,6 +140,30 @@
                 </button>
 
                 <hr>
+                <b>World Profiles</b>
+                <small>Save and switch between different world states.</small>
+                <select id="rpg_tracker_wm_profile_select" class="text_pole">
+                    <option value="">-- No Profile --</option>
+                </select>
+                <div class="flex-container gap-1">
+                    <button id="rpg_tracker_wm_profile_save" class="menu_button interactable" style="flex: 1;" title="Overwrite currently selected world profile">
+                        <i class="fa-solid fa-floppy-disk"></i> Save
+                    </button>
+                    <button id="rpg_tracker_wm_profile_save_as" class="menu_button interactable" style="flex: 1;" title="Save current world settings as a new profile">
+                        <i class="fa-solid fa-file-export"></i> Save As
+                    </button>
+                </div>
+                <div class="flex-container gap-1">
+                    <button id="rpg_tracker_wm_profile_load" class="menu_button interactable" style="flex: 1;">
+                        <i class="fa-solid fa-folder-open"></i> Load
+                    </button>
+                    <button id="rpg_tracker_wm_profile_delete" class="menu_button interactable" style="flex: 1;">
+                        <i class="fa-solid fa-trash"></i> Delete
+                    </button>
+                </div>
+
+
+                <hr>
                 <b>Chronicle Source Mode</b>
                 <select id="rpg_tracker_wm_chronicle_mode" class="text_pole">
                     <option value="sliding_window">Sliding Window (Since last fire)</option>

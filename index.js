@@ -655,6 +655,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             customFields: [],
             profiles: {},
             activeProfile: "",
+            worldProfiles: {},
+            activeWorldProfile: "",
             fullViewSections: [],
             blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
             worldModel: {
@@ -2021,6 +2023,46 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const names = Object.keys(s.profiles || {});
         sel.innerHTML = '<option value="">-- No Profile --</option>' +
             names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+    }
+
+    function saveWorldProfile(name) {
+        const s = getSettings();
+        if (!name) return;
+        if (!s.worldProfiles) s.worldProfiles = {};
+        s.worldProfiles[name] = JSON.parse(JSON.stringify(s.worldModel));
+        s.activeWorldProfile = name;
+        SillyTavern.getContext().saveSettingsDebounced();
+    }
+
+    function loadWorldProfile(name) {
+        const s = getSettings();
+        const p = s.worldProfiles?.[name];
+        if (!p) return;
+        
+        s.worldModel = JSON.parse(JSON.stringify(p));
+        s.activeWorldProfile = name;
+        _worldHistoryIndex = -1;
+        SillyTavern.getContext().saveSettingsDebounced();
+        // Refresh UI
+        syncWorldView();
+        syncWorldModelSettingsUI();
+    }
+
+    function deleteWorldProfile(name) {
+        const s = getSettings();
+        if (!s.worldProfiles?.[name]) return;
+        delete s.worldProfiles[name];
+        if (s.activeWorldProfile === name) s.activeWorldProfile = '';
+        SillyTavern.getContext().saveSettingsDebounced();
+    }
+
+    function refreshWorldProfileDropdown() {
+        const s = getSettings();
+        const sel = document.getElementById('rpg_tracker_wm_profile_select');
+        if (!sel) return;
+        const names = Object.keys(s.worldProfiles || {});
+        sel.innerHTML = '<option value="">-- No Profile --</option>' +
+            names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeWorldProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
     }
 
     /**
@@ -3665,6 +3707,30 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
     }
 
+    function syncWorldModelSettingsUI() {
+        const s = getSettings();
+        const wm = s.worldModel;
+        if (!wm) return;
+
+        $('#rpg_tracker_wm_enabled').prop('checked', wm.enabled);
+        $('#rpg_tracker_wm_interval').val(wm.dayInterval);
+        $('#rpg_tracker_wm_max_history').val(wm.maxWorldStateHistory);
+        $('#rpg_tracker_wm_max_history_val').text(wm.maxWorldStateHistory);
+        $('#rpg_tracker_wm_chronicle_mode').val(wm.chronicleMode).trigger('change');
+        $('#rpg_tracker_wm_lookback').val(wm.lookbackMessages);
+        $('#rpg_tracker_wm_prompt').val(wm.worldModelSystemPrompt);
+        $('#rpg_tracker_wm_lorebook_name').val(wm.lorebookName);
+        $('#rpg_tracker_wm_ctx_worldinfo').prop('checked', wm.contextWorldInfo);
+        $('#rpg_tracker_wm_ctx_persona').prop('checked', wm.contextPersona);
+        $('#rpg_tracker_wm_ctx_authornote').prop('checked', wm.contextAuthorNote);
+        $('#rpg_tracker_wm_san_enabled').prop('checked', wm.sanitizationEnabled);
+        $('#rpg_tracker_wm_san_prompt').val(wm.sanitizationSystemPrompt);
+        
+        // Connections
+        $('#rpg_tracker_wm_connection_source').val(wm.worldModelConnectionSource || 'default').trigger('change');
+        $('#rpg_tracker_wm_san_connection_source').val(wm.sanitizationConnectionSource || 'default').trigger('change');
+    }
+
     function syncMemoView() {
         const s = getSettings();
         const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
@@ -4783,6 +4849,62 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 deleteProfile(name);
                 refreshProfileDropdown();
                 toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
+            });
+
+            // ── World Profile System ──
+            refreshWorldProfileDropdown();
+
+            $('#rpg_tracker_wm_profile_save').on('click', function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_wm_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No world profile selected to overwrite. Use "Save As" for new profiles.', 'World Model');
+                saveWorldProfile(name);
+                toastr['success'](`World Profile "${name}" overwritten.`, 'World Model');
+            });
+
+            $('#rpg_tracker_wm_profile_save_as').on('click', async function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_wm_profile_select'));
+                const existing = sel.value;
+                const { Popup } = SillyTavern.getContext();
+
+                let name = null;
+                if (Popup && Popup.show && Popup.show.input) {
+                    name = await Popup.show.input('Save World Profile', 'Save world profile as:', existing || '');
+                } else {
+                    name = prompt('Save world profile as:', existing || '');
+                }
+
+                name = name?.trim();
+                if (!name) return;
+                saveWorldProfile(name);
+                refreshWorldProfileDropdown();
+                toastr['success'](`World Profile "${name}" saved.`, 'World Model');
+            });
+
+            $('#rpg_tracker_wm_profile_load').on('click', function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_wm_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No world profile selected.', 'World Model');
+                loadWorldProfile(name);
+                toastr['success'](`World Profile "${name}" loaded.`, 'World Model');
+            });
+
+            $('#rpg_tracker_wm_profile_delete').on('click', async function () {
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_wm_profile_select'));
+                const name = sel.value;
+                if (!name) return toastr['info']('No world profile selected.', 'World Model');
+
+                const { Popup, POPUP_RESULT } = SillyTavern.getContext();
+                if (Popup && Popup.show && Popup.show.confirm) {
+                    const confirmResult = await Popup.show.confirm('Delete World Profile', `Delete world profile "${name}"?`);
+                    if (confirmResult !== POPUP_RESULT.AFFIRMATIVE) return;
+                } else {
+                    if (!confirm(`Delete world profile "${name}"?`)) return;
+                }
+
+                deleteWorldProfile(name);
+                refreshWorldProfileDropdown();
+                toastr['success'](`World Profile "${name}" deleted.`, 'World Model');
             });
 
         } catch (e) {
