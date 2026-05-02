@@ -126,8 +126,9 @@
                 </label>
                 <div class="flex-container alignitemscenter gap-1">
                     <label for="rpg_tracker_wm_interval">Fire every</label>
-                    <input id="rpg_tracker_wm_interval" type="number" class="text_pole" style="width: 60px;" min="1" />
-                    <span>day(s)</span>
+                    <input id="rpg_tracker_wm_interval" type="number" class="text_pole" style="width: 40px;" min="1" />
+                    <span>day(s) at</span>
+                    <input id="rpg_tracker_wm_trigger_time" type="text" class="text_pole" style="width: 80px;" placeholder="6:00 AM" />
                 </div>
                 <div class="flex-container alignitemscenter gap-1" style="margin-top: 5px;">
                     <label for="rpg_tracker_wm_max_history">Max History Context</label>
@@ -135,15 +136,17 @@
                     <span id="rpg_tracker_wm_max_history_val" style="width: 30px; text-align: right;">5</span>
                 </div>
                 
-                <button id="rpg_tracker_wm_bootstrap" class="menu_button interactable" style="margin-top: 5px;">
-                    <i class="fa-solid fa-bolt"></i> Run Full Simulation Pass (Manual)
-                </button>
-                <button id="rpg_tracker_wm_seed" class="menu_button interactable" style="margin-top: 5px;">
-                    <i class="fa-solid fa-seedling"></i> Seed Baseline World State
-                </button>
-                <button id="rpg_tracker_wm_wipe" class="menu_button interactable" style="margin-top: 5px; background: rgba(181, 31, 31, 0.4); border-color: #ff5555;">
-                    <i class="fa-solid fa-trash-can"></i> WIPE WORLD STATE (Reset Day)
-                </button>
+                <div class="flex-container gap-1" style="margin-top: 5px;">
+                    <button id="rpg_tracker_wm_bootstrap" class="menu_button interactable" style="flex: 1;" title="Run Full Simulation Pass (Manual)">
+                        <i class="fa-solid fa-bolt"></i> Run
+                    </button>
+                    <button id="rpg_tracker_wm_seed" class="menu_button interactable" style="flex: 1;" title="Seed Baseline World State">
+                        <i class="fa-solid fa-seedling"></i> Seed
+                    </button>
+                    <button id="rpg_tracker_wm_wipe" class="menu_button interactable" style="flex: 1; background: rgba(181, 31, 31, 0.4); border-color: #ff5555;" title="WIPE WORLD STATE (Reset Day)">
+                        <i class="fa-solid fa-trash-can"></i> Wipe
+                    </button>
+                </div>
 
                 <hr>
                 <b>World Profiles</b>

@@ -702,6 +702,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 enabled: false,
                 sanitizationEnabled: true,
                 dayInterval: 3,
+                triggerTime: '6:00 AM',
                 lastFireDay: -1,
                 lastFireMsgDate: null,
                 lookbackMessages: 40,
@@ -1025,6 +1026,41 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * Parses the current time (HH:MM AM/PM) from the State Memo and returns minutes from midnight.
+     * @param {string} memo 
+     * @returns {number} Minutes from midnight, or -1 if not found.
+     */
+    function parseTimeInMinutesFromMemo(memo) {
+        if (!memo) return -1;
+        const timeBlock = memo.match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
+        if (!timeBlock) return -1;
+
+        const content = timeBlock[1];
+        return parseTimeInMinutes(content);
+    }
+
+    /**
+     * Converts a time string (e.g. "6:00 AM" or "18:30") to minutes from midnight.
+     * @param {string} timeStr 
+     * @returns {number}
+     */
+    function parseTimeInMinutes(timeStr) {
+        if (!timeStr) return -1;
+        const match = timeStr.match(/(\d{1,2}):(\d{2})(?:\s*(AM|PM))?/i);
+        if (!match) return -1;
+
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const ampm = match[3] ? match[3].toUpperCase() : null;
+
+        if (ampm) {
+            if (ampm === 'PM' && hours < 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+        }
+        return hours * 60 + minutes;
+    }
+
+    /**
      * Extracts the full content of the [TIME] block.
      * @param {string} memo
      * @returns {string}
@@ -1062,10 +1098,25 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
 
         const delta = currentDay - settings.worldModel.lastFireDay;
-        const shouldFire = force || (delta >= settings.worldModel.dayInterval);
+        const currentTimeMinutes = parseTimeInMinutesFromMemo(settings.currentMemo);
+        const triggerTimeMinutes = parseTimeInMinutes(settings.worldModel.triggerTime || "6:00 AM");
+
+        let shouldFire = force;
+        if (!shouldFire) {
+            if (delta > settings.worldModel.dayInterval) {
+                // We are significantly past the interval, fire immediately
+                shouldFire = true;
+            } else if (delta === settings.worldModel.dayInterval) {
+                // We are on the target day, check if trigger time reached
+                if (currentTimeMinutes === -1 || currentTimeMinutes >= triggerTimeMinutes) {
+                    shouldFire = true;
+                }
+            }
+        }
 
         if (settings.worldModel.debugMode) {
-            console.log(`[World Model] Trigger Check: Day ${currentDay} (Last fire: ${settings.worldModel.lastFireDay}, Interval: ${settings.worldModel.dayInterval}) -> ${shouldFire ? 'FIRE!' : 'Wait'}`);
+            const timeStr = extractFullTimeFromMemo(settings.currentMemo);
+            console.log(`[World Model] Trigger Check: Day ${currentDay} (${timeStr}) | Last: ${settings.worldModel.lastFireDay} | Target Interval: ${settings.worldModel.dayInterval} | Target Time: ${settings.worldModel.triggerTime} -> ${shouldFire ? 'FIRE!' : 'Wait'}`);
         }
 
         if (shouldFire) {
@@ -4379,6 +4430,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
             }).trigger('change');
 
+            $('#rpg_tracker_wm_interval').val(settings.worldModel?.dayInterval || 1).on('input', function () {
+                settings.worldModel.dayInterval = parseInt($(this).val());
+                SillyTavern.getContext().saveSettingsDebounced();
+            });
+            $('#rpg_tracker_wm_trigger_time').val(settings.worldModel?.triggerTime || '6:00 AM').on('input', function () {
+                settings.worldModel.triggerTime = $(this).val();
+                SillyTavern.getContext().saveSettingsDebounced();
+            });
+
             $('#rpg_tracker_wm_ctx_persona').prop('checked', settings.worldModel?.ctxPersona ?? false).on('change', function () {
                 settings.worldModel.ctxPersona = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
@@ -4389,10 +4449,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
             });
 
-            $('#rpg_tracker_wm_interval').val(settings.worldModel?.dayInterval || 1).on('input', function () {
-                settings.worldModel.dayInterval = parseInt(/** @type {string} */($(this).val())) || 1;
-                ctx.saveSettingsDebounced();
-            });
 
             $('#rpg_tracker_wm_max_history').val(settings.worldModel?.maxWorldStateHistory ?? 5).on('input', function () {
                 const val = parseInt(/** @type {string} */($(this).val())) || 0;
