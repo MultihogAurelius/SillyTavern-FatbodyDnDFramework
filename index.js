@@ -3127,9 +3127,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 <div class="rpg-tracker-render-view" id="rpg-tracker-render" style="display:none;"></div>
                 <div class="rpg-tracker-world-view" id="rpg-tracker-world" style="display:none;">
                     <div class="rpg-tracker-world-toolbar">
-                        <button id="rt-wv-back" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View previous world state"><i class="fa-solid fa-chevron-left"></i></button>
+                        <button id="rt-wv-back" class="rpg-tracker-world-btn" title="View previous world state"><i class="fa-solid fa-chevron-left"></i></button>
                         <span class="rpg-tracker-world-status" id="rpg-tracker-world-status-text" style="text-align: center; flex: 1;">World Model Disabled</span>
-                        <button id="rt-wv-fwd" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View next world state"><i class="fa-solid fa-chevron-right"></i></button>
+                        <button id="rt-wv-fwd" class="rpg-tracker-world-btn" title="View next world state"><i class="fa-solid fa-chevron-right"></i></button>
                     </div>
                     <div class="rpg-tracker-world-toolbar" style="margin-top: 2px; border-top: none;">
                         <button class="rpg-tracker-world-btn" id="rpg-tracker-world-fire-btn" style="flex:1;" title="Fire World Model Now">Fire Now</button>
@@ -3703,8 +3703,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const nextTime = s.worldModel.triggerTime || '6:00 AM';
 
         statusText.innerHTML = `
-            <div style="font-size: 0.8em; opacity: 0.7; line-height: 1.1;">Current: ${currentTimeStr}</div>
-            <div style="font-size: 0.85em; font-weight: bold; line-height: 1.1;">Next World Update: Day ${nextDay}, ${nextTime}</div>
+            <div style="font-size: 1.05em; opacity: 0.7; line-height: 1.2;">Current: ${currentTimeStr}</div>
+            <div style="font-size: 1.1em; font-weight: bold; line-height: 1.2; color: var(--rt-accent);">Next World Update: Day ${nextDay}, ${nextTime}</div>
         `;
         statusText.style.color = '';
         toggleBtn.textContent = 'Disable';
