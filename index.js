@@ -121,26 +121,28 @@ Role: You are the World Architect. Your task is to generate the initial structur
 DIRECTIVES:
 
 1. THE WORLD GRAPH (Spatial Data)
+You must define exactly 5 main regions, spanning the cardinal directions (North, South, West, East, and Central).
 
+For each Region, provide:
 [Region Name]
-
 Description: 1-sentence summary.
-
-Cardinal direction: in which direction of the landmass is this? North, South, West, East or in between?
-
+Cardinal direction: North, South, West, East, or Central.
 Connections: List adjacent regions.
+Sub-locations: 2-3 specific landmarks, towns, or points of interest within this region.
 
-A reasonable number, some in each direction, but not so much to unnecessarily bloat.
+INSPIRATION FOR REGIONS:
+- North: Iron Reach (High plateau, jagged cliffs, mineral-rich).
+- Central: The Glimmer-Deep (Lowland valley, bioluminescent, humid).
+- West: Sun-Scorched Basin (Expansive desert, red sands, ancient ruins).
+- South: Salt-Spray Coast (Rugged coastline, cliffs, maritime fog).
+- East: Whispering Barrens (Steppe or tundra with persistent winds and spiritual echoes).
 
 2. THE FACTION REGISTRY
-
 3-4 Factions.
-
 [Faction Name]
-
 Agenda: Their primary goal (e.g., Expansion, Profit, Survival, Philosophy, etc).
-
 Faction Capital City/Location.
+
 3. NO FANCY FORMATTING: Do NOT use asterisks for bolding or emphasis (e.g. **text** or *text*). Output only plain, clinical text.`;
 
     let _stateModelRunning = false;
