@@ -44,6 +44,9 @@ FACTIONS:
     2. [Name] ([Role]): [Current Agenda/Status.]
     3. (Empty Slot / Available for Promotion)
 
+CONFLICT AND WAR:
+- [Conflict Name]: [Belligerents]. [Current Theater]. [Status summary].
+
 ACTIVE THREADS:
 - [Thread Label]: [Status/Recent Development. Estimated age. Projected resolution window.]
 - [Thread Label]: [Status/Recent Development. Estimated age. Projected resolution window.]
@@ -80,6 +83,9 @@ FACTIONS:
     1. [Name] ([Role]): [Current Agenda/Status. Max 1 sentence.]
     2. [Name] ([Role]): [Current Agenda/Status.]
     3. (Empty Slot / Available for Promotion)
+
+CONFLICT AND WAR:
+- [Conflict Name]: [Belligerents]. [Current Theater]. [Status summary].
 
 ACTIVE THREADS:
 - [Thread Label]: [Status/Recent Development. Estimated age. Projected resolution window.]
