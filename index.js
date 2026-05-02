@@ -111,6 +111,34 @@ OUTPUT FORMAT:
 ...
 [/CHRONICLE]`;
 
+    const WORLD_BUILDER_PROMPT = `The World State Architect (v1.0)
+
+Role: You are the World Architect. Your task is to generate the initial structural baseline for a macroscopic AI RPG simulation. You must establish a world that feels vast, physically grounded, and politically tense.
+
+DIRECTIVES:
+
+1. THE WORLD GRAPH (Spatial Data)
+
+[Region Name]
+
+Description: 1-sentence summary.
+
+Cardinal direction: in which direction of the landmass is this? North, South, West, East or in between?
+
+Connections: List adjacent regions.
+
+A reasonable number, some in each direction, but not so much to unnecessarily bloat.
+
+2. THE FACTION REGISTRY
+
+3-4 Factions.
+
+[Faction Name]
+
+Agenda: Their primary goal (e.g., Expansion, Profit, Survival, Philosophy, etc).
+
+Faction Capital City/Location.`;
+
     let _stateModelRunning = false;
     let _worldModelRunning = false;
 
@@ -2885,6 +2913,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 <div class="rpg-tracker-render-view" id="rpg-tracker-render" style="display:none;"></div>
                 <div class="rpg-tracker-world-view" id="rpg-tracker-world" style="display:none;">
                     <div class="rpg-tracker-world-toolbar">
+                        <button id="rt-wv-seed" class="rpg-tracker-world-btn" style="padding: 2px 8px; margin-right: 4px;" title="Generate Structural Baseline (World Builder)"><i class="fa-solid fa-seedling"></i></button>
                         <button id="rt-wv-back" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View previous world state"><i class="fa-solid fa-chevron-left"></i></button>
                         <span class="rpg-tracker-world-status" id="rpg-tracker-world-status-text" style="text-align: center; flex: 1;">World Model Disabled</span>
                         <button id="rt-wv-fwd" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View next world state"><i class="fa-solid fa-chevron-right"></i></button>
@@ -3219,6 +3248,49 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         panel.querySelector('#rt-wv-back').addEventListener('click', () => navigateWorldHistory(1));
         panel.querySelector('#rt-wv-fwd').addEventListener('click', () => navigateWorldHistory(-1));
+
+        const wvSeedBtn = panel.querySelector('#rt-wv-seed');
+        if (wvSeedBtn) {
+            wvSeedBtn.addEventListener('click', async () => {
+                const { Popup } = SillyTavern.getContext();
+                if (settings.worldModel?.currentWorldState && settings.worldModel.currentWorldState.trim().length > 0) {
+                    const proceed = confirm("Warning: Generating a new structural baseline is meant for empty worlds. This will NOT overwrite your World State, but are you sure you want to run this?");
+                    if (!proceed) return;
+                }
+                
+                wvSeedBtn.disabled = true;
+                const icon = wvSeedBtn.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('fa-seedling');
+                    icon.classList.add('fa-spinner', 'fa-spin');
+                }
+
+                try {
+                    const wmSettings = {
+                        connectionSource: settings.worldModel?.worldModelConnectionSource || 'default',
+                        connectionProfileId: settings.worldModel?.worldModelConnectionProfileId,
+                        completionPresetId: settings.worldModel?.worldModelCompletionPresetId,
+                        maxTokens: settings.worldModel?.maxTokensWorldModel || 0,
+                        debugMode: settings.worldModel?.debugMode
+                    };
+                    
+                    const response = await sendStateRequest(wmSettings, WORLD_BUILDER_PROMPT, "Generate the World Architect baseline now.", true);
+                    
+                    if (!response) throw new Error("Empty response from AI.");
+
+                    Popup.show.confirm("World Builder Baseline", `<textarea class="text_pole" rows="15" style="width:100%; font-family: monospace; font-size: 11px;" readonly>${response}</textarea>`, { okButton: 'OK', cancelButton: false });
+                } catch (e) {
+                    console.error("[World Builder] Error generating baseline:", e);
+                    toastr['error']('Failed to generate baseline. Check console.', 'World Builder');
+                } finally {
+                    wvSeedBtn.disabled = false;
+                    if (icon) {
+                        icon.classList.remove('fa-spinner', 'fa-spin');
+                        icon.classList.add('fa-seedling');
+                    }
+                }
+            });
+        }
 
         const wvClearBtn = panel.querySelector('#rt-wv-clear');
         if (wvClearBtn) {
