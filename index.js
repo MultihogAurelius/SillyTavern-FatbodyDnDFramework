@@ -1077,6 +1077,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * Updates the UI hint for when the World Model is next scheduled to fire.
+     */
+    function updateWorldModelNextFireHint() {
+        const settings = getSettings();
+        const nextDay = (settings.worldModel.lastFireDay >= 0) 
+            ? settings.worldModel.lastFireDay + settings.worldModel.dayInterval 
+            : 'Initial Run';
+        const time = settings.worldModel.triggerTime || '6:00 AM';
+        
+        const $hint = $('#rpg_tracker_wm_next_fire_hint');
+        if ($hint.length) {
+            $hint.text(`Next Scheduled: Day ${nextDay}, ${time}`);
+        }
+    }
+
+    /**
      * Checks if the World Model should fire based on the passage of in-game time.
      * @param {boolean} force - If true, ignores the day interval and fires immediately.
      */
@@ -1490,6 +1506,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             // 5. Lorebook Write-back (Stage 4)
             await writeWorldStateToLorebook(updatedState);
+            updateWorldModelNextFireHint();
 
             // Update UI if open
             const wvTextarea = document.getElementById('rpg-tracker-world-area');
@@ -4432,12 +4449,16 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             $('#rpg_tracker_wm_interval').val(settings.worldModel?.dayInterval || 1).on('input', function () {
                 settings.worldModel.dayInterval = parseInt($(this).val());
+                updateWorldModelNextFireHint();
                 SillyTavern.getContext().saveSettingsDebounced();
             });
             $('#rpg_tracker_wm_trigger_time').val(settings.worldModel?.triggerTime || '6:00 AM').on('input', function () {
                 settings.worldModel.triggerTime = $(this).val();
+                updateWorldModelNextFireHint();
                 SillyTavern.getContext().saveSettingsDebounced();
             });
+
+            updateWorldModelNextFireHint();
 
             $('#rpg_tracker_wm_ctx_persona').prop('checked', settings.worldModel?.ctxPersona ?? false).on('change', function () {
                 settings.worldModel.ctxPersona = !!$(this).prop('checked');
