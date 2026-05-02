@@ -2892,6 +2892,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     </div>
                     <div class="rpg-tracker-world-toolbar" style="margin-top: 2px; border-top: none;">
                         <button class="rpg-tracker-world-btn" id="rpg-tracker-world-fire-btn" style="flex:1;" title="Fire World Model Now">Fire Now</button>
+                        <button class="rpg-tracker-world-btn" id="rpg-tracker-world-stop-btn" style="flex:0; display:none; color: #ff5555; padding: 2px 10px;" title="Stop World Generation">■</button>
                         <button class="rpg-tracker-world-btn" id="rpg-tracker-world-restore-btn" style="flex:1; display:none;" title="Restore this historical state to live">Restore State</button>
                         <button class="rpg-tracker-world-btn" id="rpg-tracker-world-toggle-btn" style="flex:1;" title="Toggle World Model Engine">Enable</button>
                     </div>
@@ -3180,6 +3181,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             updateWorldViewToolbar();
         });
 
+        const wvStopBtn = panel.querySelector('#rpg-tracker-world-stop-btn');
+        if (wvStopBtn) {
+            wvStopBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const { stopGeneration } = SillyTavern.getContext();
+                if (stopGeneration) stopGeneration();
+            });
+        }
+
         wvFireBtn.addEventListener('click', async () => {
             const { chat } = SillyTavern.getContext();
             // Allow empty chat for bootstrapping the world
@@ -3190,9 +3200,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const timeStr = extractFullTimeFromMemo(settings.currentMemo);
             wvFireBtn.textContent = 'Running...';
             wvFireBtn.setAttribute('disabled', 'true');
-            await fireWorldModel(currentDay, timeStr);
-            wvFireBtn.textContent = 'Fire Now';
-            wvFireBtn.removeAttribute('disabled');
+            if (wvStopBtn) wvStopBtn.style.display = '';
+            
+            try {
+                await fireWorldModel(currentDay, timeStr);
+            } finally {
+                wvFireBtn.textContent = 'Fire Now';
+                wvFireBtn.removeAttribute('disabled');
+                if (wvStopBtn) wvStopBtn.style.display = 'none';
+            }
             
             // Refresh textarea and toolbar
             if (settings.worldModel) {
