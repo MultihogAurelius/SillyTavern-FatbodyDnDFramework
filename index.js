@@ -25,6 +25,7 @@ DIRECTIVES:
 - Field reports are imperfect. Information travels slowly and incompletely. Weight repeated confirmations more heavily than single reports.
 - Create interesting developments that evolve. Local developments evolve faster, large, more macroscopic ones slower.
 - Momentum: Ensure there is at least some interesting activity between one update and the next, even if it is local in scope.
+- NO FANCY FORMATTING: Do NOT use asterisks for bolding or emphasis (e.g. **text** or *text*). Output only plain, clinical text.
 - Gradually generate actors if they do not exist yet.
 
 OUTPUT:
@@ -61,6 +62,7 @@ DIRECTIVES:
 - Create interesting developments that evolve. Local developments evolve faster, large, more macroscopic ones slower.
 - Momentum: Ensure there is at least some interesting activity between one update and the next, even if it is local in scope.
 - Bias towards action: Embolden factions to take risks and change the status quo more frequently.
+- NO FANCY FORMATTING: Do NOT use asterisks for bolding or emphasis (e.g. **text** or *text*). Output only plain, clinical text.
 - Gradually generate actors if they do not exist yet.
 
 OUTPUT:
@@ -102,7 +104,8 @@ RULES — non-negotiable:
    "You discovered a passage" → "An underground passage was accessed in [location]."
 4. Never speculate about who caused an event. State only outcomes and their implications.
 5. Be thorough. It is better to produce a lengthy chronicle than to omit detail.
-6. Output ONLY the anonymized chronicle. No preamble, no commentary, no explanation.
+6. NO FANCY FORMATTING: Do NOT use asterisks for bolding or emphasis (e.g. **text** or *text*). Output only plain, clinical text.
+7. Output ONLY the anonymized chronicle. No preamble, no commentary, no explanation.
 
 OUTPUT FORMAT:
 [CHRONICLE]
@@ -137,7 +140,8 @@ A reasonable number, some in each direction, but not so much to unnecessarily bl
 
 Agenda: Their primary goal (e.g., Expansion, Profit, Survival, Philosophy, etc).
 
-Faction Capital City/Location.`;
+Faction Capital City/Location.
+3. NO FANCY FORMATTING: Do NOT use asterisks for bolding or emphasis (e.g. **text** or *text*). Output only plain, clinical text.`;
 
     let _stateModelRunning = false;
     let _worldModelRunning = false;
