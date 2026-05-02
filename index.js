@@ -2863,6 +2863,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.id = 'rpg-tracker-panel';
         panel.className = `rpg-tracker-panel ${settings.trackerTheme || 'rt-theme-native'}`;
         panel.innerHTML = `
+            <div class="rt-resizer-tr" id="rt-resizer-tr" title="Resize from top-right"></div>
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
                     <span>Fatbody D&D Framework</span>
@@ -2887,6 +2888,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <button id="rt-wv-back" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View previous world state"><i class="fa-solid fa-chevron-left"></i></button>
                         <span class="rpg-tracker-world-status" id="rpg-tracker-world-status-text" style="text-align: center; flex: 1;">World Model Disabled</span>
                         <button id="rt-wv-fwd" class="rpg-tracker-world-btn" style="padding: 2px 8px;" title="View next world state"><i class="fa-solid fa-chevron-right"></i></button>
+                        <button id="rt-wv-clear" class="rpg-tracker-world-btn" style="padding: 2px 8px; margin-left: 4px;" title="Clear world state history"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                     <div class="rpg-tracker-world-toolbar" style="margin-top: 2px; border-top: none;">
                         <button class="rpg-tracker-world-btn" id="rpg-tracker-world-fire-btn" style="flex:1;" title="Fire World Model Now">Fire Now</button>
@@ -2915,6 +2917,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-back" title="View previous snapshot">←</button>
                         <span class="rpg-tracker-nav-label" id="rpg-tracker-nav-label">Live</span>
                         <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-fwd" title="View next snapshot">→</button>
+                        <button class="rpg-tracker-nav-btn" id="rpg-tracker-nav-clear" title="Clear all state snapshots" style="font-size: 12px; margin-left: 5px;"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                 </div>
                 <div class="flex-container gap-1 alignitemscenter rt-rng-footer-group">
@@ -2949,6 +2952,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             makeDraggable(/** @type {HTMLElement} */(panel), header);
         }
         setupResizeObserver(/** @type {HTMLElement} */(panel));
+        setupTopRightResize(/** @type {HTMLElement} */(panel));
         loadPanelGeometry(/** @type {HTMLElement} */(panel));
 
         const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
@@ -3091,6 +3095,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 _viewBtn.textContent = '⊞';
                 _worldBtn.style.color = 'var(--rt-accent)';
                 updateWorldViewToolbar();
+                syncWorldView();
             } else if (_renderedViewActive) {
                 ta.style.display = 'none';
                 rv.style.display = 'block';
@@ -3099,6 +3104,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 _viewBtn.title = 'Switch to Raw view';
                 _worldBtn.style.color = '';
                 refreshRenderedView();
+                syncMemoView();
             } else {
                 ta.style.display = '';
                 rv.style.display = 'none';
@@ -3106,6 +3112,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 _viewBtn.textContent = '⊞';
                 _viewBtn.title = 'Switch to Rendered view';
                 _worldBtn.style.color = '';
+                syncMemoView();
             }
         };
 
@@ -3147,6 +3154,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 }
             }
             SillyTavern.getContext().saveSettingsDebounced();
+
+            // Update token counter
+            const counter = document.getElementById('rpg-tracker-count');
+            if (counter) {
+                const currentTokens = Math.round(wvTextarea.value.length / 2.62);
+                if (_worldHistoryIndex === -1 && settings.worldModel.worldStateHistory?.length > 0) {
+                    const lookback = settings.worldModel.lookbackCount || 1;
+                    const historyToInclude = settings.worldModel.worldStateHistory.slice(-lookback);
+                    const historyTokens = historyToInclude.reduce((acc, state) => acc + Math.round((state || '').length / 2.62), 0);
+                    counter.textContent = `~${currentTokens} (+${historyTokens} history) tokens [WORLD]`;
+                } else {
+                    counter.textContent = `~${currentTokens} tokens [WORLD]`;
+                }
+            }
         });
 
         wvToggleBtn.addEventListener('click', () => {
@@ -3161,7 +3182,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         wvFireBtn.addEventListener('click', async () => {
             const { chat } = SillyTavern.getContext();
-            if (!chat || chat.length === 0) return toastr['warning']('No chat history found.', 'World Model');
+            // Allow empty chat for bootstrapping the world
             
             const currentDay = parseTimeFromMemo(settings.currentMemo);
             if (currentDay === -1) return toastr['warning']('No [TIME] block with "Day X" found in recent memo. Cannot anchor timeline.', 'World Model');
@@ -3182,6 +3203,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         panel.querySelector('#rt-wv-back').addEventListener('click', () => navigateWorldHistory(1));
         panel.querySelector('#rt-wv-fwd').addEventListener('click', () => navigateWorldHistory(-1));
+
+        const wvClearBtn = panel.querySelector('#rt-wv-clear');
+        if (wvClearBtn) {
+            wvClearBtn.addEventListener('click', () => {
+                if (!settings.worldModel) return;
+                if (confirm("Reset World Model? This will clear the current World State, all historical states, and reset the simulation timeline.")) {
+                    settings.worldModel.worldStateHistory = [];
+                    settings.worldModel.currentWorldState = '';
+                    settings.worldModel.lastFireDay = -1;
+                    _worldHistoryIndex = -1;
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    toastr['success']("World Model reset successfully.", "World Model");
+                    syncWorldView();
+                }
+            });
+        }
 
         const wvRestoreBtn = panel.querySelector('#rpg-tracker-world-restore-btn');
         if (wvRestoreBtn) {
@@ -3323,6 +3360,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         // Snapshot navigation
         panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
         panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
+
+        const navClearBtn = panel.querySelector('#rpg-tracker-nav-clear');
+        if (navClearBtn) {
+            navClearBtn.addEventListener('click', () => {
+                if ((settings.memoHistory || []).length === 0) return;
+                if (confirm("Delete ALL state snapshots? This will clear the undo/history buffer for the State Tracker.")) {
+                    settings.memoHistory = [];
+                    _historyViewIndex = -1;
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    toastr['success']("State history cleared.", "RPG Tracker");
+                    syncMemoView();
+                }
+            });
+        }
 
         // Footer Expand/Collapse (Mobile)
         panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
@@ -3498,6 +3549,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             statusText.textContent = `PREVIOUS: ${_worldHistoryIndex + 1} / ${histLen}`;
             statusText.style.color = 'var(--rt-accent)';
         }
+
+        // Update global token counter for world state
+        const counter = document.getElementById('rpg-tracker-count');
+        if (counter && textarea) {
+            const currentTokens = Math.round(textarea.value.length / 2.62);
+            
+            // If in Live view, also show the tokens of the history that will be sent as context
+            if (_worldHistoryIndex === -1 && s.worldModel.worldStateHistory?.length > 0) {
+                const lookback = s.worldModel.lookbackCount || 1;
+                const historyToInclude = s.worldModel.worldStateHistory.slice(-lookback);
+                const historyTokens = historyToInclude.reduce((acc, state) => acc + Math.round((state || '').length / 2.62), 0);
+                counter.textContent = `~${currentTokens} (+${historyTokens} history) tokens [WORLD]`;
+            } else {
+                counter.textContent = `~${currentTokens} tokens [WORLD]`;
+            }
+        }
     }
 
     function syncMemoView() {
@@ -3596,6 +3663,51 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
         });
         ro.observe(panel);
+    }
+
+    function setupTopRightResize(panel) {
+        const handle = panel.querySelector('#rt-resizer-tr');
+        if (!handle) return;
+        
+        let startX, startY, startW, startH, startTop, startLeft;
+        
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.clientX;
+            startY = e.clientY;
+            startW = panel.offsetWidth;
+            startH = panel.offsetHeight;
+            startTop = panel.offsetTop;
+            startLeft = panel.offsetLeft;
+            
+            const onMove = (ev) => {
+                const deltaX = ev.clientX - startX;
+                const deltaY = ev.clientY - startY;
+                
+                const newW = Math.max(220, startW + deltaX);
+                const newH = Math.max(200, startH - deltaY);
+                
+                // If newH is valid, update height and top
+                if (newH >= 200) {
+                    const newTop = startTop + deltaY;
+                    panel.style.height = newH + 'px';
+                    panel.style.top = newTop + 'px';
+                }
+                
+                // Always update width
+                panel.style.width = newW + 'px';
+            };
+            
+            const onUp = () => {
+                savePanelGeometry(panel);
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
     }
 
     function setupDeltaResize(panel) {
