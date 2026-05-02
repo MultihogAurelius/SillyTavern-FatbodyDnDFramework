@@ -127,7 +127,6 @@ For each Region, provide:
 [Region Name]
 Description: 1-sentence summary.
 Cardinal direction: North, South, West, East, or Central.
-Connections: List adjacent regions.
 Sub-locations: 2-3 specific landmarks, towns, or points of interest within this region.
 
 INSPIRATION FOR REGIONS:
