@@ -138,6 +138,12 @@
                 <button id="rpg_tracker_wm_bootstrap" class="menu_button interactable" style="margin-top: 5px;">
                     <i class="fa-solid fa-bolt"></i> Run Full Simulation Pass (Manual)
                 </button>
+                <button id="rpg_tracker_wm_seed" class="menu_button interactable" style="margin-top: 5px;">
+                    <i class="fa-solid fa-seedling"></i> Seed Baseline World State
+                </button>
+                <button id="rpg_tracker_wm_wipe" class="menu_button interactable" style="margin-top: 5px; background: rgba(181, 31, 31, 0.4); border-color: #ff5555;">
+                    <i class="fa-solid fa-trash-can"></i> WIPE WORLD STATE (Reset Day)
+                </button>
 
                 <hr>
                 <b>World Profiles</b>
@@ -229,6 +235,7 @@
                 <hr>
                 <b>World Model System Prompt</b>
                 <select id="rpg_tracker_wm_prompt_preset" class="text_pole interactable">
+                    <option value="standalone">Standalone (No Sanitization)</option>
                     <option value="stable">Stable (Gradual Change)</option>
                     <option value="dynamic">Dynamic (More Active)</option>
                     <option value="custom">-- Custom --</option>

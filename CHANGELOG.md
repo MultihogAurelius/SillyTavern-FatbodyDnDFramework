@@ -2,6 +2,32 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.6.0] - 2026-05-02
+
+### Added
+- **World Chronicle Engine (v1.0)**: A major new autonomous simulation layer that maintains a persistent, living world record independent of player actions.
+  - **Autonomous Triggering**: Time-based engine that fires on a configurable day interval (default: 3 days), synced with the `[TIME]` state block.
+  - **Sanitization Firewall**: Mandatory background pass that anonymizes narrative history before simulation, stripping out player/protagonist biases to prevent sycophancy.
+  - **Macroscopic Causality**: Simulation engine that models geopolitical ripple effects, faction power vacuums, and trade disruptions based on narrative field reports.
+  - **Lorebook Integration**: Automatic write-back to a designated SillyTavern lorebook via a constant `[WORLD_STATE]` entry.
+- **World History Browser**:
+  - **Time Travel UI**: Added navigation arrows to the World View to browse through past geopolitical states.
+  - **State Restoration**: Capability to "Restore" a historical world state to the live simulation, enabling timeline branching or correction.
+- **World State Architect (Seeding)**:
+  - **Theme-Driven Generation**: Interactive seeding mechanism that generates 5 regions, 4 factions, and active conflicts based on user-defined themes or random genre inputs.
+- **Operational Controls**:
+  - **Stop Functionality**: All generation buttons (Fire, Seed, Bootstrap) now transform into **Stop** controls during active processing to allow immediate interruption.
+  - **Global Wipe**: Added a destructive wipe button to reset the simulation day counter and clear all history/state data for fresh campaigns.
+- **World Profile System**: Full integration with the Scenario Profile system, ensuring World Model settings (prompts, history, connections) are saved and restored per-profile.
+- **Clinical Simulation Preset**: Introduced the "Standalone" system prompt, optimized for token efficiency by enforcing clinical, non-markdown output (no asterisks).
+
+### Changed
+- **NPC Persistence Protocol**: Enforced mandatory location/travel reporting for all actors in the standalone preset to ensure they maintain a persistent existence in the macroscopic world.
+- **UI Modernization**: Integrated World Model controls directly into the main panel with a dedicated "World View" tab and status indicator.
+- **Context Isolation**: The World Model now operates in a separate execution context, preventing it from interrupting the primary Narrative or State extraction loops.
+
+
+
 ## [1.5.5] - 2026-04-29
 
 ### Fixed
