@@ -635,7 +635,16 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             if (!settings.diceFunctionTool) return;
 
             const toolName = getDiceToolName();
-            const rollDiceSchema = {
+            const isLegacy = settings.legacyDiceNaming;
+
+            const rollDiceSchema = isLegacy ? {
+                type: 'object',
+                properties: {
+                    who: { type: 'string', description: 'The name of the persona rolling the dice' },
+                    formula: { type: 'string', description: 'A dice formula to roll, e.g. 1d6' },
+                },
+                required: ['who', 'formula'],
+            } : {
                 type: 'object',
                 properties: {
                     who: { type: 'string', description: 'The name of the persona rolling the dice' },
@@ -647,15 +656,21 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             registerFunctionTool({
                 name: toolName,
-                displayName: settings.legacyDiceNaming ? 'Dice Roll' : 'Dice Roll (Fatbody)',
+                displayName: isLegacy ? 'Dice Roll' : 'Dice Roll (Fatbody)',
                 description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
                 parameters: rollDiceSchema,
                 action: async (args) => {
-                    const formula = args?.formula || '1d20';
-                    const dc = Number(args?.dc) || 0;
+                    const formula = args?.formula || (isLegacy ? '1d6' : '1d20');
                     const roll = await doDiceRoll(formula, true);
                     const total = parseInt(roll.total) || 0;
 
+                    if (isLegacy) {
+                        return args.who
+                            ? `${args.who} rolls a ${formula}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
+                            : `The result of a ${formula} roll is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
+                    }
+
+                    const dc = Number(args?.dc) || 0;
                     let result = args.who
                         ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
                         : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
@@ -681,7 +696,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             aliases: getDiceCommandAliases(),
             callback: async (args, value) => {
                 const quiet = String(args.quiet) === 'true';
-                const result = await doDiceRoll(String(value || '1d20'), quiet);
+                const result = await doDiceRoll(String(value || (getSettings().legacyDiceNaming ? '1d6' : '1d20')), quiet);
                 return result.total;
             },
             helpString: 'Roll the dice.',
