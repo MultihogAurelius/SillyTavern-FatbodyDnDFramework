@@ -1518,32 +1518,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    /**
-     * Like escapeHtml, but first processes <font color=...>text</font> tags into
-     * safe <span style="color:"> elements. Only hex (#xxx / #xxxxxx) and alphabetic
-     * named colors are allowed — anything else is stripped and the inner text is
-     * escaped normally. All other HTML is still fully escaped.
-     * @param {string} str
-     */
-    function processColorTags(str) {
-        const COLOR_RE = /<font\s+color=["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,30})["']?>([\s\S]*?)<\/font>/gi;
-        const parts = [];
-        let last = 0;
-        let m;
-        while ((m = COLOR_RE.exec(str)) !== null) {
-            if (m.index > last) parts.push(escapeHtml(str.slice(last, m.index)));
-            const color = m[1];
-            const inner = m[2];
-            const safe = /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]{1,30}$/.test(color) ? color : '';
-            parts.push(safe
-                ? `<span style="color:${safe}">${escapeHtml(inner)}</span>`
-                : escapeHtml(inner));
-            last = COLOR_RE.lastIndex;
-        }
-        if (last < str.length) parts.push(escapeHtml(str.slice(last)));
-        return parts.join('');
-    }
-
     const splitSmart = (text) => {
         const res = [];
         let cur = '', depth = 0;
@@ -1857,7 +1831,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
                         }
                     } else {
-                        results.push(`<div class="rt-card-line">${processColorTags(line)}</div>`);
+                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
                         lastEntityIdx = -1;
                     }
                 }
@@ -1997,7 +1971,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
                 });
                 return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(i => `<div class="rt-card-item">• ${processColorTags(i)}</div>`);
+                    .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
             }
             case 'ABILITIES': {
                 const allAbilities = lines.flatMap(line => {
@@ -2011,8 +1985,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             default:
                 return lines.map(line => {
                     const kv = line.match(/^([^:]+):\s*(.+)$/);
-                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${processColorTags(kv[2].trim())}</span></div>`;
-                    return `<div class="rt-card-line">${processColorTags(line)}</div>`;
+                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
+                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
                 });
         }
     }
@@ -3147,7 +3121,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                     </div>
                 </div>
-                <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin: 0; display: flex; flex-direction: column; cursor: default; height: auto; min-height: 44px; width: 300px;"></div>
+                <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin: 0; display: flex; flex-direction: column; cursor: default; height: auto; min-height: 44px; width: 300px;">
+                    <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor: move; user-select: none; font-size: 0.75em; opacity: 0.7; padding: 5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right: 6px;"></i> Live Preview</div>
+                    <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
+                </div>
             `;
             document.body.appendChild(overlay);
 
@@ -3185,26 +3162,40 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 hintEl.textContent = hint.description + '\n\nExample:\n' + hint.example;
             }
 
-            // Render preview
-            if (!previewEl) return;
+            // Render preview using the real renderMemoAsCards pipeline
+            const renderView = document.getElementById('rt_cfe_preview_view');
+            if (!renderView) return;
             const testContent = testDataEl ? testDataEl.value.trim() : '';
             if (!testContent) {
-                previewEl.innerHTML = '<div style="opacity:0.4; font-size:0.85em; padding:8px;">Enter test data above to see a preview.</div>';
+                renderView.innerHTML = '<div style="opacity:0.4; font-size:0.85em; padding:8px;">Enter test data above to see a preview.</div>';
                 return;
             }
-            const tag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase() || 'FIELD';
-            const icon = iconEl.value || '📄';
-            const label = labelEl.value || tag;
-            const items = blockToItems(tag, testContent, rt);
-            previewEl.innerHTML = `
-                <div class="rt-section-card" style="margin: 0;">
-                    <div class="rt-section-header">
-                        <span>${icon} ${label}</span>
-                        <div class="rt-section-header-right"><span class="rt-collapse-icon">▾</span></div>
-                    </div>
-                    <div class="rt-section-body">${items.join('')}</div>
-                </div>
-            `;
+
+            // Use a sentinel tag that can't clash with real tags
+            const previewTag = '__PREVIEW__';
+            const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
+
+            // Temporarily inject the current editor state as a customField so
+            // renderMemoAsCards can resolve icon, label, and renderType correctly.
+            const s = getSettings();
+            if (!s.customFields) s.customFields = [];
+            const tempField = {
+                tag: previewTag,
+                label: labelEl.value || tagEl.value || 'Preview',
+                icon: iconEl.value || '📄',
+                renderType: rt,
+                prompt: '',
+                enabled: true
+            };
+            s.customFields.push(tempField);
+
+            try {
+                renderView.innerHTML = renderMemoAsCards(fakeMemo);
+            } finally {
+                // Always clean up the temp entry regardless of errors
+                const idx = s.customFields.indexOf(tempField);
+                if (idx !== -1) s.customFields.splice(idx, 1);
+            }
         };
 
         const schedulePreview = () => {
@@ -3243,16 +3234,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         // Position the preview relative to the popup and make it draggable
         const popup = overlay.querySelector('.popup');
-        if (popup && previewEl) {
+        const previewHeader = /** @type {HTMLElement} */ (document.getElementById('rt_cfe_preview_header'));
+        if (popup && previewEl && previewHeader) {
             const rect = popup.getBoundingClientRect();
             previewEl.style.left = (rect.right + 20) + 'px';
             previewEl.style.top = rect.top + 'px';
-
-            const previewHeader = previewEl.querySelector('.rt-section-header');
-            if (previewHeader) {
-                // @ts-ignore
-                makeDraggable(previewEl, previewHeader);
-            }
+            // @ts-ignore
+            makeDraggable(previewEl, previewHeader);
         }
 
         const save = () => {
