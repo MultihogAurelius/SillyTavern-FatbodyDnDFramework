@@ -539,7 +539,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             legacyDiceNaming: false,
             closeCount: 0,
             lookbackMessages: 2,
-            trackerHistoryCount: 1
+            trackerHistoryCount: 1,
+            ctxWorldInfo: false,
+            lorebookFilter: []
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -1102,6 +1104,48 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * Reads context sources (Lorebooks) from user settings
+     * and assembles them into blocks that are prepended to the user prompt.
+     */
+    async function buildLorebookContext() {
+        const settings = getSettings();
+        const stCtx = SillyTavern.getContext();
+        const parts = [];
+
+        if (settings.ctxWorldInfo) {
+            try {
+                const allowedBooks = settings.lorebookFilter || [];
+                let booksToLoad = allowedBooks.length > 0
+                    ? allowedBooks
+                    : (await stCtx.getWorldInfoNames() || []);
+
+                const entries = [];
+                for (const bookName of booksToLoad) {
+                    try {
+                        const bookData = await stCtx.loadWorldInfo(bookName);
+                        if (!bookData?.entries) continue;
+                        for (const entry of Object.values(/** @type {any} */(bookData).entries)) {
+                            const e = /** @type {any} */ (entry);
+                            if (!e.disable && e.content) entries.push(e.content);
+                        }
+                    } catch (bookErr) {
+                        console.warn(`[RPG Tracker] Failed to load lorebook "${bookName}":`, bookErr);
+                    }
+                }
+
+                if (entries.length > 0) {
+                    const label = allowedBooks.length > 0 ? `Filtered: ${allowedBooks.join(', ')}` : 'All Books';
+                    parts.push(`## WORLD LORE (${label})\n${entries.join('\n---\n')}`);
+                }
+            } catch (e) {
+                console.warn('[RPG Tracker] Could not inject World Info:', e);
+            }
+        }
+
+        return parts.join('\n\n');
+    }
+
+    /**
      * The State Model pass: Extract state changes from the narrative.
      * @param {string} narrativeOutput The last narrative message to parse.
      * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
@@ -1141,6 +1185,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
             }
 
+            const worldLore = await buildLorebookContext();
+            const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
+
             const { chat } = SillyTavern.getContext();
             const N = settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2;
             const recentChat = chat.slice(-N);
@@ -1164,12 +1211,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             if (isFullContext) {
                 userPrompt =
+                    worldLoreSection +
                     priorMemoText +
                     `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
                     `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
                     `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
             } else {
                 userPrompt =
+                    worldLoreSection +
                     priorMemoText +
                     `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
                     `## OUTPUT ONLY CHANGED SECTIONS:`;
@@ -3441,6 +3490,60 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     ctx.saveSettingsDebounced();
                 });
             }
+
+            // ── Lorebook Context UI ──
+            async function refreshLorebookList() {
+                const $container = $('#rpg_tracker_lorebook_list');
+                $container.empty();
+                const stCtx = SillyTavern.getContext();
+                let worldNames = [];
+                try {
+                    worldNames = await stCtx.getWorldInfoNames() ?? [];
+                } catch (e) {
+                    console.warn('[RPG Tracker] getWorldInfoNames() failed:', e);
+                }
+
+                if (!worldNames || worldNames.length === 0) {
+                    $container.append('<i style="opacity:0.6;">No lorebooks found.</i>');
+                    return;
+                }
+
+                const currentFilter = settings.lorebookFilter || [];
+                const sortedBooks = [...worldNames].sort();
+
+                sortedBooks.forEach(bookName => {
+                    const isChecked = currentFilter.includes(bookName);
+                    const $item = $(`<label class="checkbox_label" style="font-size: 0.9em;">
+                        <input type="checkbox" data-book="${bookName}" ${isChecked ? 'checked' : ''} />
+                        <span>${bookName}</span>
+                    </label>`);
+
+                    $item.find('input').on('change', function () {
+                        const book = $(this).data('book');
+                        if (!Array.isArray(settings.lorebookFilter)) settings.lorebookFilter = [];
+                        if ($(this).prop('checked')) {
+                            if (!settings.lorebookFilter.includes(book)) {
+                                settings.lorebookFilter.push(book);
+                            }
+                        } else {
+                            settings.lorebookFilter = settings.lorebookFilter.filter(b => b !== book);
+                        }
+                        ctx.saveSettingsDebounced();
+                    });
+                    $container.append($item);
+                });
+            }
+
+            $('#rpg_tracker_ctx_worldinfo').prop('checked', settings.ctxWorldInfo ?? false).on('change', async function () {
+                settings.ctxWorldInfo = !!$(this).prop('checked');
+                if (settings.ctxWorldInfo) await refreshLorebookList();
+                $('#rpg_tracker_lorebook_filter_group').toggle(settings.ctxWorldInfo);
+                ctx.saveSettingsDebounced();
+            }).trigger('change');
+
+            $('#rpg_tracker_lorebook_list_refresh').on('click', async function () {
+                await refreshLorebookList();
+            });
 
             // Theme Select
             const themeSelect = $('#rpg_tracker_theme_select');
