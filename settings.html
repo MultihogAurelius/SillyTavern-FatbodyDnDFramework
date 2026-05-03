@@ -62,6 +62,36 @@
                     <input id="rpg_tracker_max_tokens" type="number" class="text_pole" placeholder="0 = No limit" />
                 </div>
 
+                <div class="inline-drawer">
+                    <div class="inline-drawer-toggle inline-drawer-header">
+                        <b>Advanced Options</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
+                    </div>
+                    <div class="inline-drawer-content">
+                        <div class="flex-container flexFlowColumn gap-1">
+                            <label for="rpg_tracker_lookback_messages">Number of Messages the Tracker Sees (User + Assistant)</label>
+                            <input id="rpg_tracker_lookback_messages" type="number" class="text_pole" value="2" min="1" max="9999" />
+                            
+                            <label for="rpg_tracker_history_count">Number of Previous States the Tracker Sees</label>
+                            <input id="rpg_tracker_history_count" type="number" class="text_pole" value="1" min="1" max="9999" />
+
+                            <hr>
+                            <div class="flex-container alignitemscenter gap-1">
+                                <label class="checkbox_label">
+                                    <input id="rpg_tracker_ctx_worldinfo" type="checkbox" />
+                                    <span>Inject Lorebooks / World Info</span>
+                                </label>
+                                <button id="rpg_tracker_lorebook_list_refresh" class="menu_button interactable" title="Refresh lorebook list" style="padding: 1px 4px; font-size: 0.8em; margin-left: auto;">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+                            </div>
+                            <div id="rpg_tracker_lorebook_filter_group" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 5px; border-radius: 4px;">
+                                <div id="rpg_tracker_lorebook_list" class="flex-container flexFlowColumn gap-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <hr>
                 <b>Scenario Profiles</b>
                 <small>Save and switch between different scenario states.</small>

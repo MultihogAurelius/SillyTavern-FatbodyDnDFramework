@@ -730,7 +730,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 lorebookFilter: [],
                 systemPromptPreset: "standalone"
             },
-            closeCount: 0
+            closeCount: 0,
+            lookbackMessages: 2,
+            trackerHistoryCount: 1,
+            ctxWorldInfo: false,
+            lorebookFilter: []
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -1894,6 +1898,48 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * Reads context sources (Lorebooks) from user settings
+     * and assembles them into blocks that are prepended to the user prompt.
+     */
+    async function buildLorebookContext() {
+        const settings = getSettings();
+        const stCtx = SillyTavern.getContext();
+        const parts = [];
+
+        if (settings.ctxWorldInfo) {
+            try {
+                const allowedBooks = settings.lorebookFilter || [];
+                let booksToLoad = allowedBooks.length > 0
+                    ? allowedBooks
+                    : (await stCtx.getWorldInfoNames() || []);
+
+                const entries = [];
+                for (const bookName of booksToLoad) {
+                    try {
+                        const bookData = await stCtx.loadWorldInfo(bookName);
+                        if (!bookData?.entries) continue;
+                        for (const entry of Object.values(/** @type {any} */(bookData).entries)) {
+                            const e = /** @type {any} */ (entry);
+                            if (!e.disable && e.content) entries.push(e.content);
+                        }
+                    } catch (bookErr) {
+                        console.warn(`[RPG Tracker] Failed to load lorebook "${bookName}":`, bookErr);
+                    }
+                }
+
+                if (entries.length > 0) {
+                    const label = allowedBooks.length > 0 ? `Filtered: ${allowedBooks.join(', ')}` : 'All Books';
+                    parts.push(`## WORLD LORE (${label})\n${entries.join('\n---\n')}`);
+                }
+            } catch (e) {
+                console.warn('[RPG Tracker] Could not inject World Info:', e);
+            }
+        }
+
+        return parts.join('\n\n');
+    }
+
+    /**
      * The State Model pass: Extract state changes from the narrative.
      * @param {string} narrativeOutput The last narrative message to parse.
      * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
@@ -1933,33 +1979,42 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
             }
 
+            const worldLore = await buildLorebookContext();
+            const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
+
+            const { chat } = SillyTavern.getContext();
+            const N = settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2;
+            const recentChat = chat.slice(-N);
+            const chatLog = recentChat.map(m => {
+                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                return `${name}: ${m.mes}`;
+            }).join('\n\n');
+
+            let priorMemoText = `## TRACKER STATE 0 (Current)\n${settings.currentMemo}\n\n`;
+            const historyCount = (settings.trackerHistoryCount || 1) - 1; // 1 means only current, >1 includes history
+            if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
+                const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse(); // oldest first (State -N up to -1)
+                const historyString = historyToInclude.map((memo, i) => {
+                    const offset = -(historyToInclude.length - i);
+                    return `## TRACKER STATE ${offset}\n${memo}`;
+                }).join('\n\n');
+                priorMemoText = historyString + '\n\n' + priorMemoText;
+            }
+
             let userPrompt = "";
 
             if (isFullContext) {
-                const { chat } = SillyTavern.getContext();
-                // Take last 60 messages for a "long horizon" audit
-                const N = 60;
-                const recentChat = chat.slice(-N);
-                const chatLog = recentChat.map(m => {
-                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    return `${name}: ${m.mes}`;
-                }).join('\n\n');
-
                 userPrompt =
+                    worldLoreSection +
+                    priorMemoText +
                     `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
-                    `## PRIOR MEMO\n${settings.currentMemo || '(empty)'}\n\n` +
                     `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
                     `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
             } else {
-                const lastUserAction = getLastUserAction();
-                const userActionSection = lastUserAction
-                    ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
-                    : '';
-
                 userPrompt =
-                    `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
-                    userActionSection +
-                    `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
+                    worldLoreSection +
+                    priorMemoText +
+                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
                     `## OUTPUT ONLY CHANGED SECTIONS:`;
             }
 
@@ -1994,7 +2049,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 if (merged !== sanitizedCurrent) {
                     // Push snapshot to rolling history (max 5)
                     settings.memoHistory.unshift(sanitizedCurrent);
-                    if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
+                    if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
 
                     // Persist delta and update panel
                     const delta = computeDelta(sanitizedCurrent, merged);
@@ -2096,7 +2151,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     const delta = computeDelta(sanitizedCurrent, merged);
                     settings.lastDelta = delta;
                     settings.memoHistory.unshift(sanitizedCurrent);
-                    if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
+                    if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
 
                     const dp = document.getElementById('rpg-tracker-delta-content');
                     if (dp) dp.innerHTML = delta;
@@ -4819,6 +4874,76 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             presetSelect.on('change', function () {
                 settings.completionPresetId = $(this).val();
                 ctx.saveSettingsDebounced();
+            });
+
+            // Advanced Options
+            const lookbackInput = $('#rpg_tracker_lookback_messages');
+            if (lookbackInput.length) {
+                lookbackInput.val(settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2).on('input', function () {
+                    settings.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 2;
+                    ctx.saveSettingsDebounced();
+                });
+            }
+            const historyCountInput = $('#rpg_tracker_history_count');
+            if (historyCountInput.length) {
+                historyCountInput.val(settings.trackerHistoryCount !== undefined ? settings.trackerHistoryCount : 1).on('input', function () {
+                    settings.trackerHistoryCount = parseInt(/** @type {string} */($(this).val())) || 1;
+                    ctx.saveSettingsDebounced();
+                });
+            }
+
+            // ── Lorebook Context UI ──
+            async function refreshLorebookList() {
+                const $container = $('#rpg_tracker_lorebook_list');
+                $container.empty();
+                const stCtx = SillyTavern.getContext();
+                let worldNames = [];
+                try {
+                    worldNames = await stCtx.getWorldInfoNames() ?? [];
+                } catch (e) {
+                    console.warn('[RPG Tracker] getWorldInfoNames() failed:', e);
+                }
+
+                if (!worldNames || worldNames.length === 0) {
+                    $container.append('<i style="opacity:0.6;">No lorebooks found.</i>');
+                    return;
+                }
+
+                const currentFilter = settings.lorebookFilter || [];
+                const sortedBooks = [...worldNames].sort();
+
+                sortedBooks.forEach(bookName => {
+                    const isChecked = currentFilter.includes(bookName);
+                    const $item = $(`<label class="checkbox_label" style="font-size: 0.9em;">
+                        <input type="checkbox" data-book="${bookName}" ${isChecked ? 'checked' : ''} />
+                        <span>${bookName}</span>
+                    </label>`);
+
+                    $item.find('input').on('change', function () {
+                        const book = $(this).data('book');
+                        if (!Array.isArray(settings.lorebookFilter)) settings.lorebookFilter = [];
+                        if ($(this).prop('checked')) {
+                            if (!settings.lorebookFilter.includes(book)) {
+                                settings.lorebookFilter.push(book);
+                            }
+                        } else {
+                            settings.lorebookFilter = settings.lorebookFilter.filter(b => b !== book);
+                        }
+                        ctx.saveSettingsDebounced();
+                    });
+                    $container.append($item);
+                });
+            }
+
+            $('#rpg_tracker_ctx_worldinfo').prop('checked', settings.ctxWorldInfo ?? false).on('change', async function () {
+                settings.ctxWorldInfo = !!$(this).prop('checked');
+                if (settings.ctxWorldInfo) await refreshLorebookList();
+                $('#rpg_tracker_lorebook_filter_group').toggle(settings.ctxWorldInfo);
+                ctx.saveSettingsDebounced();
+            }).trigger('change');
+
+            $('#rpg_tracker_lorebook_list_refresh').on('click', async function () {
+                await refreshLorebookList();
             });
 
             // Initial order list refresh
