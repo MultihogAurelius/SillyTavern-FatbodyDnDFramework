@@ -3041,29 +3041,29 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
     const RENDER_HINTS = {
         CHARACTER: {
-            label: 'Standard — Key-Value Pairs',
-            description: 'Flat list of labelled stats. Use "Key: Value" on each line. Supports modifier highlights in parentheses.',
-            example: 'Strength: 18 (+4)\nDexterity: 14 (+2)\nArmor Class: 16\nGold: 220 gp'
+            label: 'Entity Rows — HP Bars (Characters)',
+            description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Att/def, Attr, Saves, Skills, Traits, HD, Status.',
+            example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3) | Furs (AC: 13)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
         },
         COMBAT: {
-            label: 'HP Bars — Entity Rows',
-            description: 'Each entity gets a health bar row. Format: "Name | HP: current/max | AC: n". Add sub-lines for Status, Skills, Saves, Weapon.',
-            example: 'Aragorn | HP: 45/50 | AC: 17\nStatus: Hasted | Poisoned\nGoblin Boss | HP: 28/40 | AC: 14\nStatus: Frightened'
+            label: 'Entity Rows — HP Bars (Enemies)',
+            description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
+            example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
         },
         SPELLS: {
             label: 'Spell Pips — Slot Tracker',
-            description: 'Tracks spell slots as pip rows. Format: "Level N: used/total" or "Cantrips: Spell1, Spell2".',
-            example: 'Cantrips: Fire Bolt, Mage Hand\nLevel 1: 2/4\nLevel 2: 1/3\nLevel 3: 3/3'
+            description: 'One line per spell level. Cantrips: comma-separated names. Slots: "Level N (available/max): Spell1, Spell2".',
+            example: 'Cantrips: Guidance, Resistance\nLevel 1 (2/2): Cure Wounds, Shield of Faith\nLevel 2 (1/3): Hold Person, Silence'
         },
         INVENTORY: {
             label: 'Bullet Points — Item List',
-            description: 'Simple bulleted list. One item per line. Leading dashes or bullets are stripped automatically.',
-            example: 'Iron Longsword\nHealth Potion x3\nRope (50 ft)\nTorch x5\n50 gold pieces'
+            description: 'One item per line. Leading "- " dashes are stripped. Quantities with x2 / (2) notation are supported.',
+            example: '- Volcanic Mace (+1 / 2d6+3 Crushing, Fire)\n- Healing Potion x2\n- Rope (50 ft)\n- Torch x5\n- 80 gold pieces'
         },
         ABILITIES: {
             label: 'Oval Pills — Trait Tags',
-            description: 'Each line becomes a clickable pill. Put tooltip text in parentheses at the end of a line — it appears on hover.',
-            example: 'Darkvision (Range 60 ft)\nSneak Attack (2d6 extra on advantage)\nCunning Action\nUncanny Dodge (Reaction, halve damage)'
+            description: 'Each line becomes a clickable pill. Text in parentheses becomes a hover tooltip. Use "- " prefix or plain lines.',
+            example: '- Second Wind (1/1, Regain 1d10+1 HP)\n- Dwarven Resilience (Adv on poison saves)\n- Magma-Glow (Emits light in 10 ft radius)\n- Unarmored Defense'
         }
     };
 
@@ -3100,8 +3100,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                         <label for="rt_cfe_rt">Render Style</label>
                         <select id="rt_cfe_rt" class="text_pole">
-                             <option value="CHARACTER">Standard — Key-Value Pairs</option>
-                             <option value="COMBAT">HP Bars — Entity Rows</option>
+                             <option value="CHARACTER">Entity Rows — HP Bars (Characters / Party)</option>
+                             <option value="COMBAT">Entity Rows — HP Bars (Enemies / Combat)</option>
                              <option value="SPELLS">Spell Pips — Slot Tracker</option>
                              <option value="INVENTORY">Bullet Points — Item List</option>
                              <option value="ABILITIES">Oval Pills — Trait Tags</option>
