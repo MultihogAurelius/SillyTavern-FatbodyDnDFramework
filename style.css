@@ -169,6 +169,26 @@
     container-type: inline-size;
 }
 
+.rt-resizer-tr {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    cursor: ne-resize;
+    z-index: 2005;
+    border-top: 2px solid var(--rt-accent-dim);
+    border-right: 2px solid var(--rt-accent-dim);
+    border-top-right-radius: 6px;
+    opacity: 0.4;
+    transition: opacity 0.2s, border-color 0.2s;
+}
+
+.rt-resizer-tr:hover {
+    opacity: 1;
+    border-color: var(--rt-accent);
+}
+
 .rpg-tracker-panel.is-paused {
     opacity: 0.75;
     filter: grayscale(0.4) brightness(0.9);
