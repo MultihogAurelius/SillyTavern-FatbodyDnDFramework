@@ -728,7 +728,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctxAuthorNote: false,
                 lorebookFilter: [],
                 systemPromptPreset: "standalone"
-            }
+            },
+            closeCount: 0
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -3478,7 +3479,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         // Close panel
         panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
             panel.style.display = 'none';
-            toastr['info']('Tracker hidden. You can reopen it at any time from the Extensions (Wand) Menu.', 'RPG Tracker');
+            settings.closeCount = (settings.closeCount || 0) + 1;
+            // Only show toast on the 1st close and every 10th close thereafter
+            if (settings.closeCount === 1 || settings.closeCount % 10 === 0) {
+                toastr['info']('Tracker hidden. You can reopen it at any time from the Extensions (Wand) Menu.', 'RPG Tracker');
+            }
+            SillyTavern.getContext().saveSettingsDebounced();
         });
 
         // Direct prompt toggle
