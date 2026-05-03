@@ -1543,14 +1543,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const CLOSE = '\x02';
         const spans = [];
 
-        // 1. Replace [Rarity] tags directly with finished colored spans (no recursion).
-        //    This must run BEFORE the font-tag pass so the bracket text is never
-        //    fed back into escapeHtmlWithColor as an inner value.
-        const rarityRx = /\[(poor|common|uncommon|rare|epic|legendary|artifact|heirloom)\]/gi;
-        let processed = str.replace(rarityRx, (match, rarity) => {
+        // 1. Process [Rarity] tags. They hide the tag and color everything that follows them.
+        const rarityRx = /\[(poor|common|uncommon|rare|epic|legendary|artifact|heirloom)\]\s*([\s\S]*)/gi;
+        let processed = str.replace(rarityRx, (match, rarity, rest) => {
             const color = RARITY_COLORS[rarity.toLowerCase()];
-            // Escape the bracket text itself (safe — no HTML special chars), then wrap.
-            spans.push(`<span class="rt-rarity-tag" style="color:${color}">${match}</span>`);
+            // Recursively process 'rest' for any font tags, but skip rarity tags (already handled)
+            const safeInner = escapeHtmlWithColor(rest);
+            spans.push(`<span style="color:${color}">${safeInner}</span>`);
             return OPEN + (spans.length - 1) + CLOSE;
         });
 
