@@ -1518,6 +1518,28 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    /**
+     * Like escapeHtml but allows <font color="#hex"> and <font color="name"> tags through,
+     * converting them to safe <span style="color:"> elements.
+     * Use this for all AI/user content rendered into tracker cards.
+     */
+    function escapeHtmlWithColor(str) {
+        // Match <font color=...>inner</font>, allowing hex (#rrggbb) or CSS named colors.
+        // Only these two attribute forms are permitted; everything else is escaped normally.
+        const colorRx = /<font\s+color\s*=\s*["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)["']?>([\s\S]*?)<\/font>/gi;
+        const OPEN = '\x01'; // placeholder delimiters — survive escapeHtml unchanged
+        const CLOSE = '\x02';
+        const spans = [];
+        const tokenized = str.replace(colorRx, (_, color, inner) => {
+            // Recursively process nested font tags in the inner text
+            const safeInner = escapeHtmlWithColor(inner);
+            spans.push(`<span style="color:${color}">${safeInner}</span>`);
+            return OPEN + (spans.length - 1) + CLOSE;
+        });
+        // Escape the rest (placeholders contain only \x01, digits, \x02 — unaffected by & < > escaping)
+        return escapeHtml(tokenized).replace(/\x01(\d+)\x02/g, (_, i) => spans[parseInt(i)]);
+    }
+
     const splitSmart = (text) => {
         const res = [];
         let cur = '', depth = 0;
@@ -1551,16 +1573,16 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 let iconHtml = '';
                 const resourceMatch = desc.match(/(\d+)\s*\/\s*(\d+)/);
                 if (resourceMatch) {
-                    iconHtml = `<span class="rt-unit-icon">${escapeHtml(resourceMatch[0])}</span>`;
+                    iconHtml = `<span class="rt-unit-icon">${escapeHtmlWithColor(resourceMatch[0])}</span>`;
                 }
 
                 return `<span class="${pillClass}">
-                    <span class="rt-unit-name">${escapeHtml(name)}</span>
+                    <span class="rt-unit-name">${escapeHtmlWithColor(name)}</span>
                     ${iconHtml}
-                    <span class="rt-unit-descr">${escapeHtml(desc)}</span>
+                    <span class="rt-unit-descr">${escapeHtmlWithColor(desc)}</span>
                 </span>`;
             }
-            return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtml(displayText)}</span></span>`;
+            return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtmlWithColor(displayText)}</span></span>`;
         }).join('');
     };
 
@@ -1640,7 +1662,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                     // Check for Combat Round header
                     if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
-                        results.push(`<div class="rt-combat-round">${escapeHtml(line)}</div>`);
+                        results.push(`<div class="rt-combat-round">${escapeHtmlWithColor(line)}</div>`);
                         lastEntityIdx = -1;
                         continue;
                     }
@@ -1658,7 +1680,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                         lastEntityIdx = results.length;
                         results.push(`<div class="rt-entity-row">
-                            <div class="rt-entity-name">${escapeHtml(name.trim())}</div>
+                            <div class="rt-entity-name">${escapeHtmlWithColor(name.trim())}</div>
                             <div class="rt-hp-bar-wrap" title="${label} HP">
                                 <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
                             </div>
@@ -1673,11 +1695,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             for (const part of parts) {
                                 if (part.toLowerCase().startsWith('ac:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">AC:</span> ${escapeHtml(part.substring(3).trim())}
+                                        <span class="rt-entity-sub-label">AC:</span> ${escapeHtmlWithColor(part.substring(3).trim())}
                                     </div>`;
                                 } else if (part.toLowerCase().startsWith('saves:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(part.substring(6).trim()))}
+                                        <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(part.substring(6).trim()))}
                                     </div>`;
                                 } else if (part.toLowerCase().startsWith('status:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
@@ -1697,7 +1719,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                             if (genericInfo.length > 0) {
                                 results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                    <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtml(genericInfo.join(' | ')))}
+                                    <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtmlWithColor(genericInfo.join(' | ')))}
                                 </div>`;
                             }
                         }
@@ -1706,7 +1728,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const startIdx = line.indexOf(':') + 1;
                         const attrText = line.substring(startIdx).trim();
                         const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
-                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtml(attrText)}
+                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtmlWithColor(attrText)}
                         </div>`;
                         results[lastEntityIdx] += attrHtml;
                     } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
@@ -1714,14 +1736,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const skillsMatch = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
                         const skillsText = skillsMatch ? skillsMatch[1].trim() : line.split(':')[1]?.trim() || '';
                         const skillsHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Skills:</span> ${escapeHtml(skillsText)}
+                            <span class="rt-entity-sub-label">Skills:</span> ${escapeHtmlWithColor(skillsText)}
                         </div>`;
                         results[lastEntityIdx] += skillsHtml;
                     } else if (line.toLowerCase().startsWith('saves:') && lastEntityIdx !== -1) {
                         const startIdx = line.indexOf(':') + 1;
                         const savesText = line.substring(startIdx).trim();
                         const savesHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(savesText))}
+                            <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(savesText))}
                         </div>`;
                         results[lastEntityIdx] += savesHtml;
                     } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
@@ -1735,13 +1757,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const label = line.toLowerCase().startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
                         const weaponText = line.substring(startIdx).trim();
                         const weaponHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtml(weaponText))}
+                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtmlWithColor(weaponText))}
                         </div>`;
                         results[lastEntityIdx] += weaponHtml;
                     } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
                         const startIdx = line.indexOf(':') + 1;
                         let hdText = line.substring(startIdx).trim();
-                        let pipsHtml = escapeHtml(hdText);
+                        let pipsHtml = escapeHtmlWithColor(hdText);
                         const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
                         if (m) {
                             const [, dice, curStr, maxStr] = m;
@@ -1751,7 +1773,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                 const pips = Array.from({ length: max }, (_, i) =>
                                     `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
                                 ).join('');
-                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtml(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
+                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
                             }
                         }
                         const hdHtml = `<div class="rt-entity-sub-line">
@@ -1795,14 +1817,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                     const name = s.trim();
                                     const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
                                     const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
                                 }).join('');
                                 spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
                             }
                             // Mirror the exact HTML structure of the standalone SPELLS block:
                             // rt-spell-row (2-col grid): level label | inline-group(pips + list)
                             return `<div class="rt-spell-row">
-                                <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
+                                <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
                                 <div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div>
                             </div>`;
                         };
@@ -1828,10 +1850,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         }
                         if (!renderedAny) {
                             // Fallback if model format is unrecognizable
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`;
                         }
                     } else {
-                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
+                        results.push(`<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`);
                         lastEntityIdx = -1;
                     }
                 }
@@ -1892,9 +1914,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                 }
                             }
                         }
-                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtml(restVal)}${append}</div>`;
+                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
                     }
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
             }
             case 'XP':
@@ -1930,13 +1952,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>`;
                     }
 
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
                 return lines.map(line => {
                     const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
-                    if (!m) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    if (!m) return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                     const [, label, availStr, maxStr, spellList] = m;
                     const isCantrip = /cantrip/i.test(label);
                     let pipsHtml = '';
@@ -1953,10 +1975,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             .replace(/'/g, '')
                             .replace(/[^a-z0-9]+/g, '-');
                         const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
                     }).join('');
                     return `<div class="rt-spell-row">
-                        <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
+                        <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
                         <div class="rt-spell-inline-group">${pipsHtml}<div class="rt-spell-list">${spells}</div></div>
                     </div>`;
                 });
@@ -1971,7 +1993,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
                 });
                 return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
+                    .map(i => `<div class="rt-card-item">• ${escapeHtmlWithColor(i)}</div>`);
             }
             case 'ABILITIES': {
                 const allAbilities = lines.flatMap(line => {
@@ -1985,8 +2007,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             default:
                 return lines.map(line => {
                     const kv = line.match(/^([^:]+):\s*(.+)$/);
-                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
         }
     }
