@@ -537,7 +537,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             fullViewSections: [],
             blockOrder: ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'],
             legacyDiceNaming: false,
-            closeCount: 0
+            closeCount: 0,
+            lookbackMessages: 2,
+            trackerHistoryCount: 1
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -1139,33 +1141,37 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
             }
 
+            const { chat } = SillyTavern.getContext();
+            const N = settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2;
+            const recentChat = chat.slice(-N);
+            const chatLog = recentChat.map(m => {
+                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                return `${name}: ${m.mes}`;
+            }).join('\n\n');
+
+            let priorMemoText = `## TRACKER STATE 0 (Current)\n${settings.currentMemo}\n\n`;
+            const historyCount = (settings.trackerHistoryCount || 1) - 1; // 1 means only current, >1 includes history
+            if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
+                const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse(); // oldest first (State -N up to -1)
+                const historyString = historyToInclude.map((memo, i) => {
+                    const offset = -(historyToInclude.length - i);
+                    return `## TRACKER STATE ${offset}\n${memo}`;
+                }).join('\n\n');
+                priorMemoText = historyString + '\n\n' + priorMemoText;
+            }
+
             let userPrompt = "";
 
             if (isFullContext) {
-                const { chat } = SillyTavern.getContext();
-                // Take last 60 messages for a "long horizon" audit
-                const N = 60;
-                const recentChat = chat.slice(-N);
-                const chatLog = recentChat.map(m => {
-                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    return `${name}: ${m.mes}`;
-                }).join('\n\n');
-
                 userPrompt =
+                    priorMemoText +
                     `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
-                    `## PRIOR MEMO\n${settings.currentMemo || '(empty)'}\n\n` +
                     `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
                     `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
             } else {
-                const lastUserAction = getLastUserAction();
-                const userActionSection = lastUserAction
-                    ? `## PLAYER ACTION (what the user just did)\n${lastUserAction}\n\n`
-                    : '';
-
                 userPrompt =
-                    `## PRIOR MEMO\n${settings.currentMemo}\n\n` +
-                    userActionSection +
-                    `## NARRATIVE OUTPUT\n${narrativeOutput}\n\n` +
+                    priorMemoText +
+                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
                     `## OUTPUT ONLY CHANGED SECTIONS:`;
             }
 
@@ -1200,7 +1206,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 // Push snapshot to rolling history (max 5)
                 const delta = computeDelta(sanitizedCurrent, merged);
                 settings.memoHistory.unshift(sanitizedCurrent);
-                if (settings.memoHistory.length > 5) settings.memoHistory.length = 5;
+                if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
 
                 // Persist delta and update panel
                 settings.lastDelta = delta;
@@ -3419,6 +3425,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
                 ctx.saveSettingsDebounced();
             });
+
+            // Advanced Options
+            const lookbackInput = $('#rpg_tracker_lookback_messages');
+            if (lookbackInput.length) {
+                lookbackInput.val(settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2).on('input', function () {
+                    settings.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 2;
+                    ctx.saveSettingsDebounced();
+                });
+            }
+            const historyCountInput = $('#rpg_tracker_history_count');
+            if (historyCountInput.length) {
+                historyCountInput.val(settings.trackerHistoryCount !== undefined ? settings.trackerHistoryCount : 1).on('input', function () {
+                    settings.trackerHistoryCount = parseInt(/** @type {string} */($(this).val())) || 1;
+                    ctx.saveSettingsDebounced();
+                });
+            }
 
             // Theme Select
             const themeSelect = $('#rpg_tracker_theme_select');

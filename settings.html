@@ -64,6 +64,22 @@
                     <input id="rpg_tracker_max_tokens" type="number" class="text_pole" placeholder="0 = No limit" />
                 </div>
                 
+                <div class="inline-drawer">
+                    <div class="inline-drawer-toggle inline-drawer-header">
+                        <b>Advanced Options</b>
+                        <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
+                    </div>
+                    <div class="inline-drawer-content">
+                        <div class="flex-container flexFlowColumn gap-1">
+                            <label for="rpg_tracker_lookback_messages">Number of Messages the Tracker Sees (User + Assistant)</label>
+                            <input id="rpg_tracker_lookback_messages" type="number" class="text_pole" value="2" min="1" max="9999" />
+                            
+                            <label for="rpg_tracker_history_count">Number of Previous States the Tracker Sees</label>
+                            <input id="rpg_tracker_history_count" type="number" class="text_pole" value="1" min="1" max="9999" />
+                        </div>
+                    </div>
+                </div>
+
                 <hr>
                 <b>Scenario Profiles</b>
                 <small>Save and switch between different scenario states (memo, history, modules).</small>
