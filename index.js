@@ -2136,7 +2136,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }).join('');
     }
 
-    function bindRenderedCardEvents(el, memo, isDetachedContext = false) {
+    function bindRenderedCardEvents(el, memo, isDetachedContext = false, onRefresh = null) {
+        const refresh = onRefresh || refreshRenderedView;
         el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const archetype = btn.dataset.archetype;
@@ -2168,7 +2169,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 const col = loadCollapsed();
                 if (col.has(tag)) col.delete(tag); else col.add(tag);
                 saveCollapsed(col);
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2188,7 +2189,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 const totalPages = Math.ceil(items.length / localPageSize);
                 const cur = _sectionPages[tag] ?? 0;
                 _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2202,7 +2203,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 if (idx === -1) s.fullViewSections.push(tag);
                 else s.fullViewSections.splice(idx, 1);
                 SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2216,7 +2217,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     detached.add(tag);
                     saveDetached(detached);
                     createDetachedPanel(tag);
-                    refreshRenderedView();
+                    refresh();
                 });
             });
 
@@ -2230,7 +2231,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     saveDetached(detached);
                     const panel = document.getElementById(`rt-detached-panel-${tag}`);
                     if (panel) panel.remove();
-                    refreshRenderedView();
+                    refresh();
                 });
             });
         }
@@ -3214,7 +3215,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             s.customFields.push(tempField);
 
             try {
-                renderView.innerHTML = renderMemoAsCards(fakeMemo);
+                renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag);
+                bindRenderedCardEvents(renderView, fakeMemo, true, updatePreview);
             } finally {
                 // Always clean up the temp entry regardless of errors
                 const idx = s.customFields.indexOf(tempField);
