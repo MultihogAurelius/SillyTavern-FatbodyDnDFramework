@@ -1526,7 +1526,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     function escapeHtmlWithColor(str) {
         if (!str) return '';
 
-        // Native Rarity Support (WoW-style)
+        // Rarity tag map (WoW-style item quality)
         const RARITY_COLORS = {
             'poor': '#9d9d9d',
             'common': '#ffffff',
@@ -1538,24 +1538,33 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             'heirloom': '#00ccff'
         };
 
-        // 1. Process [Rarity] tags into <font> tags for the existing logic to handle
-        const rarityRx = /\[(poor|common|uncommon|rare|epic|legendary|artifact|heirloom)\]/gi;
-        let processed = str.replace(rarityRx, (match, rarity) => {
-            const color = RARITY_COLORS[rarity.toLowerCase()];
-            return `<font color="${color}">${match}</font>`;
-        });
-
-        // 2. Existing font tag logic (recursive for nested tags)
-        const colorRx = /<font\s+color\s*=\s*["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)["']?>([\s\S]*?)<\/font>/gi;
+        // Shared placeholder system — placeholders survive escapeHtml unchanged
         const OPEN = '\x01';
         const CLOSE = '\x02';
         const spans = [];
+
+        // 1. Replace [Rarity] tags directly with finished colored spans (no recursion).
+        //    This must run BEFORE the font-tag pass so the bracket text is never
+        //    fed back into escapeHtmlWithColor as an inner value.
+        const rarityRx = /\[(poor|common|uncommon|rare|epic|legendary|artifact|heirloom)\]/gi;
+        let processed = str.replace(rarityRx, (match, rarity) => {
+            const color = RARITY_COLORS[rarity.toLowerCase()];
+            // Escape the bracket text itself (safe — no HTML special chars), then wrap.
+            spans.push(`<span class="rt-rarity-tag" style="color:${color}">${match}</span>`);
+            return OPEN + (spans.length - 1) + CLOSE;
+        });
+
+        // 2. Replace <font color=...>inner</font> tags (author-written color markup).
+        //    The inner text is recursively processed so nested tags work correctly.
+        const colorRx = /<font\s+color\s*=\s*["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)["']?>([\s\S]*?)<\/font>/gi;
         const tokenized = processed.replace(colorRx, (_, color, inner) => {
+            // inner may contain more font tags but NOT rarity tags (already replaced above)
             const safeInner = escapeHtmlWithColor(inner);
             spans.push(`<span style="color:${color}">${safeInner}</span>`);
             return OPEN + (spans.length - 1) + CLOSE;
         });
 
+        // 3. Escape everything that remains, then restore the safe span placeholders.
         return escapeHtml(tokenized).replace(/\x01(\d+)\x02/g, (_, i) => spans[parseInt(i)]);
     }
 
