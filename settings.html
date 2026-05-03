@@ -14,6 +14,13 @@
                     <input id="rpg_tracker_debug" type="checkbox" />
                     <span>Debug Mode (Logs to console)</span>
                 </label>
+
+                <label class="checkbox_label">
+                    <input id="rpg_tracker_legacy_dice" type="checkbox" />
+                    <span>Legacy Dice Logic (Vanilla) <small style="opacity: 0.8; font-style: italic;">— Not Recommended</small></span>
+                    <i class="fa-solid fa-circle-question interactable" title="Restores the original behavior of the D&D Dice extension. When enabled, the tool call remains 'RollTheDice' but removes the mandatory DC (Difficulty Class) anchoring and success/failure adjudication."></i>
+                </label>
+
                 <hr>
                 <b>Visual Theme</b>
                 <select id="rpg_tracker_theme_select" class="text_pole">
@@ -94,26 +101,27 @@
 
                 <hr>
                 <b>Scenario Profiles</b>
-                <small>Save and switch between different scenario states.</small>
-                <select id="rpg_tracker_profile_select" class="text_pole">
-                    <option value="">-- No Profile --</option>
-                </select>
-                <div class="flex-container gap-1">
-                    <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;" title="Overwrite currently selected profile">
-                        <i class="fa-solid fa-floppy-disk"></i> Save
-                    </button>
-                    <button id="rpg_tracker_profile_save_as" class="menu_button interactable" style="flex: 1;" title="Save current settings as a new profile">
-                        <i class="fa-solid fa-file-export"></i> Save As
-                    </button>
+                <small>Save and switch between different scenario states (memo, history, modules).</small>
+                <div class="flex-container flexFlowColumn gap-1">
+                    <select id="rpg_tracker_profile_select" class="text_pole">
+                        <option value="">-- No Profile --</option>
+                    </select>
+                    <div class="flex-container gap-1">
+                        <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;" title="Overwrite currently selected profile">
+                            <i class="fa-solid fa-floppy-disk"></i> Save
+                        </button>
+                        <button id="rpg_tracker_profile_save_as" class="menu_button interactable" style="flex: 1;" title="Save current settings as a new profile">
+                            <i class="fa-solid fa-file-export"></i> Save As
+                        </button>
+                        <button id="rpg_tracker_profile_load" class="menu_button interactable" style="flex: 1;">
+                            <i class="fa-solid fa-folder-open"></i> Load
+                        </button>
+                        <button id="rpg_tracker_profile_delete" class="menu_button interactable" style="flex: 1;">
+                            <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                    </div>
                 </div>
-                <div class="flex-container gap-1">
-                    <button id="rpg_tracker_profile_load" class="menu_button interactable" style="flex: 1;">
-                        <i class="fa-solid fa-folder-open"></i> Load
-                    </button>
-                    <button id="rpg_tracker_profile_delete" class="menu_button interactable" style="flex: 1;">
-                        <i class="fa-solid fa-trash"></i> Delete
-                    </button>
-                </div>
+
 
                 <hr>
                 <b>State Model Core Instruction</b>

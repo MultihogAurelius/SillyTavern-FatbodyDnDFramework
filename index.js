@@ -146,7 +146,7 @@ OUTPUT FORMAT:
     const DEFAULT_STOCK_PROMPTS = {
         character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
         party: `Companion/Party members. \n\nExample party: \n[PARTY]\nElara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\nStatus: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
-        combat: `Active enemies/NPCs in combat. Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations accordingly.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\nGoblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\nOther: Trait1 (description), Trait2 (description)\nStatus: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
+        combat: `Active enemies/NPCs in combat. Track the current COMBAT ROUND starting from 1. Decrement buff/debuff durations accordingly.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\nGoblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\nOther: Trait1 (description), Trait2 (description)\nStatus: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
         inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
         abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.\n\nExample:\n[ABILITIES]\n- Second Wind (1/1, Regain 1d10+4 HP)\n- Combat Superiority (2/4, d8 dice)\n[/ABILITIES]`,
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
@@ -615,9 +615,22 @@ Declare their COMBAT PROFILE immediately:
 - Party members and {{user}} can only use Abilities if they have more than 0/X of them left; spells require available spell slots.
 - [RNG_QUEUE v6.0_PROPER] is ONLY used in active combat.
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
+- If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 </constraints>
 `
     };
+
+    function getDiceToolName() {
+        return 'RollTheDice';
+    }
+
+    function getDiceCommandName() {
+        return 'roll';
+    }
+
+    function getDiceCommandAliases() {
+        return ['r'];
+    }
 
     /**
      * Get or initialize extension settings.
@@ -730,6 +743,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 lorebookFilter: [],
                 systemPromptPreset: "standalone"
             },
+            legacyDiceNaming: false,
             closeCount: 0,
             lookbackMessages: 2,
             trackerHistoryCount: 1,
@@ -825,11 +839,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             if (!registerFunctionTool || !unregisterFunctionTool) return;
 
             unregisterFunctionTool('RollTheDice');
+            unregisterFunctionTool('FatbodyRollTheDice');
 
             const settings = getSettings();
             if (!settings.diceFunctionTool) return;
 
-            const rollDiceSchema = {
+            const toolName = getDiceToolName();
+            const isLegacy = settings.legacyDiceNaming;
+
+            const rollDiceSchema = isLegacy ? {
+                type: 'object',
+                properties: {
+                    who: { type: 'string', description: 'The name of the persona rolling the dice' },
+                    formula: { type: 'string', description: 'A dice formula to roll, e.g. 1d6' },
+                },
+                required: ['who', 'formula'],
+            } : {
                 type: 'object',
                 properties: {
                     who: { type: 'string', description: 'The name of the persona rolling the dice' },
@@ -840,16 +865,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             };
 
             registerFunctionTool({
-                name: 'RollTheDice',
-                displayName: 'Dice Roll',
+                name: toolName,
+                displayName: isLegacy ? 'Dice Roll' : 'Dice Roll (Fatbody)',
                 description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
                 parameters: rollDiceSchema,
                 action: async (args) => {
-                    const formula = args?.formula || '1d20';
-                    const dc = Number(args?.dc) || 0;
+                    const formula = args?.formula || (isLegacy ? '1d6' : '1d20');
                     const roll = await doDiceRoll(formula, true);
                     const total = parseInt(roll.total) || 0;
 
+                    if (isLegacy) {
+                        return args.who
+                            ? `${args.who} rolls a ${formula}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
+                            : `The result of a ${formula} roll is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
+                    }
+
+                    const dc = Number(args?.dc) || 0;
                     let result = args.who
                         ? `${args.who} rolls a ${formula} against DC ${dc}. The result is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`
                         : `The result of a ${formula} roll against DC ${dc} is: ${total}. Individual rolls: ${roll.rolls.join(', ')}`;
@@ -871,11 +902,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (!SlashCommand || !SlashCommandParser) return;
 
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
-            name: 'roll',
-            aliases: ['r'],
+            name: getDiceCommandName(),
+            aliases: getDiceCommandAliases(),
             callback: async (args, value) => {
                 const quiet = String(args.quiet) === 'true';
-                const result = await doDiceRoll(String(value || '1d20'), quiet);
+                const result = await doDiceRoll(String(value || (getSettings().legacyDiceNaming ? '1d6' : '1d20')), quiet);
                 return result.total;
             },
             helpString: 'Roll the dice.',
@@ -2047,7 +2078,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                 // Only push to history if there was an actual change
                 if (merged !== sanitizedCurrent) {
-                    // Push snapshot to rolling history (max 5)
+                    // Push snapshot to rolling history
                     settings.memoHistory.unshift(sanitizedCurrent);
                     if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
 
@@ -2314,6 +2345,28 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    /**
+     * Like escapeHtml but allows <font color="#hex"> and <font color="name"> tags through,
+     * converting them to safe <span style="color:"> elements.
+     * Use this for all AI/user content rendered into tracker cards.
+     */
+    function escapeHtmlWithColor(str) {
+        // Match <font color=...>inner</font>, allowing hex (#rrggbb) or CSS named colors.
+        // Only these two attribute forms are permitted; everything else is escaped normally.
+        const colorRx = /<font\s+color\s*=\s*["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)["']?>([\s\S]*?)<\/font>/gi;
+        const OPEN = '\x01'; // placeholder delimiters — survive escapeHtml unchanged
+        const CLOSE = '\x02';
+        const spans = [];
+        const tokenized = str.replace(colorRx, (_, color, inner) => {
+            // Recursively process nested font tags in the inner text
+            const safeInner = escapeHtmlWithColor(inner);
+            spans.push(`<span style="color:${color}">${safeInner}</span>`);
+            return OPEN + (spans.length - 1) + CLOSE;
+        });
+        // Escape the rest (placeholders contain only \x01, digits, \x02 — unaffected by & < > escaping)
+        return escapeHtml(tokenized).replace(/\x01(\d+)\x02/g, (_, i) => spans[parseInt(i)]);
+    }
+
     const splitSmart = (text) => {
         const res = [];
         let cur = '', depth = 0;
@@ -2347,16 +2400,16 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 let iconHtml = '';
                 const resourceMatch = desc.match(/(\d+)\s*\/\s*(\d+)/);
                 if (resourceMatch) {
-                    iconHtml = `<span class="rt-unit-icon">${escapeHtml(resourceMatch[0])}</span>`;
+                    iconHtml = `<span class="rt-unit-icon">${escapeHtmlWithColor(resourceMatch[0])}</span>`;
                 }
 
                 return `<span class="${pillClass}">
-                    <span class="rt-unit-name">${escapeHtml(name)}</span>
+                    <span class="rt-unit-name">${escapeHtmlWithColor(name)}</span>
                     ${iconHtml}
-                    <span class="rt-unit-descr">${escapeHtml(desc)}</span>
+                    <span class="rt-unit-descr">${escapeHtmlWithColor(desc)}</span>
                 </span>`;
             }
-            return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtml(displayText)}</span></span>`;
+            return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtmlWithColor(displayText)}</span></span>`;
         }).join('');
     };
 
@@ -2413,11 +2466,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
 
 
-    function blockToItems(tag, content) {
+    function blockToItems(tag, content, renderTypeOverride = null) {
         const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-        let renderType = tag;
+        let renderType = renderTypeOverride || tag;
         const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-        if (customField && customField.renderType) {
+        if (!renderTypeOverride && customField && customField.renderType) {
             renderType = customField.renderType;
         }
 
@@ -2437,7 +2490,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                     // Check for Combat Round header
                     if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
-                        results.push(`<div class="rt-combat-round">${escapeHtml(line)}</div>`);
+                        results.push(`<div class="rt-combat-round">${escapeHtmlWithColor(line)}</div>`);
                         lastEntityIdx = -1;
                         continue;
                     }
@@ -2455,7 +2508,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                         lastEntityIdx = results.length;
                         results.push(`<div class="rt-entity-row">
-                            <div class="rt-entity-name">${escapeHtml(name.trim())}</div>
+                            <div class="rt-entity-name">${escapeHtmlWithColor(name.trim())}</div>
                             <div class="rt-hp-bar-wrap" title="${label} HP">
                                 <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
                             </div>
@@ -2470,11 +2523,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             for (const part of parts) {
                                 if (part.toLowerCase().startsWith('ac:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">AC:</span> ${escapeHtml(part.substring(3).trim())}
+                                        <span class="rt-entity-sub-label">AC:</span> ${escapeHtmlWithColor(part.substring(3).trim())}
                                     </div>`;
                                 } else if (part.toLowerCase().startsWith('saves:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(part.substring(6).trim()))}
+                                        <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(part.substring(6).trim()))}
                                     </div>`;
                                 } else if (part.toLowerCase().startsWith('status:')) {
                                     results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
@@ -2494,7 +2547,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                             if (genericInfo.length > 0) {
                                 results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                    <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtml(genericInfo.join(' | ')))}
+                                    <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtmlWithColor(genericInfo.join(' | ')))}
                                 </div>`;
                             }
                         }
@@ -2503,7 +2556,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const startIdx = line.indexOf(':') + 1;
                         const attrText = line.substring(startIdx).trim();
                         const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
-                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtml(attrText)}
+                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtmlWithColor(attrText)}
                         </div>`;
                         results[lastEntityIdx] += attrHtml;
                     } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
@@ -2511,14 +2564,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const skillsMatch = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
                         const skillsText = skillsMatch ? skillsMatch[1].trim() : line.split(':')[1]?.trim() || '';
                         const skillsHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Skills:</span> ${escapeHtml(skillsText)}
+                            <span class="rt-entity-sub-label">Skills:</span> ${escapeHtmlWithColor(skillsText)}
                         </div>`;
                         results[lastEntityIdx] += skillsHtml;
                     } else if (line.toLowerCase().startsWith('saves:') && lastEntityIdx !== -1) {
                         const startIdx = line.indexOf(':') + 1;
                         const savesText = line.substring(startIdx).trim();
                         const savesHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtml(savesText))}
+                            <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(savesText))}
                         </div>`;
                         results[lastEntityIdx] += savesHtml;
                     } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
@@ -2532,13 +2585,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const label = line.toLowerCase().startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
                         const weaponText = line.substring(startIdx).trim();
                         const weaponHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtml(weaponText))}
+                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtmlWithColor(weaponText))}
                         </div>`;
                         results[lastEntityIdx] += weaponHtml;
                     } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
                         const startIdx = line.indexOf(':') + 1;
                         let hdText = line.substring(startIdx).trim();
-                        let pipsHtml = escapeHtml(hdText);
+                        let pipsHtml = escapeHtmlWithColor(hdText);
                         const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
                         if (m) {
                             const [, dice, curStr, maxStr] = m;
@@ -2548,7 +2601,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                 const pips = Array.from({ length: max }, (_, i) =>
                                     `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
                                 ).join('');
-                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtml(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
+                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
                             }
                         }
                         const hdHtml = `<div class="rt-entity-sub-line">
@@ -2592,14 +2645,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                     const name = s.trim();
                                     const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
                                     const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
                                 }).join('');
                                 spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
                             }
                             // Mirror the exact HTML structure of the standalone SPELLS block:
                             // rt-spell-row (2-col grid): level label | inline-group(pips + list)
                             return `<div class="rt-spell-row">
-                                <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
+                                <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
                                 <div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div>
                             </div>`;
                         };
@@ -2625,10 +2678,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         }
                         if (!renderedAny) {
                             // Fallback if model format is unrecognizable
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`;
                         }
                     } else {
-                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
+                        results.push(`<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`);
                         lastEntityIdx = -1;
                     }
                 }
@@ -2689,9 +2742,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                 }
                             }
                         }
-                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtml(restVal)}${append}</div>`;
+                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
                     }
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
             }
             case 'XP':
@@ -2727,13 +2780,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>`;
                     }
 
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
                 return lines.map(line => {
                     const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
-                    if (!m) return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    if (!m) return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                     const [, label, availStr, maxStr, spellList] = m;
                     const isCantrip = /cantrip/i.test(label);
                     let pipsHtml = '';
@@ -2750,10 +2803,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             .replace(/'/g, '')
                             .replace(/[^a-z0-9]+/g, '-');
                         const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtml(name)}</a>`;
+                        return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
                     }).join('');
                     return `<div class="rt-spell-row">
-                        <span class="rt-spell-level">${escapeHtml(label.trim())}</span>
+                        <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
                         <div class="rt-spell-inline-group">${pipsHtml}<div class="rt-spell-list">${spells}</div></div>
                     </div>`;
                 });
@@ -2768,7 +2821,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
                 });
                 return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
+                    .map(i => `<div class="rt-card-item">• ${escapeHtmlWithColor(i)}</div>`);
             }
             case 'ABILITIES': {
                 const allAbilities = lines.flatMap(line => {
@@ -2782,8 +2835,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             default:
                 return lines.map(line => {
                     const kv = line.match(/^([^:]+):\s*(.+)$/);
-                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
+                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                 });
         }
     }
@@ -2860,6 +2913,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
             const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+            const displayName = customField?.label || tag;
             const items = blockToItems(tag, content);
             const isCollapsed = collapsed.has(tag);
 
@@ -2897,7 +2951,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${tag}">
                 <div class="rt-section-header" data-tag="${tag}">
-                    <span>${icon} ${tag}</span>
+                    <span>${icon} ${displayName}</span>
                     <div class="rt-section-header-right">
                         ${detachBtn}
                         ${fullViewBtn}
@@ -2910,7 +2964,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }).join('');
     }
 
-    function bindRenderedCardEvents(el, memo, isDetachedContext = false) {
+    function bindRenderedCardEvents(el, memo, isDetachedContext = false, onRefresh = null) {
+        const refresh = onRefresh || refreshRenderedView;
         el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const archetype = btn.dataset.archetype;
@@ -2942,7 +2997,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 const col = loadCollapsed();
                 if (col.has(tag)) col.delete(tag); else col.add(tag);
                 saveCollapsed(col);
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2962,7 +3017,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 const totalPages = Math.ceil(items.length / localPageSize);
                 const cur = _sectionPages[tag] ?? 0;
                 _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2976,7 +3031,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 if (idx === -1) s.fullViewSections.push(tag);
                 else s.fullViewSections.splice(idx, 1);
                 SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
+                refresh();
             });
         });
 
@@ -2990,7 +3045,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     detached.add(tag);
                     saveDetached(detached);
                     createDetachedPanel(tag);
-                    refreshRenderedView();
+                    refresh();
                 });
             });
 
@@ -3004,7 +3059,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     saveDetached(detached);
                     const panel = document.getElementById(`rt-detached-panel-${tag}`);
                     if (panel) panel.remove();
-                    refreshRenderedView();
+                    refresh();
                 });
             });
         }
@@ -3068,6 +3123,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
         const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+        const displayName = customField?.label || tag;
 
         const settings = getSettings();
         const panel = document.createElement('div');
@@ -3076,7 +3132,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.innerHTML = `
             <div class="rpg-tracker-header rt-detached-header">
                 <div class="rpg-tracker-header-left">
-                    <span>${icon} ${tag}</span>
+                    <span>${icon} ${displayName}</span>
                 </div>
                 <div class="rpg-tracker-header-right">
                     <button class="rpg-tracker-icon-btn rt-reattach-btn" data-tag="${tag}" title="Re-attach">✕</button>
@@ -4034,6 +4090,34 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
     }
 
+    const RENDER_HINTS = {
+        CHARACTER: {
+            label: 'Entity Rows — HP Bars (Characters)',
+            description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Att/def, Attr, Saves, Skills, Traits, HD, Status.',
+            example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3) | Furs (AC: 13)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
+        },
+        COMBAT: {
+            label: 'Entity Rows — HP Bars (Enemies)',
+            description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
+            example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
+        },
+        SPELLS: {
+            label: 'Spell Pips — Slot Tracker',
+            description: 'One line per spell level. Cantrips: comma-separated names. Slots: "Level N (available/max): Spell1, Spell2".',
+            example: 'Cantrips: Guidance, Resistance\nLevel 1 (2/2): Cure Wounds, Shield of Faith\nLevel 2 (1/3): Hold Person, Silence'
+        },
+        INVENTORY: {
+            label: 'Bullet Points — Item List',
+            description: 'One item per line. Leading "- " dashes are stripped. Supports <font color=...> tags for rarity/class coloring.',
+            example: '- <font color=#ff8000>Volcanic Mace (+1 / 2d6+3 Fire)</font>\n- <font color=#a335ee>Cloak of Displacement</font>\n- <font color=#0070dd>Healing Potion (Greater)</font> x2\n- <font color=#1eff00>Iron Buckler (AC +2)</font>\n- <font color=#aaaaaa>Rope (50 ft)</font>\n- 80 gold pieces'
+        },
+        ABILITIES: {
+            label: 'Oval Pills — Trait Tags',
+            description: 'Each line becomes a clickable pill. Text in parentheses (e.g. 10/15) is tracked as a resource. Supports <font color=...> tags.',
+            example: '- Lay on Hands (10/15, Heal 1 HP per point)\n- Divine Sense (3/4, Detect celestials/fiends/undead)\n- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>'
+        }
+    };
+
     function openCustomFieldEditor(index) {
         const s = getSettings();
         const field = s.customFields[index];
@@ -4067,14 +4151,19 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                         <label for="rt_cfe_rt">Render Style</label>
                         <select id="rt_cfe_rt" class="text_pole">
-                             <option value="CHARACTER">Standard (Key-Value / Lines)</option>
-                             <option value="COMBAT">HP Bars</option>
-                             <option value="SPELLS">Spell Pips</option>
-                             <option value="INVENTORY">Bullet Points</option>
-                             <option value="ABILITIES">Oval Pills (Supports tooltips in parentheses)</option>
+                             <option value="CHARACTER">Entity Rows — HP Bars (Characters / Party)</option>
+                             <option value="COMBAT">Entity Rows — HP Bars (Enemies / Combat)</option>
+                             <option value="SPELLS">Spell Pips — Slot Tracker</option>
+                             <option value="INVENTORY">Bullet Points — Item List</option>
+                             <option value="ABILITIES">Oval Pills — Trait Tags</option>
                         </select>
-                        <label for="rt_cfe_prompt">AI Instructions (What should the model track for this field?)</label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;" placeholder="Describe what information the AI should track and how to format it (e.g. 'Track the current weather and local time.')."></textarea>
+                        <div id="rt_cfe_hint" style="font-size: 0.82em; opacity: 0.75; padding: 6px 8px; background: rgba(255,255,255,0.05); border-left: 3px solid rgba(255,255,255,0.2); border-radius: 2px; white-space: pre-wrap; font-family: monospace;"></div>
+
+                        <label for="rt_cfe_test_data" style="margin-top: 6px;">Test Data <small style="opacity:0.6;">(edit to see how your data looks)</small></label>
+                        <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize: vertical; font-family: monospace; font-size: 0.85em;"></textarea>
+
+                        <label for="rt_cfe_prompt" style="margin-top: 6px;">AI Instructions <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize: vertical;" placeholder="E.g. 'Track hunger and thirst on a scale of 0–10. Format each as a Key: Value line.'"></textarea>
 
                         <div class="flex-container gap-1 justifycontentend" style="margin-top: 10px;">
                             <button id="rt_cfe_delete" class="menu_button interactable" style="color: var(--dangerColor); margin-right: auto;"><i class="fa-solid fa-trash"></i> Delete</button>
@@ -4083,8 +4172,17 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                     </div>
                 </div>
+                <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin: 0; display: flex; flex-direction: column; cursor: default; height: auto; min-height: 44px; width: 300px;">
+                    <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor: move; user-select: none; font-size: 0.75em; opacity: 0.7; padding: 5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right: 6px;"></i> Live Preview</div>
+                    <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
+                </div>
             `;
             document.body.appendChild(overlay);
+
+            // Prevent clicks/mousedowns on the editor overlay (backdrop and preview drag)
+            // from bubbling up to SillyTavern's document listeners that close the extension panel.
+            overlay.addEventListener('mousedown', e => e.stopPropagation());
+            overlay.addEventListener('click', e => e.stopPropagation());
         }
 
         const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
@@ -4092,6 +4190,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
         const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
         const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
+        const testDataEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_test_data'));
+        const hintEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_hint'));
+        const previewEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_preview'));
 
         iconEl.value = field.icon;
         tagEl.value = field.tag;
@@ -4099,7 +4200,100 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         rtEl.value = field.renderType;
         promptEl.value = field.prompt;
 
+        // ── Live Preview ──
+        let _previewDebounce = null;
+        const _seededExamples = new Set(); // track which examples we auto-seeded so we can re-seed on style change
+
+        const updatePreview = () => {
+            const rt = rtEl.value;
+            const hint = RENDER_HINTS[rt];
+
+            // Update hint text
+            if (hint && hintEl) {
+                hintEl.textContent = hint.description + '\n\nExample:\n' + hint.example;
+            }
+
+            // Render preview using the real renderMemoAsCards pipeline
+            const renderView = document.getElementById('rt_cfe_preview_view');
+            if (!renderView) return;
+            const testContent = testDataEl ? testDataEl.value.trim() : '';
+            if (!testContent) {
+                renderView.innerHTML = '<div style="opacity:0.4; font-size:0.85em; padding:8px;">Enter test data above to see a preview.</div>';
+                return;
+            }
+
+            // Use a sentinel tag that can't clash with real tags
+            const previewTag = '__PREVIEW__';
+            const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
+
+            // Temporarily inject the current editor state as a customField so
+            // renderMemoAsCards can resolve icon, label, and renderType correctly.
+            const s = getSettings();
+            if (!s.customFields) s.customFields = [];
+            const tempField = {
+                tag: previewTag,
+                label: labelEl.value || tagEl.value || 'Preview',
+                icon: iconEl.value || '📄',
+                renderType: rt,
+                prompt: '',
+                enabled: true
+            };
+            s.customFields.push(tempField);
+
+            try {
+                renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag);
+                bindRenderedCardEvents(renderView, fakeMemo, true, updatePreview);
+            } finally {
+                // Always clean up the temp entry regardless of errors
+                const idx = s.customFields.indexOf(tempField);
+                if (idx !== -1) s.customFields.splice(idx, 1);
+            }
+        };
+
+        const schedulePreview = () => {
+            clearTimeout(_previewDebounce);
+            _previewDebounce = setTimeout(updatePreview, 180);
+        };
+
+        // When render style changes, re-seed test data if it shows a canonical example
+        rtEl.onchange = () => {
+            const hint = RENDER_HINTS[rtEl.value];
+            if (hint && testDataEl && (!testDataEl.value.trim() || _seededExamples.has(testDataEl.value.trim()))) {
+                testDataEl.value = hint.example;
+                _seededExamples.add(hint.example);
+            }
+            updatePreview();
+        };
+
+        if (testDataEl) testDataEl.oninput = schedulePreview;
+        iconEl.oninput = schedulePreview;
+        labelEl.oninput = schedulePreview;
+
+        // Reset & seed test data on open
+        if (testDataEl) {
+            testDataEl.value = '';
+            const hint = RENDER_HINTS[field.renderType];
+            if (hint) {
+                testDataEl.value = hint.example;
+                _seededExamples.add(hint.example);
+            }
+        }
+
+        // Initial render
+        updatePreview();
+
         overlay.style.display = 'flex';
+
+        // Position the preview relative to the popup and make it draggable
+        const popup = overlay.querySelector('.popup');
+        const previewHeader = /** @type {HTMLElement} */ (document.getElementById('rt_cfe_preview_header'));
+        if (popup && previewEl && previewHeader) {
+            const rect = popup.getBoundingClientRect();
+            previewEl.style.left = (rect.right + 20) + 'px';
+            previewEl.style.top = rect.top + 'px';
+            // @ts-ignore
+            makeDraggable(previewEl, previewHeader);
+        }
 
         const save = () => {
             field.icon = iconEl.value;
@@ -4786,6 +4980,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 Popup.show.confirm("Sanitization Result", `<textarea class="text_pole" rows="15" style="width:100%; font-family: monospace; font-size: 11px;" readonly>${result}</textarea>`, { okButton: 'OK', cancelButton: false });
             });
 
+            $('#rpg_tracker_legacy_dice').prop('checked', settings.legacyDiceNaming).on('change', function () {
+                settings.legacyDiceNaming = !!$(this).prop('checked');
+                ctx.saveSettingsDebounced();
+                registerDiceFunctionTool();
+                registerDiceSlashCommand();
+                toastr['info']("Dice logic updated.", "RPG Tracker");
+            });
+
             $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
                 settings.diceFunctionTool = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
@@ -4814,65 +5016,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             maxTokensInput.val(settings.maxTokens || "").on('input', function () {
                 settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
-                ctx.saveSettingsDebounced();
-            });
-
-            // Theme Select
-            const themeSelect = $('#rpg_tracker_theme_select');
-            themeSelect.val(settings.trackerTheme || 'rt-theme-native');
-            themeSelect.on('change', function () {
-                const newTheme = String($(this).val());
-                settings.trackerTheme = newTheme;
-                ctx.saveSettingsDebounced();
-                // Apply immediately
-                const panel = document.getElementById('rpg-tracker-panel');
-                if (panel) {
-                    panel.className = `rpg-tracker-panel ${newTheme}`;
-                    if (!settings.enabled) panel.classList.add('is-paused');
-                }
-                // Apply to detached panels
-                document.querySelectorAll('.rpg-tracker-detached-panel').forEach(dp => {
-                    dp.className = `rpg-tracker-panel rpg-tracker-detached-panel ${newTheme}`;
-                });
-            });
-
-            // Populate profiles using the connection helpers
-            const profiles = await getConnectionProfiles();
-            if (profiles && profiles.length > 0) {
-                profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
-                profiles.forEach(p => {
-                    profileSelect.append($('<option></option>').val(p).text(p));
-                });
-                profileSelect.val(settings.connectionProfileId);
-            } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                // Fallback to legacy service dropdown handling
-                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
-                profileSelect.val(settings.connectionProfileId);
-            }
-            profileSelect.on('change', function () {
-                settings.connectionProfileId = $(this).val();
-                ctx.saveSettingsDebounced();
-            });
-
-            // Populate presets
-            const presetSelect = $('#rpg_tracker_completion_preset');
-            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
-            if (pm && typeof pm.getAllPresets === 'function') {
-                const presets = pm.getAllPresets();
-                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-                presets.forEach(p => {
-                    presetSelect.append($('<option></option>').val(p).text(p));
-                });
-                presetSelect.val(settings.completionPresetId || '');
-            } else {
-                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-                if (settings.completionPresetId) {
-                    presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
-                    presetSelect.val(settings.completionPresetId);
-                }
-            }
-            presetSelect.on('change', function () {
-                settings.completionPresetId = $(this).val();
                 ctx.saveSettingsDebounced();
             });
 
@@ -4945,6 +5088,66 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             $('#rpg_tracker_lorebook_list_refresh').on('click', async function () {
                 await refreshLorebookList();
             });
+
+            // Theme Select
+            const themeSelect = $('#rpg_tracker_theme_select');
+            themeSelect.val(settings.trackerTheme || 'rt-theme-native');
+            themeSelect.on('change', function () {
+                const newTheme = String($(this).val());
+                settings.trackerTheme = newTheme;
+                ctx.saveSettingsDebounced();
+                // Apply immediately
+                const panel = document.getElementById('rpg-tracker-panel');
+                if (panel) {
+                    panel.className = `rpg-tracker-panel ${newTheme}`;
+                    if (!settings.enabled) panel.classList.add('is-paused');
+                }
+                // Apply to detached panels
+                document.querySelectorAll('.rpg-tracker-detached-panel').forEach(dp => {
+                    dp.className = `rpg-tracker-panel rpg-tracker-detached-panel ${newTheme}`;
+                });
+            });
+
+            // Populate profiles using the connection helpers
+            const profiles = await getConnectionProfiles();
+            if (profiles && profiles.length > 0) {
+                profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
+                profiles.forEach(p => {
+                    profileSelect.append($('<option></option>').val(p).text(p));
+                });
+                profileSelect.val(settings.connectionProfileId);
+            } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                // Fallback to legacy service dropdown handling
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
+                profileSelect.val(settings.connectionProfileId);
+            }
+            profileSelect.on('change', function () {
+                settings.connectionProfileId = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            // Populate presets
+            const presetSelect = $('#rpg_tracker_completion_preset');
+            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+            if (pm && typeof pm.getAllPresets === 'function') {
+                const presets = pm.getAllPresets();
+                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+                presets.forEach(p => {
+                    presetSelect.append($('<option></option>').val(p).text(p));
+                });
+                presetSelect.val(settings.completionPresetId || '');
+            } else {
+                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+                if (settings.completionPresetId) {
+                    presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
+                    presetSelect.val(settings.completionPresetId);
+                }
+            }
+            presetSelect.on('change', function () {
+                settings.completionPresetId = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
 
             // Initial order list refresh
             refreshOrderList();
