@@ -2,6 +2,22 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.6.0] - 2026-05-04
+
+### Added
+- **Advanced Options Update**: Deep customization for the State Model's intelligence.
+- **Precision Lookback Control**: You can now specify exactly how many previous messages (User/Assistant) and how many historical tracker states the model sees when making updates.
+- **Lorebook Context Support**: You can now select which specific Lorebooks the tracker is aware of during updates, ensuring it stays consistent with your world info.
+- **Enhanced Custom Field Editor**:
+    - **Live Preview Window**: Real-time rendering of your tracker blocks while you edit prompts.
+    - **Color Support**: Full support for `<font color=#...>...</font>` tags for item rarity, class coloring, and fancy gradients.
+    - **Contextual Formatting**: Module prompt examples now use stock fields (like CHARACTER and ABILITIES) to guide better formatting.
+- **World Model Simulation (BETA)**: Integrated the autonomous geopolitical simulation engine and sanitization firewall (feature-complete on world-model branch).
+
+### Fixed
+- **UI Headers**: Fixed a bug where the preview window would show raw tags like `__PREVIEW__` instead of proper field labels.
+- **Live Preview Interactivity**: Pagination and list/page views now work correctly within the live preview window.
+
 ## [1.5.5] - 2026-04-29
 
 ### Fixed
