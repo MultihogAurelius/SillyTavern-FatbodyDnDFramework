@@ -203,4 +203,5 @@ Declare their COMBAT PROFILE immediately:
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
 - If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 - The maximum [PARTY] size is 5 + {{user}}. Do not add more members into the party.
+- Use rarity tags for items in [INVENTORY] or [CHARACTER]: [Poor], [Common], [Uncommon], [Rare], [Epic], [Legendary], [Artifact], [Heirloom].
 </constraints>

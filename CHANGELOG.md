@@ -15,7 +15,7 @@ All notable changes to the **Fatbody D&D Framework** will be documented in this 
   - **Lorebook Context Selection**: Select which specific Lorebooks the tracker is aware of, ensuring it stays consistent with your world info.
 - **Enhanced Custom Field Editor**:
   - **Live Preview Window**: Real-time rendering of your tracker blocks while you edit prompts.
-  - **Color Support**: Full support for <font color=#...>...</font> tags for item rarity, class coloring, and fancy gradients.
+  - **Color Support**: Full support for <font color=#...>...</font> tags and native WoW-style rarity tags like \[Legendary]\, \[Epic]\, etc., which are now automatically colorized.
   - **Contextual Formatting**: Module prompt examples now use stock fields (like CHARACTER and ABILITIES) to guide better formatting.
 
 ### Fixed
@@ -237,4 +237,5 @@ All notable changes to the **Fatbody D&D Framework** will be documented in this 
 - **HUD Controls**: Added "SYSPROMPT" and "RNG" toggle buttons directly to the tracker panel.
 - **Optimized Layout**: Reordered sections to prioritize Character and Combat status over meta-stats like XP and Time.
 - **Factory Reset**: Added a "Factory Reset" button to the settings panel for easy recovery of default prompts.
+
 
