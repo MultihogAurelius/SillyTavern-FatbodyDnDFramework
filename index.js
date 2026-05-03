@@ -3106,6 +3106,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.id = 'rpg-tracker-panel';
         panel.className = `rpg-tracker-panel ${settings.trackerTheme || 'rt-theme-native'}`;
         panel.innerHTML = `
+            <div class="rt-resizer-tr" id="rt-resizer-tr" title="Resize from top-right"></div>
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
                     <span>Fatbody D&D Framework</span>
@@ -3194,6 +3195,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
         setupResizeObserver(/** @type {HTMLElement} */(panel));
         loadPanelGeometry(/** @type {HTMLElement} */(panel));
+
+        const resizerTR = panel.querySelector('#rt-resizer-tr');
+        if (resizerTR instanceof HTMLElement) {
+            makeResizableTR(/** @type {HTMLElement} */(panel), resizerTR);
+        }
 
         const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
         if (stopBtn) {
@@ -3843,6 +3849,61 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 } else {
                     savePanelGeometry(panel);
                 }
+            }
+        });
+    }
+
+    /**
+     * Top-Right corner resizer logic
+     * @param {HTMLElement} panel 
+     * @param {HTMLElement} handle 
+     */
+    function makeResizableTR(panel, handle) {
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight, startTop, startLeft;
+
+        handle.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isResizing = true;
+            const rect = panel.getBoundingClientRect();
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = rect.width;
+            startHeight = rect.height;
+            startTop = rect.top;
+            startLeft = rect.left;
+
+            // Switch to absolute/fixed values before moving
+            panel.style.left = startLeft + 'px';
+            panel.style.top = startTop + 'px';
+            panel.style.right = 'auto';
+            panel.style.bottom = 'auto';
+
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            const newWidth = Math.max(220, startWidth + dx);
+            const newHeight = Math.max(200, startHeight - dy);
+            const newTop = startTop + dy;
+
+            panel.style.width = newWidth + 'px';
+            // Only apply height/top if we're above min-height to prevent jumping
+            if (newHeight > 200) {
+                panel.style.height = newHeight + 'px';
+                panel.style.top = newTop + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                savePanelGeometry(panel);
             }
         });
     }
