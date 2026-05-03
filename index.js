@@ -3111,9 +3111,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <label for="rt_cfe_test_data" style="margin-top: 6px;">Test Data <small style="opacity:0.6;">(edit to see how your data looks)</small></label>
                         <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize: vertical; font-family: monospace; font-size: 0.85em;"></textarea>
 
-                        <div style="font-size: 0.75em; opacity: 0.55; text-transform: uppercase; font-weight: bold; margin-top: 4px;">Live Preview</div>
-                        <div id="rt_cfe_preview" class="rpg-tracker-panel" style="border-radius: 6px; padding: 4px; min-height: 44px; pointer-events: none;"></div>
-
                         <label for="rt_cfe_prompt" style="margin-top: 6px;">AI Instructions <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
                         <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize: vertical;" placeholder="E.g. 'Track hunger and thirst on a scale of 0–10. Format each as a Key: Value line.'"></textarea>
 
@@ -3124,8 +3121,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                     </div>
                 </div>
+                <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin: 0; display: flex; flex-direction: column; cursor: default; height: auto; min-height: 44px; width: 300px;"></div>
             `;
             document.body.appendChild(overlay);
+
+            // Prevent clicks/mousedowns on the editor overlay (backdrop and preview drag)
+            // from bubbling up to SillyTavern's document listeners that close the extension panel.
+            overlay.addEventListener('mousedown', e => e.stopPropagation());
+            overlay.addEventListener('click', e => e.stopPropagation());
         }
 
         const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
@@ -3211,6 +3214,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         updatePreview();
 
         overlay.style.display = 'flex';
+
+        // Position the preview relative to the popup and make it draggable
+        const popup = overlay.querySelector('.popup');
+        if (popup && previewEl) {
+            const rect = popup.getBoundingClientRect();
+            previewEl.style.left = (rect.right + 20) + 'px';
+            previewEl.style.top = rect.top + 'px';
+
+            const previewHeader = previewEl.querySelector('.rt-section-header');
+            if (previewHeader) {
+                // @ts-ignore
+                makeDraggable(previewEl, previewHeader);
+            }
+        }
 
         const save = () => {
             field.icon = iconEl.value;
