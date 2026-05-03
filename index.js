@@ -2724,16 +2724,28 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         });
 
         panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
-            opt.addEventListener('click', (e) => {
+            opt.addEventListener('click', async (e) => {
                 const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
-                let content = RT_PROMPTS[fileName];
+                let content;
+
+                // Attempt to fetch the live file from disk first
+                try {
+                    const response = await fetch(`/scripts/extensions/third-party/SillyTavern-FatbodyDnDFramework/${fileName}`);
+                    if (response.ok) {
+                        content = await response.text();
+                        console.log(`[Fatbody Framework] Loaded ${fileName} from live file.`);
+                    } else {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                } catch (err) {
+                    console.warn(`[Fatbody Framework] Could not fetch ${fileName} from live file, using hardcoded fallback:`, err);
+                    content = RT_PROMPTS[fileName];
+                }
+
                 if (!content) {
                     toastr['error'](`Prompt not found: ${fileName}`, "Fatbody Framework");
                     return;
                 }
-
-                // No longer need to replace tool names since we use 'RollTheDice' for both
-                // content = content.replace(/RollTheDice|FatbodyRollTheDice/g, getDiceToolName());
 
                 // Use a hidden textarea fallback — works on HTTP (Termux) where navigator.clipboard is blocked
                 const ta = document.createElement('textarea');
