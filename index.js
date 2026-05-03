@@ -1518,6 +1518,32 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
+    /**
+     * Like escapeHtml, but first processes <font color=...>text</font> tags into
+     * safe <span style="color:"> elements. Only hex (#xxx / #xxxxxx) and alphabetic
+     * named colors are allowed — anything else is stripped and the inner text is
+     * escaped normally. All other HTML is still fully escaped.
+     * @param {string} str
+     */
+    function processColorTags(str) {
+        const COLOR_RE = /<font\s+color=["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,30})["']?>([\s\S]*?)<\/font>/gi;
+        const parts = [];
+        let last = 0;
+        let m;
+        while ((m = COLOR_RE.exec(str)) !== null) {
+            if (m.index > last) parts.push(escapeHtml(str.slice(last, m.index)));
+            const color = m[1];
+            const inner = m[2];
+            const safe = /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]{1,30}$/.test(color) ? color : '';
+            parts.push(safe
+                ? `<span style="color:${safe}">${escapeHtml(inner)}</span>`
+                : escapeHtml(inner));
+            last = COLOR_RE.lastIndex;
+        }
+        if (last < str.length) parts.push(escapeHtml(str.slice(last)));
+        return parts.join('');
+    }
+
     const splitSmart = (text) => {
         const res = [];
         let cur = '', depth = 0;
@@ -1831,7 +1857,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtml(spellLine))}</div>`;
                         }
                     } else {
-                        results.push(`<div class="rt-card-line">${escapeHtml(line)}</div>`);
+                        results.push(`<div class="rt-card-line">${processColorTags(line)}</div>`);
                         lastEntityIdx = -1;
                     }
                 }
@@ -1971,7 +1997,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
                 });
                 return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(i => `<div class="rt-card-item">• ${escapeHtml(i)}</div>`);
+                    .map(i => `<div class="rt-card-item">• ${processColorTags(i)}</div>`);
             }
             case 'ABILITIES': {
                 const allAbilities = lines.flatMap(line => {
@@ -1985,8 +2011,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             default:
                 return lines.map(line => {
                     const kv = line.match(/^([^:]+):\s*(.+)$/);
-                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${escapeHtml(kv[2].trim())}</span></div>`;
-                    return `<div class="rt-card-line">${escapeHtml(line)}</div>`;
+                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtml(kv[1].trim())}</span><span class="rt-card-val">${processColorTags(kv[2].trim())}</span></div>`;
+                    return `<div class="rt-card-line">${processColorTags(line)}</div>`;
                 });
         }
     }
