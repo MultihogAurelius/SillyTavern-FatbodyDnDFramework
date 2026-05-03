@@ -1616,11 +1616,11 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
 
 
-    function blockToItems(tag, content) {
+    function blockToItems(tag, content, renderTypeOverride = null) {
         const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
-        let renderType = tag;
+        let renderType = renderTypeOverride || tag;
         const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-        if (customField && customField.renderType) {
+        if (!renderTypeOverride && customField && customField.renderType) {
             renderType = customField.renderType;
         }
 
@@ -3039,6 +3039,34 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
     }
 
+    const RENDER_HINTS = {
+        CHARACTER: {
+            label: 'Standard — Key-Value Pairs',
+            description: 'Flat list of labelled stats. Use "Key: Value" on each line. Supports modifier highlights in parentheses.',
+            example: 'Strength: 18 (+4)\nDexterity: 14 (+2)\nArmor Class: 16\nGold: 220 gp'
+        },
+        COMBAT: {
+            label: 'HP Bars — Entity Rows',
+            description: 'Each entity gets a health bar row. Format: "Name | HP: current/max | AC: n". Add sub-lines for Status, Skills, Saves, Weapon.',
+            example: 'Aragorn | HP: 45/50 | AC: 17\nStatus: Hasted | Poisoned\nGoblin Boss | HP: 28/40 | AC: 14\nStatus: Frightened'
+        },
+        SPELLS: {
+            label: 'Spell Pips — Slot Tracker',
+            description: 'Tracks spell slots as pip rows. Format: "Level N: used/total" or "Cantrips: Spell1, Spell2".',
+            example: 'Cantrips: Fire Bolt, Mage Hand\nLevel 1: 2/4\nLevel 2: 1/3\nLevel 3: 3/3'
+        },
+        INVENTORY: {
+            label: 'Bullet Points — Item List',
+            description: 'Simple bulleted list. One item per line. Leading dashes or bullets are stripped automatically.',
+            example: 'Iron Longsword\nHealth Potion x3\nRope (50 ft)\nTorch x5\n50 gold pieces'
+        },
+        ABILITIES: {
+            label: 'Oval Pills — Trait Tags',
+            description: 'Each line becomes a clickable pill. Put tooltip text in parentheses at the end of a line — it appears on hover.',
+            example: 'Darkvision (Range 60 ft)\nSneak Attack (2d6 extra on advantage)\nCunning Action\nUncanny Dodge (Reaction, halve damage)'
+        }
+    };
+
     function openCustomFieldEditor(index) {
         const s = getSettings();
         const field = s.customFields[index];
@@ -3072,14 +3100,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                         <label for="rt_cfe_rt">Render Style</label>
                         <select id="rt_cfe_rt" class="text_pole">
-                             <option value="CHARACTER">Standard (Key-Value / Lines)</option>
-                             <option value="COMBAT">HP Bars</option>
-                             <option value="SPELLS">Spell Pips</option>
-                             <option value="INVENTORY">Bullet Points</option>
-                             <option value="ABILITIES">Oval Pills (Supports tooltips in parentheses)</option>
+                             <option value="CHARACTER">Standard — Key-Value Pairs</option>
+                             <option value="COMBAT">HP Bars — Entity Rows</option>
+                             <option value="SPELLS">Spell Pips — Slot Tracker</option>
+                             <option value="INVENTORY">Bullet Points — Item List</option>
+                             <option value="ABILITIES">Oval Pills — Trait Tags</option>
                         </select>
-                        <label for="rt_cfe_prompt">AI Instructions (What should the model track for this field?)</label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize: vertical;" placeholder="Describe what information the AI should track and how to format it (e.g. 'Track the current weather and local time.')."></textarea>
+                        <div id="rt_cfe_hint" style="font-size: 0.82em; opacity: 0.75; padding: 6px 8px; background: rgba(255,255,255,0.05); border-left: 3px solid rgba(255,255,255,0.2); border-radius: 2px; white-space: pre-wrap; font-family: monospace;"></div>
+
+                        <label for="rt_cfe_test_data" style="margin-top: 6px;">Test Data <small style="opacity:0.6;">(edit to see how your data looks)</small></label>
+                        <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize: vertical; font-family: monospace; font-size: 0.85em;"></textarea>
+
+                        <div style="font-size: 0.75em; opacity: 0.55; text-transform: uppercase; font-weight: bold; margin-top: 4px;">Live Preview</div>
+                        <div id="rt_cfe_preview" class="rpg-tracker-panel" style="border-radius: 6px; padding: 4px; min-height: 44px; pointer-events: none;"></div>
+
+                        <label for="rt_cfe_prompt" style="margin-top: 6px;">AI Instructions <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize: vertical;" placeholder="E.g. 'Track hunger and thirst on a scale of 0–10. Format each as a Key: Value line.'"></textarea>
 
                         <div class="flex-container gap-1 justifycontentend" style="margin-top: 10px;">
                             <button id="rt_cfe_delete" class="menu_button interactable" style="color: var(--dangerColor); margin-right: auto;"><i class="fa-solid fa-trash"></i> Delete</button>
@@ -3097,12 +3133,82 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
         const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
         const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
+        const testDataEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_test_data'));
+        const hintEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_hint'));
+        const previewEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_preview'));
 
         iconEl.value = field.icon;
         tagEl.value = field.tag;
         labelEl.value = field.label;
         rtEl.value = field.renderType;
         promptEl.value = field.prompt;
+
+        // ── Live Preview ──
+        let _previewDebounce = null;
+        const _seededExamples = new Set(); // track which examples we auto-seeded so we can re-seed on style change
+
+        const updatePreview = () => {
+            const rt = rtEl.value;
+            const hint = RENDER_HINTS[rt];
+
+            // Update hint text
+            if (hint && hintEl) {
+                hintEl.textContent = hint.description + '\n\nExample:\n' + hint.example;
+            }
+
+            // Render preview
+            if (!previewEl) return;
+            const testContent = testDataEl ? testDataEl.value.trim() : '';
+            if (!testContent) {
+                previewEl.innerHTML = '<div style="opacity:0.4; font-size:0.85em; padding:8px;">Enter test data above to see a preview.</div>';
+                return;
+            }
+            const tag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase() || 'FIELD';
+            const icon = iconEl.value || '📄';
+            const label = labelEl.value || tag;
+            const items = blockToItems(tag, testContent, rt);
+            previewEl.innerHTML = `
+                <div class="rt-section-card" style="margin: 0;">
+                    <div class="rt-section-header">
+                        <span>${icon} ${label}</span>
+                        <div class="rt-section-header-right"><span class="rt-collapse-icon">▾</span></div>
+                    </div>
+                    <div class="rt-section-body">${items.join('')}</div>
+                </div>
+            `;
+        };
+
+        const schedulePreview = () => {
+            clearTimeout(_previewDebounce);
+            _previewDebounce = setTimeout(updatePreview, 180);
+        };
+
+        // When render style changes, re-seed test data if it shows a canonical example
+        rtEl.onchange = () => {
+            const hint = RENDER_HINTS[rtEl.value];
+            if (hint && testDataEl && (!testDataEl.value.trim() || _seededExamples.has(testDataEl.value.trim()))) {
+                testDataEl.value = hint.example;
+                _seededExamples.add(hint.example);
+            }
+            updatePreview();
+        };
+
+        if (testDataEl) testDataEl.oninput = schedulePreview;
+        iconEl.oninput = schedulePreview;
+        labelEl.oninput = schedulePreview;
+
+        // Reset & seed test data on open
+        if (testDataEl) {
+            testDataEl.value = '';
+            const hint = RENDER_HINTS[field.renderType];
+            if (hint) {
+                testDataEl.value = hint.example;
+                _seededExamples.add(hint.example);
+            }
+        }
+
+        // Initial render
+        updatePreview();
 
         overlay.style.display = 'flex';
 
