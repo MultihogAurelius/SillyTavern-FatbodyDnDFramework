@@ -2085,6 +2085,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
             const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+            const displayName = customField?.label || tag;
             const items = blockToItems(tag, content);
             const isCollapsed = collapsed.has(tag);
 
@@ -2122,7 +2123,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${tag}">
                 <div class="rt-section-header" data-tag="${tag}">
-                    <span>${icon} ${tag}</span>
+                    <span>${icon} ${displayName}</span>
                     <div class="rt-section-header-right">
                         ${detachBtn}
                         ${fullViewBtn}
@@ -2293,6 +2294,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
         const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+        const displayName = customField?.label || tag;
 
         const settings = getSettings();
         const panel = document.createElement('div');
@@ -2301,7 +2303,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.innerHTML = `
             <div class="rpg-tracker-header rt-detached-header">
                 <div class="rpg-tracker-header-left">
-                    <span>${icon} ${tag}</span>
+                    <span>${icon} ${displayName}</span>
                 </div>
                 <div class="rpg-tracker-header-right">
                     <button class="rpg-tracker-icon-btn rt-reattach-btn" data-tag="${tag}" title="Re-attach">✕</button>
