@@ -3087,8 +3087,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         },
         ABILITIES: {
             label: 'Oval Pills — Trait Tags',
-            description: 'Each line becomes a clickable pill. Supports <font color=...> for colored status effects or traits.',
-            example: '- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#00ffaa>Second Wind (1/1)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>\n- Dwarven Resilience'
+            description: 'Each line becomes a clickable pill. Text in parentheses (e.g. 10/15) is tracked as a resource. Supports <font color=...> tags.',
+            example: '- Lay on Hands (10/15, Heal 1 HP per point)\n- Divine Sense (3/4, Detect celestials/fiends/undead)\n- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>'
         }
     };
 
