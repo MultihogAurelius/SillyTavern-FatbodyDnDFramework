@@ -2,31 +2,25 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [1.6.0] - 2026-05-02
+## [1.6.0] - 2026-05-04
 
 ### Added
 - **World Chronicle Engine (v1.0)**: A major new autonomous simulation layer that maintains a persistent, living world record independent of player actions.
-  - **Autonomous Triggering**: Time-based engine that fires on a configurable day interval (default: 3 days), synced with the `[TIME]` state block.
+  - **Autonomous Triggering**: Time-based engine that fires on a configurable day interval (default: 3 days), synced with the [TIME] state block.
   - **Sanitization Firewall**: Mandatory background pass that anonymizes narrative history before simulation, stripping out player/protagonist biases to prevent sycophancy.
   - **Macroscopic Causality**: Simulation engine that models geopolitical ripple effects, faction power vacuums, and trade disruptions based on narrative field reports.
-  - **Lorebook Integration**: Automatic write-back to a designated SillyTavern lorebook via a constant `[WORLD_STATE]` entry.
-- **World History Browser**:
-  - **Time Travel UI**: Added navigation arrows to the World View to browse through past geopolitical states.
-  - **State Restoration**: Capability to "Restore" a historical world state to the live simulation, enabling timeline branching or correction.
-- **World State Architect (Seeding)**:
-  - **Theme-Driven Generation**: Interactive seeding mechanism that generates 5 regions, 4 factions, and active conflicts based on user-defined themes or random genre inputs.
-- **Operational Controls**:
-  - **Stop Functionality**: All generation buttons (Fire, Seed, Bootstrap) now transform into **Stop** controls during active processing to allow immediate interruption.
-  - **Global Wipe**: Added a destructive wipe button to reset the simulation day counter and clear all history/state data for fresh campaigns.
-- **World Profile System**: Full integration with the Scenario Profile system, ensuring World Model settings (prompts, history, connections) are saved and restored per-profile.
-- **Clinical Simulation Preset**: Introduced the "Standalone" system prompt, optimized for token efficiency by enforcing clinical, non-markdown output (no asterisks).
+  - **Lorebook Integration**: Automatic write-back to a designated SillyTavern lorebook via a constant [WORLD_STATE] entry.
+- **Advanced Options & Precision Context**:
+  - **Lookback Control**: Specify exactly how many previous messages (User/Assistant) and historical states the model sees when making updates.
+  - **Lorebook Context Selection**: Select which specific Lorebooks the tracker is aware of, ensuring it stays consistent with your world info.
+- **Enhanced Custom Field Editor**:
+  - **Live Preview Window**: Real-time rendering of your tracker blocks while you edit prompts.
+  - **Color Support**: Full support for <font color=#...>...</font> tags for item rarity, class coloring, and fancy gradients.
+  - **Contextual Formatting**: Module prompt examples now use stock fields (like CHARACTER and ABILITIES) to guide better formatting.
 
-### Changed
-- **NPC Persistence Protocol**: Enforced mandatory location/travel reporting for all actors in the standalone preset to ensure they maintain a persistent existence in the macroscopic world.
-- **UI Modernization**: Integrated World Model controls directly into the main panel with a dedicated "World View" tab and status indicator.
-- **Context Isolation**: The World Model now operates in a separate execution context, preventing it from interrupting the primary Narrative or State extraction loops.
-
-
+### Fixed
+- **UI Headers**: Fixed a bug where the preview window would show raw tags like __PREVIEW__ instead of proper field labels.
+- **Live Preview Interactivity**: Pagination and list/page views now work correctly within the live preview window.
 
 ## [1.5.5] - 2026-04-29
 
@@ -243,3 +237,4 @@ All notable changes to the **Fatbody D&D Framework** will be documented in this 
 - **HUD Controls**: Added "SYSPROMPT" and "RNG" toggle buttons directly to the tracker panel.
 - **Optimized Layout**: Reordered sections to prioritize Character and Combat status over meta-stats like XP and Time.
 - **Factory Reset**: Added a "Factory Reset" button to the settings panel for easy recovery of default prompts.
+
