@@ -3079,13 +3079,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         },
         INVENTORY: {
             label: 'Bullet Points — Item List',
-            description: 'One item per line. Leading "- " dashes are stripped. Quantities with x2 / (2) notation are supported.',
-            example: '- Volcanic Mace (+1 / 2d6+3 Crushing, Fire)\n- Healing Potion x2\n- Rope (50 ft)\n- Torch x5\n- 80 gold pieces'
+            description: 'One item per line. Leading "- " dashes are stripped. Supports <font color=...> tags for rarity/class coloring.',
+            example: '- <font color=#ff8000>Volcanic Mace (+1 / 2d6+3 Fire)</font>\n- <font color=#a335ee>Cloak of Displacement</font>\n- <font color=#0070dd>Healing Potion (Greater)</font> x2\n- <font color=#1eff00>Iron Buckler (AC +2)</font>\n- <font color=#aaaaaa>Rope (50 ft)</font>\n- 80 gold pieces'
         },
         ABILITIES: {
             label: 'Oval Pills — Trait Tags',
-            description: 'Each line becomes a clickable pill. Text in parentheses becomes a hover tooltip. Use "- " prefix or plain lines.',
-            example: '- Second Wind (1/1, Regain 1d10+1 HP)\n- Dwarven Resilience (Adv on poison saves)\n- Magma-Glow (Emits light in 10 ft radius)\n- Unarmored Defense'
+            description: 'Each line becomes a clickable pill. Supports <font color=...> for colored status effects or traits.',
+            example: '- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#00ffaa>Second Wind (1/1)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>\n- Dwarven Resilience'
         }
     };
 
