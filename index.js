@@ -21,7 +21,7 @@
         character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
         party: `Companion/Party members. \n\nExample party: \n[PARTY]\nElara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\nStatus: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
         combat: `Active enemies/NPCs in combat. Track the current COMBAT ROUND starting from 1. Decrement buff/debuff durations accordingly.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\nGoblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\nOther: Trait1 (description), Trait2 (description)\nStatus: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
-        inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- Data-crystal\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
+        inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- [Legendary] Volcanic Mace\n- [Rare] Leather Armor\n- [Uncommon] Healing Potion\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
         abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.\n\nExample:\n[ABILITIES]\n- Second Wind (1/1, Regain 1d10+4 HP)\n- Combat Superiority (2/4, d8 dice)\n[/ABILITIES]`,
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
         time: "Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.\n\n'Last Rest' is ONLY triggered on Long Rest, NOT Short Rest. If the [TIME] delta between PREVIOUS STATE MEMO and your current update is only an hour, it is a Short Rest.",
@@ -1524,19 +1524,38 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      * Use this for all AI/user content rendered into tracker cards.
      */
     function escapeHtmlWithColor(str) {
-        // Match <font color=...>inner</font>, allowing hex (#rrggbb) or CSS named colors.
-        // Only these two attribute forms are permitted; everything else is escaped normally.
+        if (!str) return '';
+
+        // Native Rarity Support (WoW-style)
+        const RARITY_COLORS = {
+            'poor': '#9d9d9d',
+            'common': '#ffffff',
+            'uncommon': '#1eff00',
+            'rare': '#0070dd',
+            'epic': '#a335ee',
+            'legendary': '#ff8000',
+            'artifact': '#e6cc80',
+            'heirloom': '#00ccff'
+        };
+
+        // 1. Process [Rarity] tags into <font> tags for the existing logic to handle
+        const rarityRx = /\[(poor|common|uncommon|rare|epic|legendary|artifact|heirloom)\]/gi;
+        let processed = str.replace(rarityRx, (match, rarity) => {
+            const color = RARITY_COLORS[rarity.toLowerCase()];
+            return `<font color="${color}">${match}</font>`;
+        });
+
+        // 2. Existing font tag logic (recursive for nested tags)
         const colorRx = /<font\s+color\s*=\s*["']?(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)["']?>([\s\S]*?)<\/font>/gi;
-        const OPEN = '\x01'; // placeholder delimiters — survive escapeHtml unchanged
+        const OPEN = '\x01';
         const CLOSE = '\x02';
         const spans = [];
-        const tokenized = str.replace(colorRx, (_, color, inner) => {
-            // Recursively process nested font tags in the inner text
+        const tokenized = processed.replace(colorRx, (_, color, inner) => {
             const safeInner = escapeHtmlWithColor(inner);
             spans.push(`<span style="color:${color}">${safeInner}</span>`);
             return OPEN + (spans.length - 1) + CLOSE;
         });
-        // Escape the rest (placeholders contain only \x01, digits, \x02 — unaffected by & < > escaping)
+
         return escapeHtml(tokenized).replace(/\x01(\d+)\x02/g, (_, i) => spans[parseInt(i)]);
     }
 

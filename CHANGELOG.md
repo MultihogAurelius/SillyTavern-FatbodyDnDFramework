@@ -13,7 +13,7 @@ Significant upgrades to editing custom fields. The formatting is now clear, and 
 - **Lorebook Context Support**: You can now select which specific Lorebooks the tracker is aware of during updates, ensuring it stays consistent with your world info.
 - **Enhanced Custom Field Editor**:
     - **Live Preview Window**: Real-time rendering of your tracker blocks while you edit prompts.
-    - **Color Support**: Full support for `<font color=#...>...</font>` tags for item rarity, class coloring, and fancy gradients.
+    - **Color Support**: Full support for `<font color=#...>...</font>` tags and native WoW-style rarity tags like `[Legendary]`, `[Epic]`, etc., which are now automatically colorized.
     - **Contextual Formatting**: Module prompt examples now use stock fields (like CHARACTER and ABILITIES) to guide better formatting.
 
 ### Fixed
