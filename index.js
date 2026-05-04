@@ -4127,17 +4127,17 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 });
             });
 
-            // Populate profiles using the connection helpers
-            const profiles = await getConnectionProfiles();
-            if (profiles && profiles.length > 0) {
+            // Populate profiles using handleDropdown (fills real internal IDs, not names)
+            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
+                profileSelect.val(settings.connectionProfileId);
+            } else {
+                // Fallback for older ST: /profile-list returns names only
+                const profiles = await getConnectionProfiles();
                 profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
                 profiles.forEach(p => {
                     profileSelect.append($('<option></option>').val(p).text(p));
                 });
-                profileSelect.val(settings.connectionProfileId);
-            } else if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                // Fallback to legacy service dropdown handling
-                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
                 profileSelect.val(settings.connectionProfileId);
             }
             profileSelect.on('change', function () {
