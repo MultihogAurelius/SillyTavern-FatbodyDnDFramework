@@ -3465,7 +3465,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                             <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
                             <b style="font-size:12px;">AI Instructions</b>
                         </div>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="6" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above to create and paste a formatting instructions template here."></textarea>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="10" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above to create and paste a formatting instructions template here."></textarea>
                     </div>
 
                     <!-- UI Live Preview (Mobile) -->
@@ -4089,7 +4089,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
                 settings.customFields.push({
                     tag: newTag, label: 'New Field', icon: '📝',
-                    prompt: '',
+                    prompt: `Track the Limit Break charge level of the protagonist. Increment Times Used on use; increase level by 1 on each use.\n\nFormat:\n[LIMIT BREAK]\n((XPBAR)) Limit Break: 10/100 Level 4\nTimes Used: 3\n[/LIMIT BREAK]`,
                     rows: [], enabled: true
                 });
                 refreshOrderList();
