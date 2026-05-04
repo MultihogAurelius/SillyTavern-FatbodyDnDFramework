@@ -3441,12 +3441,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
                     <!-- Template Definition -->
                     <div style="margin-top:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                              <b style="font-size:13px;">Module Template & Examples <i class="fa-solid fa-circle-question" style="opacity:0.5; cursor:help; font-size:11px;" title="This box is ONLY for testing how the UI renders your formatting. Nothing from this box is sent to the AI. You must manually include any formatting examples in the 'AI Instructions' box below."></i></b>
                              <div style="display:flex; gap:4px;">
                                 <button id="rt_cfe_color_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load color and rarity examples"><i class="fa-solid fa-palette"></i> Color Guide</button>
                                 <button id="rt_cfe_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load formatting examples"><i class="fa-solid fa-lightbulb"></i> Formatting Guide</button>
                              </div>
-                         </div>
+                        </div>
                         <textarea id="rt_cfe_template" class="text_pole" rows="8" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
                         <div style="font-size:11px; opacity:0.5; margin-top:4px;">
                             Markers: <code>((PILLS))</code>, <code>((BAR))</code>, <code>((XPBAR))</code>, <code>((BADGE))</code>, <code>((HIGHLIGHT))</code>
