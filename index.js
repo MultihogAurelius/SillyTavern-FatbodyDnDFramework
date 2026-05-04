@@ -2415,10 +2415,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     const max = parseInt(m[2].replace(/,/g, ''), 10);
                     const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
                     const extra = value.replace(m[0], '').trim();
+                    // Use custom color if set, else fall back to red gradient
+                    const barBg = rule.color
+                        ? rule.color
+                        : 'linear-gradient(90deg,#e74c3c,#c0392b)';
                     return `<div class="rt-entity-sub-line" style="gap:6px;">
                         ${labelHtml}
                         <div class="rt-hp-bar-wrap" style="flex:1; position:relative; height:14px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
-                            <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:linear-gradient(90deg,#e74c3c,#c0392b); transition:width 0.3s;"></div>
+                            <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:${barBg}; transition:width 0.3s;"></div>
                         </div>
                         <span style="font-size:0.82em; opacity:0.85; white-space:nowrap;">${cur}/${max}${extra ? ' ' + escapeHtml(extra) : ''}</span>
                     </div>`;
@@ -2427,7 +2431,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
             }
             case 'xp_bar': {
-                // Flexible: parses any "X/Y" with optional "(Level N)" anywhere in value
+                // Flexible: parses any "X/Y" with optional "Level N" anywhere in value
                 const xm = value.match(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/);
                 const lm = value.match(/level\s*(\d+)/i);
                 if (xm) {
@@ -2435,10 +2439,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     const max = parseInt(xm[2].replace(/,/g, ''), 10);
                     const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
                     const levelStr = lm ? `<span style="font-size:0.8em; opacity:0.75;">Lv ${lm[1]}</span> ` : '';
+                    // Use custom color if set, else fall back to orange gradient
+                    const barBg = rule.color
+                        ? rule.color
+                        : 'linear-gradient(90deg,#f39c12,#e67e22)';
                     return `<div class="rt-entity-sub-line" style="gap:6px; flex-wrap:wrap;">
                         ${labelHtml} ${levelStr}
                         <div class="rt-hp-bar-wrap" style="flex:1; min-width:60px; position:relative; height:10px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
-                            <div style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:linear-gradient(90deg,#f39c12,#e67e22); transition:width 0.3s;"></div>
+                            <div style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:${barBg}; transition:width 0.3s;"></div>
                         </div>
                         <span style="font-size:0.78em; opacity:0.8; white-space:nowrap;">${xm[1]}/${xm[2]}</span>
                     </div>`;
