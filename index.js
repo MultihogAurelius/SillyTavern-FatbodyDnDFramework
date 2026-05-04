@@ -1184,6 +1184,69 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      * @param {string} narrativeOutput The last narrative message to parse.
      * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
      */
+        /**
+     * Builds the complete modules instruction block for the system prompt.
+     * @param {any} settings - The extension settings.
+     * @returns {string} The instruction block.
+     */
+    function buildModulesInstructionText(settings) {
+        let modulesText = "";
+        const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
+        
+        // 1. Stock Modules
+        for (const [key, prompt] of Object.entries(promptsMap)) {
+            if (settings.modules[key]) {
+                modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
+            }
+        }
+        
+        // 2. Custom Modules
+        if (settings.customFields && settings.customFields.length > 0) {
+            settings.customFields.forEach(f => {
+                if (f.enabled && f.tag) {
+                    const instruction = buildModuleFormatInstruction(f);
+                    if (instruction) {
+                        modulesText += `- [${f.tag.toUpperCase()}]: ${instruction}\n`;
+                    }
+                }
+            });
+        }
+        return modulesText;
+    }
+
+    /**
+     * Generates a structural template instruction for a custom module based on its defined rows.
+     * @param {any} field - The custom field object.
+     * @returns {string} The formatting instruction.
+     */
+    function buildModuleFormatInstruction(field) {
+        let text = field.prompt || '';
+        if (!field.rows || field.rows.length === 0) return text;
+
+        const UI_TO_MARKER = {
+            'pills': 'PILLS', 'badge': 'BADGE', 'highlight': 'HIGHLIGHT',
+            'hp_bar': 'BAR', 'xp_bar': 'XPBAR', 'text': 'TEXT', 'kv': 'TEXT'
+        };
+
+        const templateLines = field.rows.map(row => {
+            const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
+            const label = row.label || 'Key';
+            return `((${marker})) ${label}: [value]`;
+        });
+
+        const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
+        // Append template if not already present in the prompt
+        if (!text.includes('Required formatting structure:')) {
+            text = (text + '\n' + template).trim();
+        }
+        return text;
+    }
+
+    /**
+     * The State Model pass: Extract state changes from the narrative.
+     * @param {string} narrativeOutput The last narrative message to parse.
+     * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
+     */
     async function runStateModelPass(narrativeOutput, isFullContext = false) {
         const settings = getSettings();
         const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
@@ -1197,20 +1260,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             _stateModelRunning = true;
             updateStatusIndicator('running');
 
-            let modulesText = "";
-            const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
-            for (const [key, prompt] of Object.entries(promptsMap)) {
-                if (settings.modules[key]) {
-                    modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
-                }
-            }
-            if (settings.customFields && settings.customFields.length > 0) {
-                settings.customFields.forEach(f => {
-                    if (f.enabled && f.tag && f.prompt) {
-                        modulesText += `- [${f.tag.toUpperCase()}]: ${f.prompt}\n`;
-                    }
-                });
-            }
+            const modulesText = buildModulesInstructionText(settings);
 
             let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
             if (isFullContext) {
@@ -1258,9 +1308,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     `## OUTPUT ONLY CHANGED SECTIONS:`;
             }
 
-            const result = await sendStateRequest(settings, systemPrompt, userPrompt);
-
-            if (result && typeof result === 'string') {
+            const result = await sendStateRequest(settings, systemPrompt, userPrompt);            if (result && typeof result === 'string') {
                 if (settings.debugMode) console.log("[RPG Tracker] Raw Result:", result);
 
                 // ── Pre-clean: strip <memo> wrapper tags before any merge logic ──
@@ -3315,18 +3363,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     function openCustomFieldEditor(index) {
         const s = getSettings();
         const field = s.customFields[index];
-        if (!field) return;
-
-        // Ensure rows array exists (migration safety)
-        if (!field.rows) field.rows = [];
-
-        let overlay = document.getElementById('rt_cfe_overlay');
-        if (overlay) overlay.remove(); // Always rebuild so layout is clean
-
-        overlay = document.createElement('div');
+        const overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:10000000;display:flex;align-items:center;justify-content:center;';
-        const isSmallScreen = window.innerWidth <= 700;
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);z-index:10001;display:none;align-items:center;justify-content:center;';
+
         overlay.innerHTML = `
             <div id="rt_cfe_modal" style="
                 width: min(540px, 94vw);
@@ -3346,7 +3386,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             ">
                 <!-- Header -->
                 <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
-                    <b style="flex:1;font-size:14px;">Edit Custom Module</b>
+                    <b style="flex:1;font-size:14px;">Module Template Editor</b>
                     <button id="rt_cfe_preview_btn" class="menu_button interactable" style="font-size:11px;padding:3px 8px;display:none;margin-right:6px;"><i class="fa-solid fa-eye"></i> Preview</button>
                     <button id="rt_cfe_close" class="menu_button interactable" style="padding:3px 8px;font-size:13px;" title="Close"><i class="fa-solid fa-times"></i></button>
                 </div>
@@ -3359,39 +3399,52 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <input type="text" id="rt_cfe_label" class="text_pole" style="flex:1;min-width:80px;" placeholder="Display label">
                     </div>
 
-                    <!-- Row rules -->
-                    <div style="margin-top:10px;">
-                        <b style="font-size:13px;">Rows</b>
-                        <small style="display:block;opacity:0.7;margin-bottom:4px;">Define what each line renders as. Any combination, any order.</small>
+                    <!-- Template Definition -->
+                    <div style="margin-top:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <b style="font-size:13px;">Template Rows</b>
+                            <small style="opacity:0.6;">(These define the UI and the AI template)</small>
+                        </div>
                         <div id="rt_cfe_row_list" style="display:flex;flex-direction:column;gap:5px;"></div>
                         <button id="rt_cfe_add_row" class="menu_button interactable" style="margin-top:6px;width:100%;">
-                            <i class="fa-solid fa-plus"></i> Add Row
+                            <i class="fa-solid fa-plus"></i> Add Row to Template
                         </button>
-                        <small style="display:block;margin-top:5px;opacity:0.5;font-style:italic;">\ud83d\udca1 Pills tip: write <code>Name (detail)</code> \u2014 name shows always, detail on hover.</small>
+                    </div>
+
+                    <!-- AI Prompt & Generated Template -->
+                    <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                            <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
+                            <b style="font-size:12px;">AI Formatting Instructions</b>
+                        </div>
+                        
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="2" style="resize:vertical; width:100%; margin-bottom:8px;" placeholder="Describe what the AI should track here..."></textarea>
+                        
+                        <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">Generated Template (appended automatically):</div>
+                        <div id="rt_cfe_generated_template" style="background:rgba(0,0,0,0.3); padding:8px; border-radius:4px; font-family:monospace; font-size:11px; white-space:pre-wrap; border:1px dashed rgba(255,255,255,0.1); color:#00ffaa;"></div>
                     </div>
 
                     <!-- Test Data -->
-                    <div style="margin-top:10px;">
-                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Test Data</b> <small style="opacity:0.6;">(paste sample lines to preview)</small></label>
-                        <textarea id="rt_cfe_test_data" class="text_pole" rows="3" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Hunger: 45/100&#10;Status: Poisoned, Fatigued&#10;Type: Undead"></textarea>
-                    </div>
-
-                    <!-- AI Prompt -->
-                    <div style="margin-top:8px;">
-                        <label for="rt_cfe_prompt" style="font-size:12px;"><b>AI Instructions</b> <small style="opacity:0.6;">(what should the model track?)</small></label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="2" style="resize:vertical;margin-top:3px;" placeholder="E.g. Track hunger and thirst on a 0\u2013100 scale."></textarea>
+                    <div style="margin-top:15px;">
+                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Preview Data</b> <small style="opacity:0.6;">(edit to see UI result)</small></label>
+                        <textarea id="rt_cfe_test_data" class="text_pole" rows="3" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Label: Value"></textarea>
+                        <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+                            <button id="rt_cfe_auto_data" class="menu_button interactable" style="font-size:10px; padding:2px 6px;">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Sample from Template
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <!-- Footer (always visible, never scrolled away) -->
+                <!-- Footer -->
                 <div style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;align-items:center;">
                     <button id="rt_cfe_delete" class="menu_button interactable" style="color:#ff5555;margin-right:auto;font-size:12px;"><i class="fa-solid fa-trash"></i> Delete</button>
                     <button id="rt_cfe_cancel" class="menu_button interactable" style="font-size:12px;">Cancel</button>
                     <button id="rt_cfe_save" class="menu_button interactable" style="font-size:12px;">Save Changes</button>
                 </div>
             </div>
-            <!-- Floating preview \u2014 hidden by default, shown by JS on desktop only -->
+            <!-- Floating preview -->
             <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin:0;display:none;flex-direction:column;cursor:default;height:auto;min-height:44px;width:300px;position:fixed;">
-                <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor:move;user-select:none;font-size:0.75em;opacity:0.7;padding:5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right:6px;"></i>Live Preview</div>
+                <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor:move;user-select:none;font-size:0.75em;opacity:0.7;padding:5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right:6px;"></i>UI Live Preview</div>
                 <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
             </div>
         `;
@@ -3404,6 +3457,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
         const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
         const testDataEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_test_data'));
+        const genTempEl  = document.getElementById('rt_cfe_generated_template');
         const rowListEl  = document.getElementById('rt_cfe_row_list');
         const previewEl  = document.getElementById('rt_cfe_preview');
 
@@ -3412,36 +3466,56 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         labelEl.value = field.label || '';
         promptEl.value = field.prompt || '';
 
+        const updateGeneratedTemplate = () => {
+            if (!genTempEl) return;
+            const temp = buildModuleFormatInstruction({ tag: tagEl.value, rows: field.rows, prompt: '' });
+            genTempEl.textContent = temp.replace('Required formatting structure:', '').trim();
+        };
+
+        const generateAutoData = () => {
+            if (!field.rows || field.rows.length === 0) return;
+            const data = field.rows.map(row => {
+                const label = row.label || 'Item';
+                switch (row.renderType) {
+                    case 'hp_bar': return `${label}: 45/100`;
+                    case 'xp_bar': return `${label}: 1200/2700 (Level 3)`;
+                    case 'pills': return `${label}: Value 1, Value 2`;
+                    case 'badge': return `${label}: Value`;
+                    default: return `${label}: Value`;
+                }
+            }).join('\n');
+            testDataEl.value = data;
+            schedulePreview();
+        };
+
         // ── Live Preview ──
         let _previewDebounce = null;
         let _bgRefreshDebounce = null;
         const schedulePreview = () => {
+            updateGeneratedTemplate();
             clearTimeout(_previewDebounce);
             _previewDebounce = setTimeout(updatePreview, 180);
-            // Also refresh the background tracker so it picks up the new rows immediately
             clearTimeout(_bgRefreshDebounce);
             _bgRefreshDebounce = setTimeout(refreshRenderedView, 300);
         };
 
-        /** @param {HTMLElement|null} [targetEl] */
         const renderPreviewInto = (targetEl) => {
             const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
             if (!renderView) return;
             const testContent = testDataEl.value.trim();
             if (!testContent) {
-                renderView.innerHTML = '<div style="opacity:0.4;font-size:0.85em;padding:8px;">Enter test data above to preview.</div>';
+                renderView.innerHTML = '<div style="opacity:0.4;font-size:0.85em;padding:8px;">Generate sample or enter data to preview UI.</div>';
                 return;
             }
 
             const previewTag = '__PREVIEW__';
             const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
 
-            // Temporarily inject a ghost field that mirrors the current editor state
             const ghostField = {
                 tag:     previewTag,
                 label:   labelEl.value || tagEl.value || 'Preview',
-                icon:    iconEl.value || '\ud83d\udcc4',
-                rows:    [...field.rows], // snapshot of current rows
+                icon:    iconEl.value || '📄',
+                rows:    [...field.rows],
                 prompt:  '',
                 enabled: true
             };
@@ -3461,31 +3535,28 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const refreshRowList = () => {
             rowListEl.innerHTML = '';
             if (field.rows.length === 0) {
-                rowListEl.innerHTML = '<small style="opacity:0.55;font-style:italic;">No rows yet. Click "Add Row" to define how each line renders.</small>';
+                rowListEl.innerHTML = '<small style="opacity:0.55;font-style:italic;">Add a row to start building your module template.</small>';
             }
             field.rows.forEach((row, ri) => {
                 const rowEl = document.createElement('div');
                 rowEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:4px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;background:rgba(255,255,255,0.03);';
 
-                // Label input
                 const lbl = document.createElement('input');
                 lbl.type = 'text'; lbl.className = 'text_pole';
-                lbl.placeholder = 'Row label (e.g. Hunger)';
+                lbl.placeholder = 'Label (e.g. Health)';
                 lbl.value = row.label || '';
                 lbl.style.cssText = 'flex:2;min-width:80px;height:28px;padding:2px 6px;font-size:12px;';
                 lbl.addEventListener('input', () => { row.label = lbl.value; schedulePreview(); });
 
-                // Type select
                 const typeSel = buildRowTypeSelect(row.renderType || 'text');
                 typeSel.addEventListener('change', () => { row.renderType = typeSel.value; schedulePreview(); });
 
-                // Color picker + clear
                 const colorWrap = document.createElement('div');
                 colorWrap.style.cssText = 'display:flex;align-items:center;gap:2px;flex-shrink:0;';
                 const colorPick = document.createElement('input');
                 colorPick.type = 'color'; colorPick.value = row.color || '#ffffff';
                 colorPick.style.cssText = 'width:24px;height:24px;border:none;padding:0;cursor:pointer;border-radius:4px;background:transparent;';
-                colorPick.title = 'Label color (optional)';
+                colorPick.title = 'Label color';
                 colorPick.addEventListener('input', () => { row.color = colorPick.value; schedulePreview(); });
                 const clearBtn = document.createElement('button');
                 clearBtn.className = 'menu_button interactable'; clearBtn.title = 'Clear color';
@@ -3494,7 +3565,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 clearBtn.addEventListener('click', () => { row.color = ''; colorPick.value = '#ffffff'; schedulePreview(); });
                 colorWrap.appendChild(colorPick); colorWrap.appendChild(clearBtn);
 
-                // Delete row
                 const delBtn = document.createElement('button');
                 delBtn.className = 'menu_button interactable'; delBtn.title = 'Delete row';
                 delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
@@ -3504,6 +3574,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 rowEl.appendChild(lbl); rowEl.appendChild(typeSel); rowEl.appendChild(colorWrap); rowEl.appendChild(delBtn);
                 rowListEl.appendChild(rowEl);
             });
+            updateGeneratedTemplate();
         };
 
         document.getElementById('rt_cfe_add_row').addEventListener('click', () => {
@@ -3512,24 +3583,26 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             schedulePreview();
         });
 
+        document.getElementById('rt_cfe_auto_data').addEventListener('click', generateAutoData);
+
         testDataEl.addEventListener('input', schedulePreview);
         iconEl.addEventListener('input', schedulePreview);
+        tagEl.addEventListener('input', schedulePreview);
         labelEl.addEventListener('input', schedulePreview);
+        promptEl.addEventListener('input', schedulePreview);
 
         refreshRowList();
         updatePreview();
         overlay.style.display = 'flex';
 
-        // Position & drag preview panel — desktop only
         const modal = document.getElementById('rt_cfe_modal');
-        const previewHeader = /** @type {HTMLElement} */ (document.getElementById('rt_cfe_preview_header'));
+        const previewHeader = (document.getElementById('rt_cfe_preview_header'));
         const previewBtn = document.getElementById('rt_cfe_preview_btn');
 
         if (modal && previewEl && previewHeader) {
             const rect = modal.getBoundingClientRect();
             const spaceOnRight = window.innerWidth - rect.right;
             if (spaceOnRight >= 320 && !isSmallScreen) {
-                // Desktop: show floating panel and toggle button
                 previewEl.style.display = 'flex';
                 previewEl.style.left = (rect.right + 20) + 'px';
                 previewEl.style.top  = rect.top + 'px';
@@ -3542,7 +3615,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     });
                 }
             }
-            // Mobile: preview button stays hidden (display:none set in HTML), floating panel stays display:none
         }
 
         const save = () => {
@@ -3556,8 +3628,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             field.tag   = newTag;
             field.label = labelEl.value;
             field.prompt = promptEl.value;
-            delete field.renderType; // Migrate legacy modules to salad bar
-            // field.rows already mutated in-place
+            delete field.renderType;
 
             overlay.remove();
             SillyTavern.getContext().saveSettingsDebounced();
@@ -4273,8 +4344,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         // Add wand button to toggle panel visibility
         addWandButton();
 
-        console.log("[RPG Tracker] Phase 2 Full Implementation Loaded.");
-    })();
 
     function addWandButton() {
         const wandContainer = document.getElementById('extensionsMenu');
@@ -4299,4 +4368,5 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         wandContainer.appendChild(btn);
     }
+    })();
 })();
