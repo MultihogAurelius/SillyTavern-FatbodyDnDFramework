@@ -165,6 +165,7 @@
     box-shadow: var(--rt-shadow);
     color: var(--rt-text);
     font-family: var(--rt-font);
+    font-size: var(--rt-base-size);
     overflow: hidden;
     resize: both;
     container-type: inline-size;
@@ -230,7 +231,7 @@
     background: transparent;
     border: none;
     color: #ff5555;
-    font-size: 14px;
+    font-size: 1.07em;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -286,7 +287,7 @@
     padding: 12px;
     color: var(--rt-accent);
     font-family: inherit;
-    font-size: var(--rt-base-size);
+    font-size: 1em;
     resize: none;
     outline: none;
     overflow-y: auto;
@@ -315,7 +316,7 @@
     border: var(--rt-border);
     border-radius: 6px;
     color: var(--rt-text);
-    font-size: calc(var(--rt-base-size) - 1px);
+    font-size: 0.9em;
     padding: 6px 8px;
     resize: none;
     line-height: 1.4;
@@ -344,7 +345,7 @@
     border-radius: 6px;
     width: 32px;
     height: 32px;
-    font-size: 13px;
+    font-size: 1em;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -387,12 +388,12 @@
 }
 
 .rt-menu-item b {
-    font-size: 11px;
+    font-size: 0.85em;
     color: var(--rt-text);
 }
 
 .rt-menu-item small {
-    font-size: 9px;
+    font-size: 0.7em;
     color: var(--rt-text-muted);
 }
 
@@ -409,7 +410,7 @@
 .rt-empty {
     color: var(--rt-text-muted);
     font-style: italic;
-    font-size: 12px;
+    font-size: 0.92em;
     padding: 12px;
     text-align: center;
 }
@@ -432,7 +433,7 @@
 
 
 .rt-section-header {
-    font-size: 10px;
+    font-size: 0.77em;
     font-weight: 700;
     letter-spacing: 0.8px;
     text-transform: uppercase;
@@ -464,7 +465,7 @@
     padding: 0;
     margin: 0;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 0.85em;
     opacity: 0.6;
     color: var(--rt-text-muted);
     transition: opacity 0.2s, color 0.2s, transform 0.1s; transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -489,14 +490,14 @@
 }
 
 .rt-item-count {
-    font-size: 9px;
+    font-size: 0.7em;
     color: var(--rt-text-muted);
     font-weight: 400;
     letter-spacing: 0;
 }
 
 .rt-collapse-icon {
-    font-size: 10px;
+    font-size: 0.77em;
     color: var(--rt-text-muted);
 }
 
@@ -513,7 +514,7 @@
     padding: 5px 0 2px;
     border-top: 1px solid rgba(255,255,255,0.05);
     margin-top: 4px;
-    font-size: 11px;
+    font-size: 0.85em;
     color: var(--rt-text-muted);
 }
 
@@ -522,7 +523,7 @@
     border: 1px solid rgba(255,255,255,0.1);
     color: var(--rt-text-muted);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 1.07em;
     line-height: 1;
     padding: 1px 7px;
     border-radius: 4px;
@@ -542,7 +543,7 @@
 /* Onboarding empty state */
 .rt-empty {
     color: var(--rt-text-muted);
-    font-size: 12px;
+    font-size: 0.92em;
     padding: 20px 16px;
     text-align: center;
     display: flex;
@@ -553,13 +554,13 @@
 }
 
 .rt-empty-icon {
-    font-size: 28px;
+    font-size: 2.15em;
     margin-bottom: 4px;
 }
 
 .rt-empty small {
     color: var(--rt-text-muted);
-    font-size: 11px;
+    font-size: 0.85em;
 }
 
 /* ── Spells ── */
@@ -583,7 +584,7 @@
 .rt-spell-row:last-child { border-bottom: none; }
 
 .rt-spell-level {
-    font-size: 10px;
+    font-size: 0.77em;
     color: var(--rt-text-muted);
     font-weight: 600;
     text-transform: uppercase;
@@ -593,7 +594,7 @@
 }
 
 .rt-combat-round {
-    font-size: 11px;
+    font-size: 0.85em;
     font-weight: 700;
     color: var(--rt-accent);
     padding: 6px 0;
@@ -664,7 +665,7 @@
 }
 
 .rt-spell-name {
-    font-size: 11px;
+    font-size: 0.85em;
     color: var(--rt-text);
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
@@ -683,7 +684,7 @@
 
 .rt-section-body {
     padding: 7px 10px;
-    font-size: calc(var(--rt-base-size) - 1px);
+    font-size: 0.92em;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -704,6 +705,7 @@
 .rt-entity-name {
     color: var(--rt-text);
     font-weight: 600;
+    font-size: 1em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -723,14 +725,14 @@
 }
 
 .rt-hp-label {
-    font-size: 10px;
+    font-size: 0.77em;
     color: var(--rt-text-muted);
     white-space: nowrap;
     text-align: right;
 }
 
 .rt-status {
-    font-size: 10px;
+    font-size: 0.77em;
     color: #ffaa00;
     background: rgba(255, 170, 0, 0.1);
     border-radius: 10px;
@@ -755,7 +757,7 @@
     border-radius: 4px;
     padding: 1px 6px;
     cursor: pointer;
-    font-size: 10px;
+    font-size: 0.77em;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
@@ -804,7 +806,7 @@
     color: var(--rt-text);
     padding: 6px 10px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 0.85em;
     font-weight: 400;
     white-space: normal;
     min-width: 120px;
@@ -880,7 +882,7 @@
 }
 
 .rt-entity-sub-line {
-    font-size: 10px;
+    font-size: 0.77em;
     opacity: 0.8;
     padding-left: 5px;
     margin-top: -3px;
@@ -894,7 +896,7 @@
 }
 
 .rt-entity-attributes {
-    font-size: 10px;
+    font-size: 0.77em;
     color: var(--rt-text-muted);
     font-family: var(--mono-font), monospace;
 }
@@ -919,7 +921,7 @@
 .rt-card-item {
     color: var(--rt-text);
     padding: 1px 0;
-    font-size: 12px;
+    font-size: 0.92em;
 }
 
 /* Abilities */
@@ -935,7 +937,7 @@
     color: var(--rt-accent);
     border-radius: 12px;
     padding: 2px 9px;
-    font-size: 11px;
+    font-size: 0.85em;
 }
 
 /* XP Bar */
@@ -944,7 +946,7 @@
 }
 
 .rt-xp-label {
-    font-size: 10px;
+    font-size: 0.77em;
     color: var(--rt-text-muted);
     margin-bottom: 3px;
     display: flex;
@@ -981,17 +983,17 @@
     color: var(--rt-text-muted);
     min-width: 70px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: 0.85em;
 }
 
 .rt-card-val {
     color: var(--rt-text);
-    font-size: 12px;
+    font-size: 0.92em;
 }
 
 .rt-card-line {
     color: var(--rt-text);
-    font-size: 12px;
+    font-size: 0.92em;
     padding: 1px 0;
 }
 
@@ -1016,7 +1018,7 @@
     overflow: hidden;
     background: rgba(0, 0, 0, 0.4);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
-    font-size: 11px;
+    font-size: 0.85em;
     line-height: 1.5;
     display: flex;
     flex-direction: column;
@@ -1216,7 +1218,7 @@
     padding: 0;
     margin: 0;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 0.85em;
     opacity: 0.6;
     color: var(--rt-text-muted);
     transition: opacity 0.2s, color 0.2s, transform 0.1s; transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -1238,7 +1240,7 @@
 .rt-detached-placeholder {
     padding: 8px 10px;
     color: var(--rt-text-muted);
-    font-size: 11px;
+    font-size: 0.85em;
     font-style: italic;
     background: rgba(255, 255, 255, 0.02);
     border: 1px dashed rgba(255, 255, 255, 0.05);
@@ -1259,7 +1261,7 @@
     color: var(--rt-text-muted);
     border-radius: 3px;
     padding: 2px 6px;
-    font-size: 10px;
+    font-size: 0.77em;
     cursor: pointer;
     transition: all 0.2s; transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
 }
@@ -1312,10 +1314,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px !important;
+    font-size: 0.85em !important;
 }
 .rt-order-btn i {
-    font-size: 10px;
+    font-size: 0.77em;
 }
 .rt-order-btn:disabled {
     opacity: 0.3;
@@ -1335,7 +1337,7 @@
     color: var(--rt-accent);
     padding: 6px 14px;
     border-radius: 6px;
-    font-size: 11px;
+    font-size: 0.85em;
     cursor: pointer;
     margin-top: 8px;
     font-family: var(--rt-font);
@@ -1357,7 +1359,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: var(--rt-text-muted);
     padding: 2px 8px;
-    font-size: 9px;
+    font-size: 0.7em;
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.2s ease;
@@ -1396,7 +1398,7 @@
 }
 
 .rt-rng-toggle-overlay i {
-    font-size: 10px;
+    font-size: 0.77em;
 }
 
 .rt-sysprompt-menu {
@@ -1422,7 +1424,7 @@
     color: var(--rt-text);
     padding: 6px 10px;
     text-align: left;
-    font-size: 9px;
+    font-size: 0.7em;
     cursor: pointer;
     border-radius: 3px;
     white-space: nowrap;
@@ -1465,7 +1467,7 @@
         background: transparent;
         border: none;
         color: var(--rt-accent);
-        font-size: 14px;
+        font-size: 1.07em;
         padding: 4px 8px;
         cursor: pointer;
         opacity: 0.7;
@@ -1504,7 +1506,7 @@
     .rpg-tracker-footer .rt-rng-toggle-overlay {
         flex: 0 0 auto !important;
         padding: 6px 10px !important;
-        font-size: 10px !important;
+        font-size: 0.77em !important;
         min-height: 28px;
     }
 
