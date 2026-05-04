@@ -1244,7 +1244,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     function buildModuleFormatInstruction(field) {
-        return field.template || field.prompt || '';
+        return field.prompt || '';
     }
 
     /**
@@ -3418,6 +3418,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                     </div>
 
+                    <!-- AI Instructions -->
+                    <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                            <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
+                            <b style="font-size:12px;">AI Instructions</b>
+                        </div>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize:vertical; width:100%;" placeholder="Paste your full AI instructions here, including formatting examples..."></textarea>
+                    </div>
+
                     <!-- UI Live Preview (Mobile) -->
                     <div id="rt_cfe_preview_mobile_wrap" style="margin-top:15px; display:none;">
                         <b style="font-size:12px;">UI Preview</b>
@@ -3445,12 +3454,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
         const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
         const templateEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_template'));
+        const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
         const previewEl  = document.getElementById('rt_cfe_preview');
 
         iconEl.value     = field.icon  || '📄';
         tagEl.value      = field.tag   || '';
         labelEl.value    = field.label || '';
         templateEl.value = field.template || '';
+        promptEl.value   = field.prompt || '';
 
         // ── Live Preview ──
         let _previewDebounce = null;
@@ -3549,7 +3560,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             field.tag      = newTag;
             field.label    = labelEl.value;
             field.template = templateEl.value;
-            delete field.prompt;
+            field.prompt   = promptEl.value;
             delete field.rows;
             delete field.renderType;
 
