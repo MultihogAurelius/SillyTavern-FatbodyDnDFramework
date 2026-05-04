@@ -999,16 +999,39 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 // Graceful fallback: warn and fall through to generateRaw
                 console.warn('[RPG Tracker] ConnectionManagerRequestService not available (ST too old?). Falling back to generateRaw with profile switch.');
             } else {
-                if (settings.debugMode) console.log(`[RPG Tracker] Sending via profile (silent): ${settings.connectionProfileId}`);
+                if (settings.debugMode) console.log(`[RPG Tracker] Sending via profile (silent): ${settings.connectionProfileId}${settings.completionPresetId ? `, preset override: ${settings.completionPresetId}` : ''}`);
 
                 const messages = [
                     { role: 'system', content: systemPrompt },
                     { role: 'user',   content: userPrompt   },
                 ];
 
-                const raw = await service.sendRequest(settings.connectionProfileId, messages, {
-                    ignoreInstruct: true,
-                });
+                const maxTokens = settings.maxTokens && settings.maxTokens > 0 ? settings.maxTokens : undefined;
+
+                // Build the custom options object. includePreset:true means the profile's own
+                // preset will be used by default. If the user has also chosen a Generation
+                // Settings Preset in the UI, we pass it as an overridePayload so it takes
+                // priority — enabling things like disabling reasoning or changing temperature
+                // without touching the main chat session.
+                const customOptions = {
+                    stream: false,
+                    includeInstruct: false,  // We supply system/user ourselves
+                    includePreset: true,     // Use the preset stored in the profile
+                };
+
+                // If the user has explicitly chosen a preset override in the UI, inject it.
+                // This overrides the preset baked into the connection profile.
+                const overridePayload = settings.completionPresetId
+                    ? { preset: settings.completionPresetId }
+                    : {};
+
+                const raw = await service.sendRequest(
+                    settings.connectionProfileId,
+                    messages,
+                    maxTokens,
+                    customOptions,
+                    overridePayload,
+                );
 
                 // Normalise return type (mirrors Summaryception's handling)
                 if (typeof raw === 'string') return raw;
