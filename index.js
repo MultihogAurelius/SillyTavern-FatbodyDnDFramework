@@ -3502,6 +3502,10 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         tagEl.value      = field.tag   || '';
         labelEl.value    = field.label || '';
         templateEl.value = field.template || '';
+        // Legacy cleanup: clear the old placeholder text if it's stored as a value
+        if (field.prompt === 'What should the AI track for this new field? Describe it here.') {
+            field.prompt = '';
+        }
         promptEl.value   = field.prompt || '';
 
         // ── Live Preview ──
