@@ -1698,31 +1698,24 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * If `line` begins with a ((MARKER)) prefix, renders it and returns HTML.
+     * Returns null if no marker is present, so callers can fall through to
+     * their own renderer. This makes markers work in ALL stock blocks.
+     */
+    function tryRenderMarker(line) {
+        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT)\)\)\s*(.*)$/i);
+        if (!m) return null;
+        const typeMap = { PILLS:'pills', BAR:'hp_bar', HPBAR:'hp_bar', XPBAR:'xp_bar', TEXT:'text', BADGE:'badge', HIGHLIGHT:'highlight' };
+        const renderType = typeMap[m[1].toUpperCase()] || 'text';
+        return renderSubFieldByRule({ renderType }, m[2].trim());
+    }
+
+    /**
      * Renders a single line from a custom block (non-built-in tag).
-     * Resolution order:
-     *   1. Module-scoped rows — by label prefix, then positionally (lineIdx mod rows.length)
-     *   2. Global sub-field rules — by label prefix only
-     *   3. Plain kv fallback, then plain text
      */
     function renderCustomBlockLine(tag, line, lineIdx = 0) {
-        // 0. Explicit Marker check: ((PILLS)), ((BAR)), ((XPBAR)), ((TEXT)), etc.
-        // These override all other rules and don't require label matching.
-        const markerMatch = line.match(/^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*(.*)$/i);
-        if (markerMatch) {
-            const [, mType, mContent] = markerMatch;
-            const typeMap = {
-                'PILLS': 'pills',
-                'BAR': 'hp_bar',
-                'HPBAR': 'hp_bar',
-                'XPBAR': 'xp_bar',
-                'TEXT': 'text',
-                'BADGE': 'badge',
-                'HIGHLIGHT': 'highlight'
-            };
-            const renderType = typeMap[mType.toUpperCase()] || 'text';
-            // We pass the content directly. renderSubFieldByRule handles label/value splitting via colon.
-            return renderSubFieldByRule({ renderType }, mContent.trim());
-        }
+        const asMarker = tryRenderMarker(line);
+        if (asMarker !== null) return asMarker;
 
         // Plain kv fallback
         const kv = line.match(/^([^:]+):\s*(.+)$/);
@@ -2094,34 +2087,39 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     }
                 }
 
-                return lines.map(line => {
-                    if (line.toLowerCase().startsWith('last rest:')) {
-                        const restVal = line.substring(line.indexOf(':') + 1).trim();
-                        let append = "";
-                        if (parsedCurrent) {
-                            const restMins = parseTimeStr(restVal);
-                            if (restMins !== null) {
-                                const diff = currentTotalMins - restMins;
-                                if (diff >= 0) {
-                                    const dH = Math.floor(diff / 60);
-                                    const dM = diff % 60;
-                                    append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
-                                    if (diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
-                                    if (dH >= 24) {
-                                        const dDays = Math.floor(dH / 24);
-                                        const dRemH = dH % 24;
-                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
+                    return lines.map(line => {
+                        if (line.toLowerCase().startsWith('last rest:')) {
+                            const restVal = line.substring(line.indexOf(':') + 1).trim();
+                            let append = "";
+                            if (parsedCurrent) {
+                                const restMins = parseTimeStr(restVal);
+                                if (restMins !== null) {
+                                    const diff = currentTotalMins - restMins;
+                                    if (diff >= 0) {
+                                        const dH = Math.floor(diff / 60);
+                                        const dM = diff % 60;
+                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
+                                        if (diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
+                                        if (dH >= 24) {
+                                            const dDays = Math.floor(dH / 24);
+                                            const dRemH = dH % 24;
+                                            append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
+                                        }
                                     }
                                 }
                             }
+                            return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
                         }
-                        return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
-                    }
-                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
-                });
+                        const asMarker = tryRenderMarker(line);
+                        if (asMarker !== null) return asMarker;
+                        return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
+                    });
             }
             case 'XP':
                 return lines.map(line => {
+                    const asMarker = tryRenderMarker(line);
+                    if (asMarker !== null) return asMarker;
+
                     // New format: Total: 1,200 / 2,700 XP (Level 3)
                     let m = line.match(/Total:\s*([\d,]+)\s*\/\s*([\d,]+)\s*XP\s*\(Level\s*(\d+)\)/i);
                     if (m) {
@@ -2158,6 +2156,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
                 return lines.map(line => {
+                    const asMarker = tryRenderMarker(line);
+                    if (asMarker !== null) return asMarker;
+
                     const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
                     if (!m) return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                     const [, label, availStr, maxStr, spellList] = m;
@@ -2185,25 +2186,44 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 });
             }
             case 'INVENTORY': {
-                const allItems = lines.flatMap(line => {
-                    // If the line starts with a bullet point, treat it as a single item
-                    if (line.trim().match(/^[-*]\s+/)) {
-                        return [line.trim()];
+                // Lines with a ((MARKER)) prefix bypass the bullet-list renderer
+                const inventoryResults = [];
+                const pendingBullets = [];
+
+                const flushBullets = () => {
+                    if (!pendingBullets.length) return;
+                    pendingBullets.forEach(i => inventoryResults.push(`<div class="rt-card-item">• ${escapeHtmlWithColor(i)}</div>`));
+                    pendingBullets.length = 0;
+                };
+
+                for (const line of lines) {
+                    const asMarker = tryRenderMarker(line);
+                    if (asMarker !== null) {
+                        flushBullets();
+                        inventoryResults.push(asMarker);
+                        continue;
                     }
-                    // Otherwise split by commas that aren't inside parentheses
-                    return line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean);
-                });
-                return allItems.map(l => l.replace(/^[-*]\s*/, ''))
-                    .map(i => `<div class="rt-card-item">• ${escapeHtmlWithColor(i)}</div>`);
+                    // Original bullet/comma logic
+                    if (line.trim().match(/^[-*]\s+/)) {
+                        pendingBullets.push(line.trim().replace(/^[-*]\s*/, ''));
+                    } else {
+                        line.split(/,(?![^(]*\))/).map(i => i.trim()).filter(Boolean)
+                            .forEach(i => pendingBullets.push(i));
+                    }
+                }
+                flushBullets();
+                return inventoryResults;
             }
             case 'ABILITIES': {
-                const allAbilities = lines.flatMap(line => {
+                const abilityResults = [];
+                for (const line of lines) {
+                    const asMarker = tryRenderMarker(line);
+                    if (asMarker !== null) { abilityResults.push(asMarker); continue; }
                     const l = line.trim();
-                    if (l.match(/^[-*]\s+/)) return [l.replace(/^[-*]\s*/, '')];
-                    return splitSmart(l);
-                });
-
-                return allAbilities.map(t => renderPills(t));
+                    const items = l.match(/^[-*]\s+/) ? [l.replace(/^[-*]\s*/, '')] : splitSmart(l);
+                    items.forEach(t => abilityResults.push(renderPills(t)));
+                }
+                return abilityResults;
             }
             default:
                 // Custom blocks: resolve each line via module rows → global rules → kv fallback
