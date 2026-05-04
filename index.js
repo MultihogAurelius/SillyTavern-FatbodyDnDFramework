@@ -3413,33 +3413,25 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         const field = s.customFields[index];
         const overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8) !important;z-index:9999999 !important;display:none;overflow-y:auto;padding:20px 0;';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:10001;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;';
 
         overlay.innerHTML = `
-            <div id="rt_cfe_modal" style="
+            <div id="rt_cfe_modal" class="popup shadowBase" style="
                 width: min(540px, 94vw);
-                margin: 20px auto;
+                margin: 0 auto;
                 min-height: ${isSmallScreen ? '400px' : '80vh'};
                 max-height: none;
                 display: flex;
                 flex-direction: column;
-                background: #1a1a2e !important;
-                border: 1px solid rgba(255,255,255,0.3) !important;
-                border-radius: 12px;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.8);
-                color: #ccc !important;
-                font-family: var(--mainFontFamily, sans-serif);
-                font-size: 13px;
+                padding: 0;
                 overflow: hidden;
             ">
-                <!-- Header -->
-                <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
-                    <b style="flex:1;font-size:14px;">Module Template Editor</b>
+                <div class="popup-header">
+                    <h3 class="margin0" style="font-size:14px; flex:1;">Module Template Editor</h3>
                     <button id="rt_cfe_preview_btn" class="menu_button interactable" style="font-size:11px;padding:3px 8px;display:none;margin-right:6px;"><i class="fa-solid fa-eye"></i> Preview</button>
-                    <button id="rt_cfe_close" class="menu_button interactable" style="padding:3px 8px;font-size:13px;" title="Close"><i class="fa-solid fa-times"></i></button>
+                    <div id="rt_cfe_close" class="popup-close interactable" title="Close"><i class="fa-solid fa-times"></i></div>
                 </div>
-                <!-- Body (scrollable) -->
-                <div style="padding:10px 14px;overflow-y:auto;flex:1 1 0px;min-height:0;">
+                <div class="popup-body flex-container flexFlowColumn gap-1" style="padding:10px 14px; overflow-y:auto; flex:1;">
                     <!-- Identity row -->
                     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                         <input type="text" id="rt_cfe_icon" class="text_pole" style="width:44px;text-align:center;" title="Icon (emoji)">
@@ -3469,7 +3461,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     </div>
                 </div>
                 <!-- Footer -->
-                <div style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;align-items:center;">
+                <div class="popup-footer flex-container gap-1 justifycontentend" style="padding:8px 14px; border-top:1px solid rgba(255,255,255,0.08); flex-shrink:0;">
                     <button id="rt_cfe_delete" class="menu_button interactable" style="color:#ff5555;margin-right:auto;font-size:12px;"><i class="fa-solid fa-trash"></i> Delete</button>
                     <button id="rt_cfe_cancel" class="menu_button interactable" style="font-size:12px;">Cancel</button>
                     <button id="rt_cfe_save" class="menu_button interactable" style="font-size:12px;">Save Changes</button>
