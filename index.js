@@ -3361,6 +3361,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     function openCustomFieldEditor(index) {
+        const isSmallScreen = window.innerWidth <= 700;
         const s = getSettings();
         const field = s.customFields[index];
         const overlay = document.createElement('div');
