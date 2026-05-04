@@ -987,72 +987,22 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
     /**
      * Send the request through the configured backend.
+     * Uses the v1.5.2 "physical switch-execute-restore" pattern:
+     * temporarily switches the active profile/preset via slash commands,
+     * fires generateRaw, then restores both in the finally block.
      */
     async function sendStateRequest(settings, systemPrompt, userPrompt) {
-        const context = SillyTavern.getContext();
-
-        // ── Profile mode: use ConnectionManagerRequestService (silent, no UI flicker) ──
-        if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
-            const service = context.ConnectionManagerRequestService;
-
-            if (!service || typeof service.sendRequest !== 'function') {
-                // Graceful fallback: warn and fall through to generateRaw
-                console.warn('[RPG Tracker] ConnectionManagerRequestService not available (ST too old?). Falling back to generateRaw with profile switch.');
-            } else {
-                if (settings.debugMode) console.log(`[RPG Tracker] Sending via profile (silent): ${settings.connectionProfileId}${settings.completionPresetId ? `, preset override: ${settings.completionPresetId}` : ''}`);
-
-                const messages = [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user',   content: userPrompt   },
-                ];
-
-                const maxTokens = settings.maxTokens && settings.maxTokens > 0 ? settings.maxTokens : undefined;
-
-                // Build the custom options object. includePreset:true means the profile's own
-                // preset will be used by default. If the user has also chosen a Generation
-                // Settings Preset in the UI, we pass it as an overridePayload so it takes
-                // priority — enabling things like disabling reasoning or changing temperature
-                // without touching the main chat session.
-                const customOptions = {
-                    stream: false,
-                    includeInstruct: false,  // We supply system/user ourselves
-                    includePreset: true,     // Use the preset stored in the profile
-                };
-
-                // If the user has explicitly chosen a preset override in the UI, inject it.
-                // This overrides the preset baked into the connection profile.
-                const overridePayload = settings.completionPresetId
-                    ? { preset: settings.completionPresetId }
-                    : {};
-
-                const raw = await service.sendRequest(
-                    settings.connectionProfileId,
-                    messages,
-                    maxTokens,
-                    customOptions,
-                    overridePayload,
-                );
-
-                // Normalise return type (mirrors Summaryception's handling)
-                if (typeof raw === 'string') return raw;
-                const r = /** @type {any} */ (raw);
-                const text = r?.content
-                    ?? r?.message?.content
-                    ?? r?.choices?.[0]?.message?.content
-                    ?? r?.choices?.[0]?.text
-                    ?? null;
-
-                if (text) return text;
-                throw new Error(`[RPG Tracker] Profile sendRequest returned unexpected type: ${JSON.stringify(raw).substring(0, 200)}`);
-            }
-        }
-
-        // ── Default mode: generateRaw through the active connection ──
-        const { generateRaw } = context;
-        if (!generateRaw) throw new Error('[RPG Tracker] generateRaw is not available.');
-
+        const { generateRaw } = SillyTavern.getContext();
+        let originalProfile = null;
         let originalPreset = null;
+
         try {
+            if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
+                originalProfile = await getCurrentConnectionProfile();
+                if (settings.debugMode) console.log(`[RPG Tracker] Switching Connection Profile: ${originalProfile} -> ${settings.connectionProfileId}`);
+                await setConnectionProfile(settings.connectionProfileId);
+            }
+
             if (settings.completionPresetId) {
                 originalPreset = await getCurrentCompletionPreset();
                 if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
@@ -1074,10 +1024,10 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             if (typeof result === 'string') return result;
             const r = /** @type {any} */ (result);
             return r?.choices?.[0]?.message?.content
-                ?? r?.choices?.[0]?.text
-                ?? r?.message?.content
-                ?? r?.content
-                ?? JSON.stringify(result);
+                || r?.choices?.[0]?.text
+                || r?.message?.content
+                || r?.content
+                || JSON.stringify(result);
 
         } catch (err) {
             console.error('[RPG Tracker] Request failed:', err);
@@ -1086,6 +1036,10 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             if (originalPreset && settings.completionPresetId && originalPreset !== settings.completionPresetId) {
                 if (settings.debugMode) console.log(`[RPG Tracker] Restoring preset: ${originalPreset}`);
                 await setCompletionPreset(originalPreset);
+            }
+            if (originalProfile && settings.connectionProfileId && originalProfile !== settings.connectionProfileId) {
+                if (settings.debugMode) console.log(`[RPG Tracker] Restoring profile: ${originalProfile}`);
+                await setConnectionProfile(originalProfile);
             }
         }
     }
