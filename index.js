@@ -3434,7 +3434,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
                         <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                             <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
-                            <b style="font-size:12px;">AI Formatting Instructions</b>
+                            <b style="font-size:12px;">AI Instructions</b>
                         </div>
                         
                         <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize:vertical; width:100%; margin-bottom:8px;" placeholder="Describe what the AI should track here..."></textarea>
