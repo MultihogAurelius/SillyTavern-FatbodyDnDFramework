@@ -3409,7 +3409,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     <!-- Template Definition -->
                     <div style="margin-top:12px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <b style="font-size:13px;">Module Template & Examples</b>
+                            <b style="font-size:13px;">Module Template & Examples <i class="fa-solid fa-circle-question" style="opacity:0.5; cursor:help; font-size:11px;" title="This box is ONLY for testing how the UI renders your formatting. Nothing from this box is sent to the AI. You must manually include any formatting examples in the 'AI Instructions' box below."></i></b>
                             <button id="rt_cfe_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load formatting examples"><i class="fa-solid fa-lightbulb"></i> Formatting Guide</button>
                         </div>
                         <textarea id="rt_cfe_template" class="text_pole" rows="5" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
