@@ -554,14 +554,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             trackerHistoryCount: 1,
             ctxWorldInfo: false,
             lorebookFilter: [],
-            // Per-row sub-field rendering rules for entity blocks (CHARACTER, PARTY, COMBAT)
-            subFieldRules: [
-                { label: 'Attacks',    renderType: 'pills',     color: '' },
-                { label: 'Moves',      renderType: 'pills',     color: '' },
-                { label: 'Type',       renderType: 'badge',     color: '' },
-                { label: 'Weakness',   renderType: 'pills',     color: '' },
-                { label: 'Abilities',  renderType: 'pills',     color: '' },
-            ]
+
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -1625,21 +1618,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
     }
 
-    /**
-     * Generic row-rule resolver. Scans `rulesArray` for the first rule whose
-     * label prefix matches the start of `line` (case-insensitive).
-     * Pass getSettings().subFieldRules for global rules, or a custom field's
-     * `rows` array for module-scoped rules.
-     */
-    function resolveRowRule(line, rulesArray) {
-        if (!rulesArray) return null;
-        for (const rule of rulesArray) {
-            if (!rule.label || !rule.label.trim()) continue;
-            const prefix = rule.label.trim().toLowerCase().replace(/:$/, '');
-            if (line.toLowerCase().startsWith(prefix + ':')) return rule;
-        }
-        return null;
-    }
+
+
 
     /**
      * Renders a line according to a row rule (label → renderType → color).
@@ -1744,21 +1724,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             return renderSubFieldByRule({ renderType }, mContent.trim());
         }
 
-        const s = getSettings();
-        const field = (s.customFields || []).find(f => f.tag.toUpperCase() === tag.toUpperCase());
-        // 1a. Label-based match against module rows
-        let rule = resolveRowRule(line, field?.rows);
-        // 1b. Positional fallback: if module has rows but none matched by label, use row[lineIdx % rows.length]
-        if (!rule && field?.rows?.length) {
-            rule = field.rows[lineIdx % field.rows.length];
-        }
-        // 2. Global sub-field rules (label-only — no positional fallback here)
-        if (!rule) rule = resolveRowRule(line, s.subFieldRules);
-        if (rule) return renderSubFieldByRule(rule, line);
-        // 3. Plain kv fallback
+        // Plain kv fallback
         const kv = line.match(/^([^:]+):\s*(.+)$/);
         if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}:</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
-        return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
+        return `<div class="rt-card-line">${escapeHtmlWithColor(line.trim())}</div>`;
     }
 
     /**
@@ -2081,11 +2050,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                                 if (rowHtml) { results[lastEntityIdx] += rowHtml; renderedAny = true; }
                             }
                             if (!renderedAny) { results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`; }
-                            continue;
-                        }
-                        const subFieldRule = resolveRowRule(line, getSettings().subFieldRules);
-                        if (subFieldRule) {
-                            results[lastEntityIdx] += renderSubFieldByRule(subFieldRule, line);
                             continue;
                         }
                     }
@@ -3663,91 +3627,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         document.getElementById('rt_pe_cancel').onclick = close;
     }
 
-    // ── Sub-Field Rules UI ───────────────────────────────────────────────────────
-    function refreshSubFieldRuleList() {
-        const s = getSettings();
-        const container = document.getElementById('rpg_tracker_subfield_list');
-        if (!container) return;
-        container.innerHTML = '';
 
-        const rules = s.subFieldRules || [];
-        if (rules.length === 0) {
-            container.innerHTML = '<small style="opacity:0.6; font-style:italic;">No rules defined. Click "Add Sub-Field Rule" to create one.</small>';
-        }
-
-        rules.forEach((rule, idx) => {
-            const row = document.createElement('div');
-            row.style.cssText = 'display:flex; align-items:center; gap:6px; padding:4px; border:1px solid rgba(255,255,255,0.08); border-radius:6px; background:rgba(255,255,255,0.03);';
-
-            // Label input
-            const labelInput = document.createElement('input');
-            labelInput.type = 'text';
-            labelInput.className = 'text_pole';
-            labelInput.placeholder = 'Label (e.g. Attacks)';
-            labelInput.value = rule.label || '';
-            labelInput.style.cssText = 'flex:2; min-width:80px; height:28px; padding:2px 6px; font-size:12px;';
-            labelInput.addEventListener('input', () => {
-                s.subFieldRules[idx].label = labelInput.value;
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
-            });
-
-            // Render type dropdown — reuse the shared options (includes hp_bar, xp_bar, kv)
-            const typeSelect = buildRowTypeSelect(rule.renderType || 'text');
-            typeSelect.style.cssText = 'flex:2; min-width:110px; height:28px; padding:2px 4px; font-size:12px;';
-            typeSelect.addEventListener('change', () => {
-                s.subFieldRules[idx].renderType = typeSelect.value;
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
-            });
-
-            // Color picker (label color)
-            const colorWrap = document.createElement('div');
-            colorWrap.title = 'Label color (optional)';
-            colorWrap.style.cssText = 'display:flex; align-items:center; gap:3px; flex-shrink:0;';
-            const colorDot = document.createElement('input');
-            colorDot.type = 'color';
-            colorDot.value = rule.color || '#ffffff';
-            colorDot.style.cssText = 'width:24px; height:24px; border:none; padding:0; cursor:pointer; border-radius:4px; background:transparent;';
-            colorDot.addEventListener('input', () => {
-                s.subFieldRules[idx].color = colorDot.value;
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
-            });
-            const clearColor = document.createElement('button');
-            clearColor.className = 'menu_button interactable';
-            clearColor.title = 'Clear color (use default)';
-            clearColor.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-            clearColor.style.cssText = 'padding:2px 5px; font-size:10px; flex-shrink:0;';
-            clearColor.addEventListener('click', () => {
-                s.subFieldRules[idx].color = '';
-                colorDot.value = '#ffffff';
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshRenderedView();
-            });
-            colorWrap.appendChild(colorDot);
-            colorWrap.appendChild(clearColor);
-
-            // Delete button
-            const delBtn = document.createElement('button');
-            delBtn.className = 'menu_button interactable';
-            delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-            delBtn.title = 'Delete rule';
-            delBtn.style.cssText = 'padding:2px 7px; font-size:11px; flex-shrink:0; color:#ff5555;';
-            delBtn.addEventListener('click', () => {
-                s.subFieldRules.splice(idx, 1);
-                SillyTavern.getContext().saveSettingsDebounced();
-                refreshSubFieldRuleList();
-                refreshRenderedView();
-            });
-
-            row.appendChild(labelInput);
-            row.appendChild(typeSelect);
-            row.appendChild(colorWrap);
-            row.appendChild(delBtn);
-            container.appendChild(row);
-        });
-    }
 
     function refreshOrderList() {
         const s = getSettings();
@@ -4135,15 +4015,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 ctx.saveSettingsDebounced();
             });
 
-            // Sub-Field Rules
-            refreshSubFieldRuleList();
-            $('#rpg_tracker_add_subfield_rule').on('click', function () {
-                if (!settings.subFieldRules) settings.subFieldRules = [];
-                settings.subFieldRules.push({ label: '', renderType: 'pills', color: '' });
-                ctx.saveSettingsDebounced();
-                refreshSubFieldRuleList();
-                refreshRenderedView();
-            });
+
 
             $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
                 settings.systemPromptTemplate = $(this).val();
