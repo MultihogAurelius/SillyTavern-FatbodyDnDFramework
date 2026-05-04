@@ -474,6 +474,7 @@ Declare their COMBAT PROFILE immediately:
             completionPresetId: "",
             renderedViewActive: true,
             maxTokens: 0,
+            fontSize: 13,
             rngEnabled: true,
             diceFunctionTool: true,
             systemPromptTemplate:
@@ -2632,6 +2633,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const panel = document.createElement('div');
         panel.id = 'rpg-tracker-panel';
         panel.className = `rpg-tracker-panel ${settings.trackerTheme || 'rt-theme-native'}`;
+        panel.style.setProperty('--rt-base-size', (settings.fontSize || 13) + 'px');
         panel.innerHTML = `
             <div class="rt-resizer-tr" id="rt-resizer-tr" title="Resize from top-right"></div>
             <div class="rpg-tracker-header" id="rpg-tracker-header">
@@ -4127,6 +4129,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 });
             });
 
+            const fontSizeInput = $('#rpg_tracker_font_size');
+            fontSizeInput.val(settings.fontSize || 13).on('input', function() {
+                const val = parseInt(String($(this).val()));
+                if (isNaN(val) || val < 8 || val > 32) return;
+                settings.fontSize = val;
+                ctx.saveSettingsDebounced();
+                updateTrackerFontSize(val);
+            });
+
             // Populate profiles using handleDropdown (fills real internal IDs, not names)
             if (ctx.ConnectionManagerRequestService?.handleDropdown) {
                 /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
@@ -4344,6 +4355,16 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         // Add wand button to toggle panel visibility
         addWandButton();
 
+    function updateTrackerFontSize(size) {
+        const panel = document.getElementById('rpg-tracker-panel');
+        if (!panel) return;
+        const s = size || getSettings().fontSize || 13;
+        panel.style.setProperty('--rt-base-size', s + 'px');
+        
+        // Also update CFE preview if open
+        const cfe = document.getElementById('rt_cfe_preview');
+        if (cfe) cfe.style.setProperty('--rt-base-size', s + 'px');
+    }
 
     function addWandButton() {
         const wandContainer = document.getElementById('extensionsMenu');
@@ -4368,5 +4389,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         wandContainer.appendChild(btn);
     }
+
     })();
 })();

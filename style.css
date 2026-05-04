@@ -16,6 +16,7 @@
     --rt-header-bg: rgba(255, 255, 255, 0.05);
     --rt-card-bg: rgba(255, 255, 255, 0.03);
     --rt-card-header: rgba(255, 255, 255, 0.04);
+    --rt-base-size: 13px;
 }
 
 .rpg-tracker-panel.rt-theme-native {
@@ -285,7 +286,7 @@
     padding: 12px;
     color: var(--rt-accent);
     font-family: inherit;
-    font-size: 13px;
+    font-size: var(--rt-base-size);
     resize: none;
     outline: none;
     overflow-y: auto;
@@ -314,7 +315,7 @@
     border: var(--rt-border);
     border-radius: 6px;
     color: var(--rt-text);
-    font-size: 12px;
+    font-size: calc(var(--rt-base-size) - 1px);
     padding: 6px 8px;
     resize: none;
     line-height: 1.4;
@@ -682,7 +683,7 @@
 
 .rt-section-body {
     padding: 7px 10px;
-    font-size: 12px;
+    font-size: calc(var(--rt-base-size) - 1px);
     display: flex;
     flex-direction: column;
     gap: 4px;
