@@ -1230,10 +1230,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const templateLines = field.rows.map(row => {
             const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
-            // Only prefix with "Label: " if the user actually wants a visible label.
-            // The label field in the editor is primarily for row-matching, not forced output.
-            const labelHint = row.label ? `${row.label}: ` : '';
-            return `((${marker})) ${labelHint}[value]`;
+            // The label field is for row-matching only — never include it in the AI template.
+            return `((${marker})) [value]`;
         });
 
         const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
