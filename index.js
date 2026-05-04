@@ -3422,7 +3422,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     <div style="margin-top:12px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                             <b style="font-size:13px;">Module Template & Examples</b>
-                            <small style="opacity:0.6;">(Defines the AI output format and UI rendering)</small>
+                            <button id="rt_cfe_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load formatting examples"><i class="fa-solid fa-lightbulb"></i> Formatting Guide</button>
                         </div>
                         <textarea id="rt_cfe_template" class="text_pole" rows="5" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
                         <div style="font-size:11px; opacity:0.5; margin-top:4px;">
@@ -3524,6 +3524,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         };
 
         const updatePreview = () => renderPreviewInto(null);
+
+        const EXAMPLES = `((BAR)) Health: 45/100
+((XPBAR)) Level 3: 1,200/2,700 XP
+((PILLS)) Skills: Stealth, Deception, Acrobatics
+((BADGE)) Status: Inspired
+((HIGHLIGHT)) Emphasis: (Special Item)
+((TEXT)) Note: Simple text row.`;
+
+        document.getElementById('rt_cfe_guide').onclick = () => {
+            if (!templateEl.value || confirm("This will replace your current template with examples. Continue?")) {
+                templateEl.value = EXAMPLES;
+                schedulePreview();
+            }
+        };
 
         iconEl.addEventListener('input', schedulePreview);
         tagEl.addEventListener('input', schedulePreview);
