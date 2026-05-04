@@ -3527,7 +3527,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const EXAMPLES = `((BAR)) Health: 45/100
 ((XPBAR)) Level 3: 1,200/2,700 XP
-((PILLS)) Skills: Stealth, Deception, Acrobatics
+((PILLS)) Skills: Stealth (Expert), Deception (Proficient)
 ((BADGE)) Status: Inspired
 ((HIGHLIGHT)) Emphasis: (Special Item)
 ((TEXT)) Note: Simple text row.`;
