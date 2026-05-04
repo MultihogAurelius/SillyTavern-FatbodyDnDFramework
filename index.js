@@ -18,14 +18,71 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: `Main character's core stats. Use markers for formatting. Example:\n[CHARACTER]\n((BAR)) Korgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\n((PILLS)) Traits: Dwarven Resilience (Adv on poison saves), Fire Resistant\nHD: d10 (2/2)\n((PILLS)) Status: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
-        party: `Companion/Party members. Use ((BAR)) for HP and ((PILLS)) for status/traits.\n\nExample party: \n[PARTY]\n((BAR)) Elara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\n((PILLS)) Traits: Natural Explorer\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\n((PILLS)) Status: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
-        combat: `Active enemies/NPCs in combat. Use ((BAR)) for HP and ((PILLS)) for status.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\n((BAR)) Goblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\n((PILLS)) Other: Trait1, Trait2\n((PILLS)) Status: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
-        inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- [Legendary] Volcanic Mace\n- [Rare] Leather Armor\n- [Uncommon] Healing Potion\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
-        abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.\n\nExample:\n[ABILITIES]\n- Second Wind (1/1, Regain 1d10+4 HP)\n- Combat Superiority (2/4, d8 dice)\n[/ABILITIES]`,
+        character: `Main character's core stats. Use this format:
+[CHARACTER]
+{{user}} (Class): current/max HP
+Att/def: Weapon (stats) | Armor (AC: Z)
+Attr: STR X, DEX X, CON X, INT X, WIS X, CHA X
+Saves: Fort +X | Ref +X | Will +X
+Skills: Skill1 +X, Skill2 +X
+Traits: Trait1 (effect), Trait2 (effect)
+HD: dX (current/max)
+Status: Effect (duration Xh Xm)
+[/CHARACTER]
+
+Upon LEVEL UP, incorporate attribute changes.`,
+        party: `Companion/Party members. Use this format for each member:
+Name (Class): current/max HP
+Att/def: Weapon (stats) | Armor (AC: Z)
+Attr: STR X, DEX X, CON X, INT X, WIS X, CHA X
+Saves: Fort +X | Ref +X | Will +X
+Skills: Skill1 +X, Skill2 +X
+Traits: Trait1 (effect), Trait2 (effect)
+Spells: Cantrips: Spell1, Spell2
+Spells: Level N (avail/max): Spell1, Spell2
+HD: dX (current/max)
+Status: Effect (duration Xh Xm)
+
+For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.
+
+Only add party members if you see (X joins the party.)
+Only remove party members if you see (X leaves the party.)
+
+PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.
+
+Example party: [PARTY]Elara (Ranger): 26/45 HP
+Att/def: Shortbow (+5 / 1d6+3 P) | Leather Armor (AC: 15)
+Attr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12
+Saves: Fort +3 | Ref +5 | Will +2
+Skills: Athletics +3, Perception +5
+Traits: Natural Explorer (ignore difficult terrain)
+Spells: Cantrips: Mage Hand
+Spells: Level 1 (2/2): Hunter's Mark, Goodberry
+HD: d10 (5/5)
+Status: Healthy
+[/PARTY]`,
+        combat: `Active enemies/NPCs in combat. Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. Format each combatant as:
+Name: current/max HP
+Att/def: Weapon (+X / damage) | Armor (AC: Z)
+Saves: Fort +X, Ref +X, Will +X
+Other: Trait1 (description), Trait2 (description)
+Status: Effect (duration)
+
+You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].`,
+        inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.
+
+Example:
+[INVENTORY]
+- Data-crystal
+- 1,000 GP
+- Item (Item special property)
+[/INVENTORY]`,
+        abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.`,
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
-        time: "Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.\n\n'Last Rest' is ONLY triggered on Long Rest, NOT Short Rest. If the [TIME] delta between PREVIOUS STATE MEMO and your current update is only an hour, it is a Short Rest.",
-        xp: "Track character experience points. Use ((XPBAR)) marker. Example:\n[XP]\n((XPBAR)) Total: 1,200 / 2,700 XP (Level 3)\n[/XP]",
+        time: `Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.
+
+'Last Rest' is ONLY triggered on Long Rest, NOT Short Rest (when Hit Dice, etc, are spent.) If the [TIME] delta between PREVIOUS STATE MEMO and your current update is only an hour, it is a Short Rest.`,
+        xp: "Character Level and Experience Points (XP). Format as `Level: X | XP: current/max`. You MUST output this field whenever the narrative mentions gaining experience or leveling up.",
     };
 
     // System prompts embedded directly for mobile/Termux compatibility (no fetch needed)
