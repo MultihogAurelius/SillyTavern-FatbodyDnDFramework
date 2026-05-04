@@ -1880,24 +1880,56 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
 
         switch (renderType) {
-            case 'COMBAT':
+                        case 'COMBAT':
             case 'PARTY':
             case 'CHARACTER': {
                 const results = [];
                 let lastEntityIdx = -1;
 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
+                const MARKER_RX = /^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*(.*)/i;
+                const MARKER_TYPE_MAP = {
+                    'PILLS': 'pills', 'BAR': 'hp_bar', 'HPBAR': 'hp_bar',
+                    'XPBAR': 'xp_bar', 'TEXT': 'text', 'BADGE': 'badge', 'HIGHLIGHT': 'highlight'
+                };
 
-                    // Check for Combat Round header
+                const renderSpellGroup = (groupStr) => {
+                    const m = groupStr.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
+                    if (!m) return null;
+                    const [, lbl, availStr, maxStr, spellList] = m;
+                    const isCantrip = /cantrip/i.test(lbl);
+                    let pipsHtml = '';
+                    if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
+                        const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
+                        pipsHtml = `<span class="rt-slot-pips">${Array.from({ length: maxSlots }, (_, i) =>
+                            `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`).join('')}</span>`;
+                    }
+                    let spellsHtml = '';
+                    if (spellList) {
+                        spellsHtml = `<div class="rt-spell-list">${spellList.split(',').map(s => {
+                            const name = s.trim();
+                            const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
+                            return `<a href="https://dnd5e.wikidot.com/spell:${slug}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
+                        }).join('')}</div>`;
+                    }
+                    return `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div></div>`;
+                };
+
+                for (let i = 0; i < lines.length; i++) {
+                    const rawLine = lines[i];
+                    const mm = rawLine.match(MARKER_RX);
+                    const explicitType = mm ? MARKER_TYPE_MAP[mm[1].toUpperCase()] : null;
+                    const line = mm ? mm[2].trim() : rawLine;
+
+                    // 1. Combat Round header
                     if (tag === 'COMBAT' && /Combat Round\s*\d+/i.test(line)) {
                         results.push(`<div class="rt-combat-round">${escapeHtmlWithColor(line)}</div>`);
                         lastEntityIdx = -1;
                         continue;
                     }
 
+                    // 2. Entity anchor: classic "Name: X/Y HP ..." — fires with no marker OR BAR/HPBAR
                     const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
-                    if (hpMatch) {
+                    if (hpMatch && (explicitType === null || explicitType === 'hp_bar')) {
                         const [, name, curRaw, maxRaw, rest] = hpMatch;
                         const cur = Number(curRaw.replace(/,/g, ''));
                         const max = maxRaw ? Number(maxRaw.replace(/,/g, '')) : undefined;
@@ -1908,189 +1940,106 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
 
                         lastEntityIdx = results.length;
-                        results.push(`<div class="rt-entity-row">
-                            <div class="rt-entity-name">${escapeHtmlWithColor(name.trim())}</div>
-                            <div class="rt-hp-bar-wrap" title="${label} HP">
-                                <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div>
-                            </div>
-                            <span class="rt-hp-label">${label}</span>
-                        </div>`);
+                        results.push(`<div class="rt-entity-row"><div class="rt-entity-name">${escapeHtmlWithColor(name.trim())}</div><div class="rt-hp-bar-wrap" title="${label} HP"><div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div></div><span class="rt-hp-label">${label}</span></div>`);
 
                         if (status) {
-                            // Split inline status by pipe to find AC, Saves, etc.
                             const parts = status.split('|').map(p => p.trim()).filter(Boolean);
                             let genericInfo = [];
-
                             for (const part of parts) {
                                 if (part.toLowerCase().startsWith('ac:')) {
-                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">AC:</span> ${escapeHtmlWithColor(part.substring(3).trim())}
-                                    </div>`;
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">AC:</span> ${escapeHtmlWithColor(part.substring(3).trim())}</div>`;
                                 } else if (part.toLowerCase().startsWith('saves:')) {
-                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                        <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(part.substring(6).trim()))}
-                                    </div>`;
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(part.substring(6).trim()))}</div>`;
                                 } else if (part.toLowerCase().startsWith('status:')) {
-                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
-                                        <span class="rt-entity-sub-label">Status:</span> ${renderPills(part.substring(7).trim())}
-                                    </div>`;
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Status:</span> ${renderPills(part.substring(7).trim())}</div>`;
                                 } else if (part.toLowerCase().startsWith('other:') || part.toLowerCase().startsWith('res:')) {
-                                    const label = part.toLowerCase().startsWith('res:') ? 'Res:' : 'Other:';
+                                    const lbl = part.toLowerCase().startsWith('res:') ? 'Res:' : 'Other:';
                                     const start = part.toLowerCase().startsWith('res:') ? 4 : 6;
-                                    const text = part.substring(start).trim();
-                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container">
-                                        <span class="rt-entity-sub-label">${label}</span> ${renderPills(text)}
-                                    </div>`;
-                                } else {
-                                    genericInfo.push(part);
-                                }
+                                    results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">${lbl}</span> ${renderPills(part.substring(start).trim())}</div>`;
+                                } else { genericInfo.push(part); }
                             }
-
                             if (genericInfo.length > 0) {
-                                results[lastEntityIdx] += `<div class="rt-entity-sub-line">
-                                    <span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtmlWithColor(genericInfo.join(' | ')))}
-                                </div>`;
+                                results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Info:</span> ${highlightParens(escapeHtmlWithColor(genericInfo.join(' | ')))}</div>`;
                             }
                         }
-                    } else if ((line.toLowerCase().startsWith('attributes:') || line.toLowerCase().startsWith('attr:')) && lastEntityIdx !== -1) {
-                        const label = line.toLowerCase().startsWith('attr:') ? 'Attr:' : 'Attr:';
-                        const startIdx = line.indexOf(':') + 1;
-                        const attrText = line.substring(startIdx).trim();
-                        const attrHtml = `<div class="rt-entity-sub-line rt-entity-attributes">
-                            <span class="rt-entity-sub-label">${label}</span> ${escapeHtmlWithColor(attrText)}
-                        </div>`;
-                        results[lastEntityIdx] += attrHtml;
-                    } else if ((line.toLowerCase().startsWith('skills:') || line.toLowerCase().startsWith('key skills:')) && lastEntityIdx !== -1) {
-                        // Append bundled skills below the entity row
-                        const skillsMatch = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
-                        const skillsText = skillsMatch ? skillsMatch[1].trim() : line.split(':')[1]?.trim() || '';
-                        const skillsHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Skills:</span> ${escapeHtmlWithColor(skillsText)}
-                        </div>`;
-                        results[lastEntityIdx] += skillsHtml;
-                    } else if (line.toLowerCase().startsWith('saves:') && lastEntityIdx !== -1) {
-                        const startIdx = line.indexOf(':') + 1;
-                        const savesText = line.substring(startIdx).trim();
-                        const savesHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(savesText))}
-                        </div>`;
-                        results[lastEntityIdx] += savesHtml;
-                    } else if (line.toLowerCase().startsWith('status:') && lastEntityIdx !== -1) {
-                        const statusText = line.substring(7).trim();
-                        const statusHtml = `<div class="rt-entity-sub-line rt-units-container">
-                            <span class="rt-entity-sub-label">Status:</span> ${renderPills(statusText)}
-                        </div>`;
-                        results[lastEntityIdx] += statusHtml;
-                    } else if ((line.toLowerCase().startsWith('primary weapon:') || line.toLowerCase().startsWith('att/def:')) && lastEntityIdx !== -1) {
-                        const startIdx = line.indexOf(':') + 1;
-                        const label = line.toLowerCase().startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
-                        const weaponText = line.substring(startIdx).trim();
-                        const weaponHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">${label}</span> ${highlightParens(escapeHtmlWithColor(weaponText))}
-                        </div>`;
-                        results[lastEntityIdx] += weaponHtml;
-                    } else if (line.toLowerCase().startsWith('hd:') && lastEntityIdx !== -1) {
-                        const startIdx = line.indexOf(':') + 1;
-                        let hdText = line.substring(startIdx).trim();
-                        let pipsHtml = escapeHtmlWithColor(hdText);
-                        const m = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
-                        if (m) {
-                            const [, dice, curStr, maxStr] = m;
-                            if (curStr && maxStr) {
-                                const cur = parseInt(curStr.replace(/,/g, ''), 10);
-                                const max = parseInt(maxStr.replace(/,/g, ''), 10);
-                                const pips = Array.from({ length: max }, (_, i) =>
-                                    `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`
-                                ).join('');
-                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(dice.trim())} ]</span> <span class="rt-hd-pips">${pips}</span>`;
-                            }
-                        }
-                        const hdHtml = `<div class="rt-entity-sub-line">
-                            <span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span>
-                        </div>`;
-                        results[lastEntityIdx] += hdHtml;
-                    } else if (line.toLowerCase().startsWith('traits:') && lastEntityIdx !== -1) {
-                        const traitsText = line.substring(7).trim();
-                        const traitsHtml = `<div class="rt-entity-sub-line rt-units-container">
-                            <span class="rt-entity-sub-label">Traits:</span> ${renderPills(traitsText)}
-                        </div>`;
-                        results[lastEntityIdx] += traitsHtml;
-                    } else if ((line.toLowerCase().startsWith('other:') || line.toLowerCase().startsWith('resistances:')) && lastEntityIdx !== -1) {
-                        const startIdx = line.indexOf(':') + 1;
-                        const otherText = line.substring(startIdx).trim();
-                        const otherHtml = `<div class="rt-entity-sub-line rt-units-container">
-                            <span class="rt-entity-sub-label">Other:</span> ${renderPills(otherText)}
-                        </div>`;
-                        results[lastEntityIdx] += otherHtml;
-                    } else if (line.toLowerCase().startsWith('spells:') && lastEntityIdx !== -1) {
-                        const startIdx = line.indexOf(':') + 1;
-                        const spellLine = line.substring(startIdx).trim();
+                        continue;
+                    }
 
-                        // Helper to render a single parsed spell-level group
-                        const renderSpellGroup = (groupStr) => {
-                            const m = groupStr.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
-                            if (!m) return null;
-                            const [, label, availStr, maxStr, spellList] = m;
-                            const isCantrip = /cantrip/i.test(label);
-                            let pipsHtml = '';
-                            if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
-                                const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
-                                const pips = Array.from({ length: maxSlots }, (_, i) =>
-                                    `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`
-                                ).join('');
-                                pipsHtml = `<span class="rt-slot-pips">${pips}</span>`;
-                            }
-                            let spellsHtml = '';
-                            if (spellList) {
-                                const spells = spellList.split(',').map(s => {
-                                    const name = s.trim();
-                                    const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
-                                    const url = `https://dnd5e.wikidot.com/spell:${slug}`;
-                                    return `<a href="${url}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
-                                }).join('');
-                                spellsHtml = `<div class="rt-spell-list">${spells}</div>`;
-                            }
-                            // Mirror the exact HTML structure of the standalone SPELLS block:
-                            // rt-spell-row (2-col grid): level label | inline-group(pips + list)
-                            return `<div class="rt-spell-row">
-                                <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
-                                <div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div>
-                            </div>`;
-                        };
+                    // 3. Explicit ((TYPE)) marker — attach to entity or push standalone
+                    if (explicitType) {
+                        const rendered = renderSubFieldByRule({ renderType: explicitType }, line);
+                        if (lastEntityIdx !== -1) { results[lastEntityIdx] += rendered; }
+                        else { results.push(rendered); }
+                        continue;
+                    }
 
-                        // Support BOTH formats:
-                        // New (standard): one Spells: line per level
-                        //   e.g. "Spells: Cantrips: Guidance"
-                        //        "Spells: Level 1 (2/2): Hunter's Mark, Goodberry"
-                        // Legacy (compound): pipe-separated levels on one Spells: line
-                        //   e.g. "Spells: Cantrips: Guidance | Level 1 (2/2): Hunter's Mark, Goodberry"
-                        const isCompound = /\|/.test(spellLine) && /(?:Level\s*\d+|Cantrips?)/i.test(spellLine);
-                        const groups = isCompound
-                            ? spellLine.split(/\s*\|\s*/)
-                            : [spellLine];
-
-                        let renderedAny = false;
-                        for (const group of groups) {
-                            const rowHtml = renderSpellGroup(group);
-                            if (rowHtml) {
-                                results[lastEntityIdx] += rowHtml;
-                                renderedAny = true;
+                    // 4. Keyword-based sub-lines (backward compat)
+                    if (lastEntityIdx !== -1) {
+                        const ll = line.toLowerCase();
+                        if (ll.startsWith('attr:') || ll.startsWith('attributes:')) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-entity-attributes"><span class="rt-entity-sub-label">Attr:</span> ${escapeHtmlWithColor(line.substring(line.indexOf(':') + 1).trim())}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('skills:') || ll.startsWith('key skills:')) {
+                            const sm = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Skills:</span> ${escapeHtmlWithColor(sm ? sm[1].trim() : line.split(':')[1]?.trim() || '')}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('saves:')) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(line.substring(6).trim()))}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('status:')) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Status:</span> ${renderPills(line.substring(7).trim())}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('primary weapon:') || ll.startsWith('att/def:')) {
+                            const lbl = ll.startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">${lbl}</span> ${highlightParens(escapeHtmlWithColor(line.substring(line.indexOf(':') + 1).trim()))}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('hd:')) {
+                            let hdText = line.substring(3).trim();
+                            let pipsHtml = escapeHtmlWithColor(hdText);
+                            const hm = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
+                            if (hm && hm[2] && hm[3]) {
+                                const cur = parseInt(hm[2].replace(/,/g, ''), 10);
+                                const max = parseInt(hm[3].replace(/,/g, ''), 10);
+                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(hm[1].trim())} ]</span> <span class="rt-hd-pips">${Array.from({ length: max }, (_, i) => `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`).join('')}</span>`;
                             }
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span></div>`;
+                            continue;
                         }
-                        if (!renderedAny) {
-                            // Fallback if model format is unrecognizable
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`;
+                        if (ll.startsWith('traits:')) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Traits:</span> ${renderPills(line.substring(7).trim())}</div>`;
+                            continue;
                         }
-                    } else {
-                        // Check global sub-field rules before falling to generic plain line
+                        if (ll.startsWith('other:') || ll.startsWith('resistances:')) {
+                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Other:</span> ${renderPills(line.substring(line.indexOf(':') + 1).trim())}</div>`;
+                            continue;
+                        }
+                        if (ll.startsWith('spells:')) {
+                            const spellLine = line.substring(7).trim();
+                            const isCompound = /\|/.test(spellLine) && /(?:Level\s*\d+|Cantrips?)/i.test(spellLine);
+                            const groups = isCompound ? spellLine.split(/\s*\|\s*/) : [spellLine];
+                            let renderedAny = false;
+                            for (const group of groups) {
+                                const rowHtml = renderSpellGroup(group);
+                                if (rowHtml) { results[lastEntityIdx] += rowHtml; renderedAny = true; }
+                            }
+                            if (!renderedAny) { results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`; }
+                            continue;
+                        }
                         const subFieldRule = resolveRowRule(line, getSettings().subFieldRules);
-                        if (subFieldRule && lastEntityIdx !== -1) {
+                        if (subFieldRule) {
                             results[lastEntityIdx] += renderSubFieldByRule(subFieldRule, line);
-                        } else {
-                            results.push(`<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`);
-                            lastEntityIdx = -1;
+                            continue;
                         }
                     }
+
+                    // 5. Fallback: plain card line, resets entity context
+                    results.push(`<div class="rt-card-line">${escapeHtmlWithColor(rawLine)}</div>`);
+                    lastEntityIdx = -1;
                 }
                 return results;
             }
