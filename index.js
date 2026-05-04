@@ -1748,7 +1748,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 return `<span class="${pillClass}">
                     <span class="rt-unit-name">${escapeHtmlWithColor(name)}</span>
                     ${iconHtml}
-                    <span class="rt-unit-descr">${escapeHtmlWithColor(desc)}</span>
+                    <span class="rt-unit-descr">(${escapeHtmlWithColor(desc)})</span>
                 </span>`;
             }
             return `<span class="${pillClass} no-desc"><span class="rt-unit-name">${escapeHtmlWithColor(displayText)}</span></span>`;
