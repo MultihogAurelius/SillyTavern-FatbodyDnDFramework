@@ -539,6 +539,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             legacyDiceNaming: false,
             closeCount: 0,
             lookbackMessages: 2,
+            directPromptContext: 5,
             trackerHistoryCount: 1,
             ctxWorldInfo: false,
             lorebookFilter: [],
@@ -1336,6 +1337,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         try {
             _stateModelRunning = true;
             updateStatusIndicator('running');
+            const worldLore = await buildLorebookContext();
+            const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
 
             let modulesText = '';
             const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
@@ -1356,7 +1359,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             const sanitizedCurrent = stripMemoHtml(settings.currentMemo.replace(/<\/?memo>/gi, '').trim());
 
+            const { chat } = SillyTavern.getContext();
+            const N = settings.directPromptContext !== undefined ? settings.directPromptContext : 5;
+            let chatLog = '';
+            if (N > 0 && chat && chat.length > 0) {
+                const recentChat = chat.slice(-N);
+                chatLog = `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n` + recentChat.map(m => {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                    return `${name}: ${m.mes}`;
+                }).join('\n\n') + '\n\n';
+            }
+
             const userPrompt =
+                worldLoreSection +
+                chatLog +
                 `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
                 `## USER INSTRUCTION\n${message}\n\n` +
                 `## OUTPUT ONLY CHANGED OR NEW SECTIONS:`;
@@ -2607,7 +2623,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             </div>
             <div class="rpg-tracker-prompt-bar" id="rpg-tracker-prompt-bar" style="display:none;">
                 <textarea class="rpg-tracker-prompt-input" id="rpg-tracker-prompt-input" rows="2" placeholder="Instruct the tracker model… (Enter to send, Shift+Enter for newline)"></textarea>
-                <button class="rpg-tracker-prompt-send" id="rpg-tracker-prompt-send" title="Send instruction">▶</button>
+                <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: flex-end;">
+                    <div class="rt-prompt-ctx-control" style="font-size: 9px; display: flex; flex-direction: column; align-items: center; gap: 0;" title="Context: number of recent messages to include">
+                        <input type="number" id="rt-prompt-context-val" value="${settings.directPromptContext || 5}" min="0" max="50" style="width: 28px; height: 16px; font-size: 9px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; text-align: center; padding: 0;">
+                        <span style="opacity: 0.5; font-size: 8px; line-height: 1;">msg</span>
+                    </div>
+                    <button class="rpg-tracker-prompt-send" id="rpg-tracker-prompt-send" title="Send instruction">▶</button>
+                </div>
             </div>
             <div class="rpg-tracker-footer" id="rt-main-footer">
                 <div class="rt-mobile-top-row">
@@ -2866,6 +2888,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
         panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
+        });
+        panel.querySelector('#rt-prompt-context-val').addEventListener('change', (e) => {
+            settings.directPromptContext = parseInt(/** @type {HTMLInputElement} */(e.target).value) || 0;
+            SillyTavern.getContext().saveSettingsDebounced();
         });
 
         // Manual update from panel button
@@ -3321,51 +3347,67 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         overlay.id = 'rt_cfe_overlay';
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:10000000;display:flex;align-items:center;justify-content:center;';
         overlay.innerHTML = `
-            <div class="popup shadowBase" style="min-width:420px;max-width:580px;max-height:90vh;display:flex;flex-direction:column;">
-                <div class="popup-header">
-                    <h3 class="margin0">Edit Custom Module</h3>
-                    <div id="rt_cfe_close" class="popup-close interactable"><i class="fa-solid fa-times"></i></div>
+            <div id="rt_cfe_modal" style="
+                width: min(540px, 94vw);
+                height: min(90vh, 90dvh);
+                display: flex;
+                flex-direction: column;
+                background: var(--SmartThemeBlurTintColor, #1a1a2e);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 10px;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+                color: var(--SmartThemeBodyColor, #ccc);
+                font-family: var(--mainFontFamily, sans-serif);
+                font-size: 13px;
+                overflow: hidden;
+            ">
+                <!-- Header -->
+                <div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0;">
+                    <b style="flex:1;font-size:14px;">Edit Custom Module</b>
+                    <button id="rt_cfe_preview_btn" class="menu_button interactable" style="font-size:11px;padding:3px 8px;display:none;margin-right:6px;"><i class="fa-solid fa-eye"></i> Preview</button>
+                    <button id="rt_cfe_close" class="menu_button interactable" style="padding:3px 8px;font-size:13px;" title="Close"><i class="fa-solid fa-times"></i></button>
                 </div>
-                <div class="popup-body flex-container flexFlowColumn gap-1" style="padding:10px;overflow-y:auto;flex:1;">
+                <!-- Body (scrollable) -->
+                <div style="padding:10px 14px;overflow-y:auto;flex:1 1 0px;min-height:0;">
                     <!-- Identity row -->
-                    <div class="flex-container gap-1 alignitemscenter">
+                    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                         <input type="text" id="rt_cfe_icon" class="text_pole" style="width:44px;text-align:center;" title="Icon (emoji)">
-                        <input type="text" id="rt_cfe_tag"  class="text_pole" style="width:130px;font-family:monospace;" placeholder="TAG">
-                        <input type="text" id="rt_cfe_label" class="text_pole" style="flex:1;" placeholder="Display label">
+                        <input type="text" id="rt_cfe_tag"  class="text_pole" style="width:100px;font-family:monospace;" placeholder="TAG">
+                        <input type="text" id="rt_cfe_label" class="text_pole" style="flex:1;min-width:80px;" placeholder="Display label">
                     </div>
 
                     <!-- Row rules -->
-                    <div style="margin-top:8px;">
+                    <div style="margin-top:10px;">
                         <b style="font-size:13px;">Rows</b>
-                        <small style="display:block;opacity:0.7;margin-bottom:4px;">Define what each line renders as. Any combination, any order — HP bars, pills, XP bars, text…</small>
-                        <div id="rt_cfe_row_list" class="flex-container flexFlowColumn gap-1"></div>
+                        <small style="display:block;opacity:0.7;margin-bottom:4px;">Define what each line renders as. Any combination, any order.</small>
+                        <div id="rt_cfe_row_list" style="display:flex;flex-direction:column;gap:5px;"></div>
                         <button id="rt_cfe_add_row" class="menu_button interactable" style="margin-top:6px;width:100%;">
                             <i class="fa-solid fa-plus"></i> Add Row
                         </button>
-                        <small style="display:block;margin-top:5px;opacity:0.5;font-style:italic;">💡 Pills tip: write <code>Name (detail)</code> — the name shows always, detail appears on hover.</small>
+                        <small style="display:block;margin-top:5px;opacity:0.5;font-style:italic;">\ud83d\udca1 Pills tip: write <code>Name (detail)</code> \u2014 name shows always, detail on hover.</small>
                     </div>
 
                     <!-- Test Data -->
-                    <div style="margin-top:8px;">
-                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Test Data</b> <small style="opacity:0.6;">(paste sample memo lines to preview)</small></label>
-                        <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Hunger: 45/100&#10;Status: Poisoned, Fatigued&#10;Type: Undead"></textarea>
+                    <div style="margin-top:10px;">
+                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Test Data</b> <small style="opacity:0.6;">(paste sample lines to preview)</small></label>
+                        <textarea id="rt_cfe_test_data" class="text_pole" rows="3" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Hunger: 45/100&#10;Status: Poisoned, Fatigued&#10;Type: Undead"></textarea>
                     </div>
 
                     <!-- AI Prompt -->
-                    <div style="margin-top:6px;">
-                        <label for="rt_cfe_prompt" style="font-size:12px;"><b>AI Instructions</b> <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize:vertical;margin-top:3px;" placeholder="E.g. Track hunger and thirst on a 0–100 scale. Format: 'Hunger: 45/100'"></textarea>
-                    </div>
-
-                    <!-- Actions -->
-                    <div class="flex-container gap-1 justifycontentend" style="margin-top:10px;">
-                        <button id="rt_cfe_delete" class="menu_button interactable" style="color:var(--dangerColor);margin-right:auto;"><i class="fa-solid fa-trash"></i> Delete</button>
-                        <button id="rt_cfe_cancel" class="menu_button interactable">Cancel</button>
-                        <button id="rt_cfe_save" class="menu_button interactable">Save Changes</button>
+                    <div style="margin-top:8px;">
+                        <label for="rt_cfe_prompt" style="font-size:12px;"><b>AI Instructions</b> <small style="opacity:0.6;">(what should the model track?)</small></label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="2" style="resize:vertical;margin-top:3px;" placeholder="E.g. Track hunger and thirst on a 0\u2013100 scale."></textarea>
                     </div>
                 </div>
+                <!-- Footer (always visible, never scrolled away) -->
+                <div style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0;align-items:center;">
+                    <button id="rt_cfe_delete" class="menu_button interactable" style="color:#ff5555;margin-right:auto;font-size:12px;"><i class="fa-solid fa-trash"></i> Delete</button>
+                    <button id="rt_cfe_cancel" class="menu_button interactable" style="font-size:12px;">Cancel</button>
+                    <button id="rt_cfe_save" class="menu_button interactable" style="font-size:12px;">Save Changes</button>
+                </div>
             </div>
-            <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin:0;display:flex;flex-direction:column;cursor:default;height:auto;min-height:44px;width:300px;position:fixed;">
+            <!-- Floating preview \u2014 hidden by default, shown by JS on desktop only -->
+            <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin:0;display:none;flex-direction:column;cursor:default;height:auto;min-height:44px;width:300px;position:fixed;">
                 <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor:move;user-select:none;font-size:0.75em;opacity:0.7;padding:5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right:6px;"></i>Live Preview</div>
                 <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
             </div>
@@ -3398,8 +3440,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             _bgRefreshDebounce = setTimeout(refreshRenderedView, 300);
         };
 
-        const updatePreview = () => {
-            const renderView = document.getElementById('rt_cfe_preview_view');
+        /** @param {HTMLElement|null} [targetEl] */
+        const renderPreviewInto = (targetEl) => {
+            const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
             if (!renderView) return;
             const testContent = testDataEl.value.trim();
             if (!testContent) {
@@ -3414,7 +3457,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const ghostField = {
                 tag:     previewTag,
                 label:   labelEl.value || tagEl.value || 'Preview',
-                icon:    iconEl.value || '📄',
+                icon:    iconEl.value || '\ud83d\udcc4',
                 rows:    [...field.rows], // snapshot of current rows
                 prompt:  '',
                 enabled: true
@@ -3423,11 +3466,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             s.customFields = [...savedCustomFields, ghostField];
             try {
                 renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag);
-                bindRenderedCardEvents(renderView, fakeMemo, true, updatePreview);
+                bindRenderedCardEvents(renderView, fakeMemo, true, () => renderPreviewInto(targetEl));
             } finally {
                 s.customFields = savedCustomFields;
             }
         };
+
+        const updatePreview = () => renderPreviewInto(null);
 
         // ── Row list UI ──
         const refreshRowList = () => {
@@ -3492,15 +3537,29 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         updatePreview();
         overlay.style.display = 'flex';
 
-        // Position & drag preview panel
-        const popup = overlay.querySelector('.popup');
+        // Position & drag preview panel — desktop only
+        const modal = document.getElementById('rt_cfe_modal');
         const previewHeader = /** @type {HTMLElement} */ (document.getElementById('rt_cfe_preview_header'));
-        if (popup && previewEl && previewHeader) {
-            const rect = popup.getBoundingClientRect();
-            previewEl.style.left = (rect.right + 20) + 'px';
-            previewEl.style.top  = rect.top + 'px';
-            // @ts-ignore
-            makeDraggable(previewEl, previewHeader);
+        const previewBtn = document.getElementById('rt_cfe_preview_btn');
+
+        if (modal && previewEl && previewHeader) {
+            const rect = modal.getBoundingClientRect();
+            const spaceOnRight = window.innerWidth - rect.right;
+            if (spaceOnRight >= 320 && window.innerWidth > 700) {
+                // Desktop: show floating panel and toggle button
+                previewEl.style.display = 'flex';
+                previewEl.style.left = (rect.right + 20) + 'px';
+                previewEl.style.top  = rect.top + 'px';
+                // @ts-ignore
+                makeDraggable(previewEl, previewHeader);
+                if (previewBtn) {
+                    previewBtn.style.display = 'flex';
+                    previewBtn.addEventListener('click', () => {
+                        if (previewEl) previewEl.style.display = previewEl.style.display === 'none' ? 'flex' : 'none';
+                    });
+                }
+            }
+            // Mobile: preview button stays hidden (display:none set in HTML), floating panel stays display:none
         }
 
         const save = () => {
