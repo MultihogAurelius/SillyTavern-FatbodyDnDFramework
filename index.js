@@ -3453,7 +3453,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                             <b style="font-size:13px;">Module Template & Examples <i class="fa-solid fa-circle-question" style="opacity:0.5; cursor:help; font-size:11px;" title="This box is ONLY for testing how the UI renders your formatting. Nothing from this box is sent to the AI. You must manually include any formatting examples in the 'AI Instructions' box below."></i></b>
                             <button id="rt_cfe_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load formatting examples"><i class="fa-solid fa-lightbulb"></i> Formatting Guide</button>
                         </div>
-                        <textarea id="rt_cfe_template" class="text_pole" rows="5" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
+                        <textarea id="rt_cfe_template" class="text_pole" rows="8" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
                         <div style="font-size:11px; opacity:0.5; margin-top:4px;">
                             Markers: <code>((PILLS))</code>, <code>((BAR))</code>, <code>((XPBAR))</code>, <code>((BADGE))</code>, <code>((HIGHLIGHT))</code>
                         </div>
@@ -3465,7 +3465,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                             <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
                             <b style="font-size:12px;">AI Instructions</b>
                         </div>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="4" style="resize:vertical; width:100%;" placeholder="Paste your full AI instructions here, including formatting examples..."></textarea>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="6" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above to create and paste a formatting instructions template here."></textarea>
                     </div>
 
                     <!-- UI Live Preview (Mobile) -->
@@ -4085,7 +4085,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
                 settings.customFields.push({
                     tag: newTag, label: 'New Field', icon: '📝',
-                    prompt: 'What should the AI track for this new field? Describe it here.',
+                    prompt: '',
                     rows: [], enabled: true
                 });
                 refreshOrderList();
