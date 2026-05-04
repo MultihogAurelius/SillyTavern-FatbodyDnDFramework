@@ -973,6 +973,20 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         }
     }
 
+    async function getCurrentConnectionProfile() {
+        if (!(await checkConnectionProfilesActive())) return null;
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        const result = await executeSlashCommandsWithOptions(`/profile`);
+        return result?.pipe?.trim() || null;
+    }
+
+    async function setConnectionProfile(name) {
+        if (!(await checkConnectionProfilesActive())) return;
+        if (!name) return;
+        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
+        await executeSlashCommandsWithOptions(`/profile ${name}`);
+    }
+
     async function getCurrentCompletionPreset() {
         const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
         const result = await executeSlashCommandsWithOptions(`/preset`);
