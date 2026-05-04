@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.7.1] - 2026-05-04
+
+### Fixed
+- **Silent Model/Preset Switching**: Fixed a major regression where background RPG tracker passes would ignore the selected Connection Profile and Generation Settings Preset. The system now correctly routes requests through specific models (like Gemini 3 Flash) with custom sampler overrides (like disabling reasoning) silently and reliably.
+
 ## [1.7.0] - 2026-05-04
 
 **Custom Field Overhaul and Universal Markers**  
