@@ -558,15 +558,6 @@ You must track the following enabled modules:
 7. Output ONLY the changed sections (or NO_CHANGES_DETECTED). No preamble, no explanation, no commentary.
 </rules>
 
-<module_formatting>
-For any section, you can use markers to force specific UI rendering:
-- ((BAR)) Label: X/Y  -> Renders a progress bar (useful for HP, Mana, etc.)
-- ((PILLS)) Item1, Item2 -> Renders unit pills (useful for conditions, equipment, or traits)
-- ((BADGE)) Text -> Renders a single prominent badge
-- ((XPBAR)) Label: X/Y -> Renders an orange XP-style progress bar
-- ((TEXT)) Content -> Renders as plain text (default)
-You can mix and match these markers within any block. Prefer these markers for all status lines or health lines.
-</module_formatting>
 
 <list_formatting>
 For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):
