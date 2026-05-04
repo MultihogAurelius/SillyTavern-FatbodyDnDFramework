@@ -3413,14 +3413,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         const field = s.customFields[index];
         const overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:10001;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0;';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(2px);z-index:10000000;display:none;align-items:center;justify-content:center;overflow-y:auto;';
 
         overlay.innerHTML = `
             <div id="rt_cfe_modal" class="popup shadowBase" style="
                 width: min(540px, 94vw);
-                margin: 0 auto;
-                min-height: ${isSmallScreen ? '400px' : '80vh'};
-                max-height: none;
+                height: 85vh;
+                max-height: 1000px;
+                margin: auto;
                 display: flex;
                 flex-direction: column;
                 padding: 0;
@@ -3552,7 +3552,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         templateEl.addEventListener('input', schedulePreview);
 
         updatePreview();
-        overlay.style.display = 'block';
+        overlay.style.display = 'flex';
 
         const modal = document.getElementById('rt_cfe_modal');
         const previewHeader = (document.getElementById('rt_cfe_preview_header'));
