@@ -1230,8 +1230,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const templateLines = field.rows.map(row => {
             const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
-            // The label field is for row-matching only — never include it in the AI template.
-            return `((${marker})) [value]`;
+            const content = row.label || '[value]';
+            return `((${marker})) ${content}`;
         });
 
         const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
@@ -1642,8 +1642,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      */
     function renderSubFieldByRule(rule, line) {
         const colonIdx = line.indexOf(':');
-        // If there's a colon the text before it is the label, after it is the value.
-        // If there's no colon, the whole line is the value (no visible label).
+        // If there's no colon, the whole line is the value (no label)
         const hasLabel = colonIdx !== -1;
         const labelText = hasLabel ? line.substring(0, colonIdx + 1).trim() : '';
         const value     = hasLabel ? line.substring(colonIdx + 1).trim() : line.trim();
@@ -3477,12 +3476,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const generateAutoData = () => {
             if (!field.rows || field.rows.length === 0) return;
             const data = field.rows.map(row => {
+                const label = row.label || '';
+                const hasColon = label.includes(':');
                 switch (row.renderType) {
-                    case 'hp_bar': return `45/100`;
-                    case 'xp_bar': return `1200/2700 (Level 3)`;
-                    case 'pills': return `Value 1, Value 2`;
-                    case 'badge': return `Value`;
-                    default: return `Value`;
+                    case 'hp_bar': return label ? (hasColon ? label : `${label}: 45/100`) : 'Health: 45/100';
+                    case 'xp_bar': return label ? (hasColon ? label : `${label}: 1200/2700 (Level 3)`) : 'XP: 1200/2700 (Level 3)';
+                    case 'pills':  return label || 'Item 1, Item 2';
+                    case 'badge':  return label || 'Active';
+                    default:       return label ? (hasColon ? label : `${label}: Value`) : 'Key: Value';
                 }
             }).join('\n');
             testDataEl.value = data;
@@ -3544,7 +3545,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
                 const lbl = document.createElement('input');
                 lbl.type = 'text'; lbl.className = 'text_pole';
-                lbl.placeholder = 'Label (e.g. Health)';
+                lbl.placeholder = 'Label or template (e.g. Status:)';
                 lbl.value = row.label || '';
                 lbl.style.cssText = 'flex:2;min-width:80px;height:28px;padding:2px 6px;font-size:12px;';
                 lbl.addEventListener('input', () => { row.label = lbl.value; schedulePreview(); });
