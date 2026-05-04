@@ -754,7 +754,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
             registerFunctionTool({
                 name: toolName,
-                displayName: isLegacy ? 'Dice Roll' : 'Dice Roll (Fatbody)',
+                displayName: isLegacy ? 'Dice Roll' : 'Dice Roll (with DC)',
                 description: 'Rolls the dice using the provided formula and returns the numeric result. Use when it is necessary to roll the dice to determine the outcome of an action or when the user requests it.',
                 parameters: rollDiceSchema,
                 action: async (args) => {
