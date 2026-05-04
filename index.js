@@ -3425,15 +3425,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <div id="rt_cfe_generated_template" style="background:rgba(0,0,0,0.3); padding:8px; border-radius:4px; font-family:monospace; font-size:11px; white-space:pre-wrap; border:1px dashed rgba(255,255,255,0.1); color:#00ffaa;"></div>
                     </div>
 
-                    <!-- Test Data -->
-                    <div style="margin-top:15px;">
-                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Preview Data</b> <small style="opacity:0.6;">(edit to see UI result)</small></label>
-                        <textarea id="rt_cfe_test_data" class="text_pole" rows="3" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Label: Value"></textarea>
-                        <div style="display:flex; justify-content:flex-end; margin-top:4px;">
-                            <button id="rt_cfe_auto_data" class="menu_button interactable" style="font-size:10px; padding:2px 6px;">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Sample from Template
-                            </button>
-                        </div>
+                    <!-- UI Live Preview (Mobile) -->
+                    <div id="rt_cfe_preview_mobile_wrap" style="margin-top:15px; display:none;">
+                        <b style="font-size:12px;">UI Preview</b>
+                        <div id="rt_cfe_preview_view_mobile" class="rpg-tracker-render-view" style="margin-top:4px;"></div>
                     </div>
                 </div>
                 <!-- Footer -->
@@ -3457,7 +3452,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
         const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
         const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
-        const testDataEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_test_data'));
         const genTempEl  = document.getElementById('rt_cfe_generated_template');
         const rowListEl  = document.getElementById('rt_cfe_row_list');
         const previewEl  = document.getElementById('rt_cfe_preview');
@@ -3473,23 +3467,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             genTempEl.textContent = temp.replace('Required formatting structure:', '').trim();
         };
 
-        const generateAutoData = () => {
-            if (!field.rows || field.rows.length === 0) return;
-            const data = field.rows.map(row => {
-                const label = row.label || '';
-                const hasColon = label.includes(':');
-                switch (row.renderType) {
-                    case 'hp_bar': return label ? (hasColon ? label : `${label}: 45/100`) : 'Health: 45/100';
-                    case 'xp_bar': return label ? (hasColon ? label : `${label}: 1200/2700 (Level 3)`) : 'XP: 1200/2700 (Level 3)';
-                    case 'pills':  return label || 'Item 1, Item 2';
-                    case 'badge':  return label || 'Active';
-                    default:       return label ? (hasColon ? label : `${label}: Value`) : 'Key: Value';
-                }
-            }).join('\n');
-            testDataEl.value = data;
-            schedulePreview();
-        };
-
         // ── Live Preview ──
         let _previewDebounce = null;
         let _bgRefreshDebounce = null;
@@ -3502,13 +3479,21 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         };
 
         const renderPreviewInto = (targetEl) => {
-            const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
+            const renderView = targetEl || document.getElementById('rt_cfe_preview_view') || document.getElementById('rt_cfe_preview_view_mobile');
             if (!renderView) return;
-            const testContent = testDataEl.value.trim();
-            if (!testContent) {
-                renderView.innerHTML = '<div style="opacity:0.4;font-size:0.85em;padding:8px;">Generate sample or enter data to preview UI.</div>';
-                return;
-            }
+
+            // Generate content directly from template rows
+            const testContent = field.rows.map(row => {
+                const label = row.label || '';
+                const hasColon = label.includes(':');
+                switch (row.renderType) {
+                    case 'hp_bar': return label ? (hasColon ? label : `${label}: 45/100`) : 'Health: 45/100';
+                    case 'xp_bar': return label ? (hasColon ? label : `${label}: 1200/2700 (Level 3)`) : 'XP: 1200/2700 (Level 3)';
+                    case 'pills':  return label || 'Item 1, Item 2';
+                    case 'badge':  return label || 'Active';
+                    default:       return label ? (hasColon ? label : `${label}: Value`) : 'Key: Value';
+                }
+            }).join('\n');
 
             const previewTag = '__PREVIEW__';
             const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
@@ -3585,9 +3570,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             schedulePreview();
         });
 
-        document.getElementById('rt_cfe_auto_data').addEventListener('click', generateAutoData);
-
-        testDataEl.addEventListener('input', schedulePreview);
         iconEl.addEventListener('input', schedulePreview);
         tagEl.addEventListener('input', schedulePreview);
         labelEl.addEventListener('input', schedulePreview);
@@ -3600,6 +3582,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const modal = document.getElementById('rt_cfe_modal');
         const previewHeader = (document.getElementById('rt_cfe_preview_header'));
         const previewBtn = document.getElementById('rt_cfe_preview_btn');
+        const previewMobileWrap = document.getElementById('rt_cfe_preview_mobile_wrap');
 
         if (modal && previewEl && previewHeader) {
             const rect = modal.getBoundingClientRect();
@@ -3616,6 +3599,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         if (previewEl) previewEl.style.display = previewEl.style.display === 'none' ? 'flex' : 'none';
                     });
                 }
+            } else {
+                // Mobile or no space: show preview inside the modal
+                if (previewMobileWrap) previewMobileWrap.style.display = 'block';
             }
         }
 
