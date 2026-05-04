@@ -3418,8 +3418,8 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         overlay.innerHTML = `
             <div id="rt_cfe_modal" class="popup shadowBase" style="
                 width: min(540px, 94vw);
-                height: 85vh;
-                max-height: 1000px;
+                height: ${isSmallScreen ? '85vh' : 'auto'};
+                max-height: ${isSmallScreen ? '90vh' : '850px'};
                 margin: auto;
                 display: flex;
                 flex-direction: column;
