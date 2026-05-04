@@ -592,8 +592,23 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     function migrateCustomFields() {
         const s = getSettings();
         (s.customFields || []).forEach(field => {
-            if (field.renderType !== undefined && !field.rows) {
+            // Migration 1: Convert single renderType to empty rows (old)
+            if (field.renderType !== undefined && !field.rows && !field.template) {
                 field.rows = [];
+                delete field.renderType;
+            }
+            // Migration 2: Convert rows to template (New)
+            if (field.rows && !field.template) {
+                const UI_TO_MARKER = {
+                    'pills': 'PILLS', 'badge': 'BADGE', 'highlight': 'HIGHLIGHT',
+                    'hp_bar': 'BAR', 'xp_bar': 'XPBAR', 'text': 'TEXT', 'kv': 'TEXT'
+                };
+                field.template = field.rows.map(row => {
+                    const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
+                    const content = row.label || '';
+                    return `((${marker})) ${content}`;
+                }).join('\n').trim();
+                delete field.rows;
                 delete field.renderType;
             }
         });
@@ -1234,20 +1249,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      */
     function buildModuleFormatInstruction(field) {
         let text = field.prompt || '';
-        if (!field.rows || field.rows.length === 0) return text;
+        if (!field.template) return text;
 
-        const UI_TO_MARKER = {
-            'pills': 'PILLS', 'badge': 'BADGE', 'highlight': 'HIGHLIGHT',
-            'hp_bar': 'BAR', 'xp_bar': 'XPBAR', 'text': 'TEXT', 'kv': 'TEXT'
-        };
-
-        const templateLines = field.rows.map(row => {
-            const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
-            const content = row.label || '[value]';
-            return `((${marker})) ${content}`;
-        });
-
-        const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
+        const template = `\nRequired formatting structure:\n${field.template}`;
         // Append template if not already present in the prompt
         if (!text.includes('Required formatting structure:')) {
             text = (text + '\n' + template).trim();
@@ -3417,13 +3421,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                     <!-- Template Definition -->
                     <div style="margin-top:12px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                            <b style="font-size:13px;">Template Rows</b>
-                            <small style="opacity:0.6;">(These define the UI and the AI template)</small>
+                            <b style="font-size:13px;">Module Template & Examples</b>
+                            <small style="opacity:0.6;">(Defines the AI output format and UI rendering)</small>
                         </div>
-                        <div id="rt_cfe_row_list" style="display:flex;flex-direction:column;gap:5px;"></div>
-                        <button id="rt_cfe_add_row" class="menu_button interactable" style="margin-top:6px;width:100%;">
-                            <i class="fa-solid fa-plus"></i> Add Row to Template
-                        </button>
+                        <textarea id="rt_cfe_template" class="text_pole" rows="5" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
+                        <div style="font-size:11px; opacity:0.5; margin-top:4px;">
+                            Markers: <code>((PILLS))</code>, <code>((BAR))</code>, <code>((XPBAR))</code>, <code>((BADGE))</code>, <code>((HIGHLIGHT))</code>
+                        </div>
                     </div>
 
                     <!-- AI Prompt & Generated Template -->
@@ -3433,9 +3437,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             <b style="font-size:12px;">AI Formatting Instructions</b>
                         </div>
                         
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="2" style="resize:vertical; width:100%; margin-bottom:8px;" placeholder="Describe what the AI should track here..."></textarea>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize:vertical; width:100%; margin-bottom:8px;" placeholder="Describe what the AI should track here..."></textarea>
                         
-                        <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">Generated Template (appended automatically):</div>
+                        <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">Full Instruction Preview:</div>
                         <div id="rt_cfe_generated_template" style="background:rgba(0,0,0,0.3); padding:8px; border-radius:4px; font-family:monospace; font-size:11px; white-space:pre-wrap; border:1px dashed rgba(255,255,255,0.1); color:#00ffaa;"></div>
                     </div>
 
@@ -3465,20 +3469,21 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const iconEl     = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_icon'));
         const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
         const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
+        const templateEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_template'));
         const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
         const genTempEl  = document.getElementById('rt_cfe_generated_template');
-        const rowListEl  = document.getElementById('rt_cfe_row_list');
         const previewEl  = document.getElementById('rt_cfe_preview');
 
         iconEl.value  = field.icon  || '📄';
         tagEl.value   = field.tag   || '';
         labelEl.value = field.label || '';
+        templateEl.value = field.template || '';
         promptEl.value = field.prompt || '';
 
         const updateGeneratedTemplate = () => {
             if (!genTempEl) return;
-            const temp = buildModuleFormatInstruction({ tag: tagEl.value, rows: field.rows, prompt: '' });
-            genTempEl.textContent = temp.replace('Required formatting structure:', '').trim();
+            const fullPrompt = buildModuleFormatInstruction({ tag: tagEl.value, template: templateEl.value, prompt: promptEl.value });
+            genTempEl.textContent = fullPrompt;
         };
 
         // ── Live Preview ──
@@ -3496,19 +3501,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const renderView = targetEl || document.getElementById('rt_cfe_preview_view') || document.getElementById('rt_cfe_preview_view_mobile');
             if (!renderView) return;
 
-            // Generate content directly from template rows
-            const testContent = field.rows.map(row => {
-                const label = row.label || '';
-                const hasColon = label.includes(':');
-                switch (row.renderType) {
-                    case 'hp_bar': return label ? (hasColon ? label : `${label}: 45/100`) : 'Health: 45/100';
-                    case 'xp_bar': return label ? (hasColon ? label : `${label}: 1200/2700 (Level 3)`) : 'XP: 1200/2700 (Level 3)';
-                    case 'pills':  return label || 'Item 1, Item 2';
-                    case 'badge':  return label || 'Active';
-                    default:       return label ? (hasColon ? label : `${label}: Value`) : 'Key: Value';
-                }
-            }).join('\n');
-
+            const testContent = templateEl.value || 'No template defined.';
             const previewTag = '__PREVIEW__';
             const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
 
@@ -3516,7 +3509,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 tag:     previewTag,
                 label:   labelEl.value || tagEl.value || 'Preview',
                 icon:    iconEl.value || '📄',
-                rows:    [...field.rows],
+                template: templateEl.value,
                 prompt:  '',
                 enabled: true
             };
@@ -3532,64 +3525,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const updatePreview = () => renderPreviewInto(null);
 
-        // ── Row list UI ──
-        const refreshRowList = () => {
-            rowListEl.innerHTML = '';
-            if (field.rows.length === 0) {
-                rowListEl.innerHTML = '<small style="opacity:0.55;font-style:italic;">Add a row to start building your module template.</small>';
-            }
-            field.rows.forEach((row, ri) => {
-                const rowEl = document.createElement('div');
-                rowEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:4px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;background:rgba(255,255,255,0.03);';
-
-                const lbl = document.createElement('input');
-                lbl.type = 'text'; lbl.className = 'text_pole';
-                lbl.placeholder = 'Label or template (e.g. Status:)';
-                lbl.value = row.label || '';
-                lbl.style.cssText = 'flex:2;min-width:80px;height:28px;padding:2px 6px;font-size:12px;';
-                lbl.addEventListener('input', () => { row.label = lbl.value; schedulePreview(); });
-
-                const typeSel = buildRowTypeSelect(row.renderType || 'text');
-                typeSel.addEventListener('change', () => { row.renderType = typeSel.value; schedulePreview(); });
-
-                const colorWrap = document.createElement('div');
-                colorWrap.style.cssText = 'display:flex;align-items:center;gap:2px;flex-shrink:0;';
-                const colorPick = document.createElement('input');
-                colorPick.type = 'color'; colorPick.value = row.color || '#ffffff';
-                colorPick.style.cssText = 'width:24px;height:24px;border:none;padding:0;cursor:pointer;border-radius:4px;background:transparent;';
-                colorPick.title = 'Label color';
-                colorPick.addEventListener('input', () => { row.color = colorPick.value; schedulePreview(); });
-                const clearBtn = document.createElement('button');
-                clearBtn.className = 'menu_button interactable'; clearBtn.title = 'Clear color';
-                clearBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
-                clearBtn.style.cssText = 'padding:2px 5px;font-size:10px;flex-shrink:0;';
-                clearBtn.addEventListener('click', () => { row.color = ''; colorPick.value = '#ffffff'; schedulePreview(); });
-                colorWrap.appendChild(colorPick); colorWrap.appendChild(clearBtn);
-
-                const delBtn = document.createElement('button');
-                delBtn.className = 'menu_button interactable'; delBtn.title = 'Delete row';
-                delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-                delBtn.style.cssText = 'padding:2px 7px;font-size:11px;flex-shrink:0;color:#ff5555;';
-                delBtn.addEventListener('click', () => { field.rows.splice(ri, 1); refreshRowList(); schedulePreview(); });
-
-                rowEl.appendChild(lbl); rowEl.appendChild(typeSel); rowEl.appendChild(colorWrap); rowEl.appendChild(delBtn);
-                rowListEl.appendChild(rowEl);
-            });
-            updateGeneratedTemplate();
-        };
-
-        document.getElementById('rt_cfe_add_row').addEventListener('click', () => {
-            field.rows.push({ label: '', renderType: 'text', color: '' });
-            refreshRowList();
-            schedulePreview();
-        });
-
         iconEl.addEventListener('input', schedulePreview);
         tagEl.addEventListener('input', schedulePreview);
         labelEl.addEventListener('input', schedulePreview);
+        templateEl.addEventListener('input', schedulePreview);
         promptEl.addEventListener('input', schedulePreview);
 
-        refreshRowList();
         updatePreview();
         overlay.style.display = 'flex';
 
@@ -3629,7 +3570,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             field.tag   = newTag;
             field.label = labelEl.value;
+            field.template = templateEl.value;
             field.prompt = promptEl.value;
+            delete field.rows;
             delete field.renderType;
 
             overlay.remove();
