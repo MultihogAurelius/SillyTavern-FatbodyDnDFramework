@@ -1230,8 +1230,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const templateLines = field.rows.map(row => {
             const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
-            const label = row.label ? `${row.label}: ` : '';
-            return `((${marker})) ${label}[value]`;
+            // Only prefix with "Label: " if the user actually wants a visible label.
+            // The label field in the editor is primarily for row-matching, not forced output.
+            const labelHint = row.label ? `${row.label}: ` : '';
+            return `((${marker})) ${labelHint}[value]`;
         });
 
         const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
@@ -1641,22 +1643,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      * Flexible "salad bar" renderers — hp_bar and xp_bar accept any X/Y value.
      */
     function renderSubFieldByRule(rule, line) {
-        let labelText = '';
-        let value = line.trim();
-
-        // Check for a colon to split label/value
         const colonIdx = line.indexOf(':');
-        if (colonIdx !== -1) {
-            const potentialLabel = line.substring(0, colonIdx).trim();
-            const ruleLabel = rule.label ? rule.label.trim().replace(/:$/, '') : null;
-
-            // Split if it matches the rule's expected label, OR if no rule label is defined (marker call) and it's a short "Header:"
-            if ((ruleLabel && potentialLabel.toLowerCase() === ruleLabel.toLowerCase()) || (!ruleLabel && colonIdx < 32)) {
-                labelText = line.substring(0, colonIdx + 1).trim();
-                value = line.substring(colonIdx + 1).trim();
-            }
-        }
-
+        // If there's a colon the text before it is the label, after it is the value.
+        // If there's no colon, the whole line is the value (no visible label).
+        const hasLabel = colonIdx !== -1;
+        const labelText = hasLabel ? line.substring(0, colonIdx + 1).trim() : '';
+        const value     = hasLabel ? line.substring(colonIdx + 1).trim() : line.trim();
         const labelStyle = rule.color ? ` style="color:${rule.color}"` : '';
         const labelHtml  = labelText
             ? `<span class="rt-entity-sub-label"${labelStyle}>${escapeHtml(labelText)}</span>`
