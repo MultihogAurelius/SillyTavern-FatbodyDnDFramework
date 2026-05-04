@@ -3346,10 +3346,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
         overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:10000000;display:flex;align-items:center;justify-content:center;';
+        const isSmallScreen = window.innerWidth <= 700;
         overlay.innerHTML = `
             <div id="rt_cfe_modal" style="
                 width: min(540px, 94vw);
-                height: min(90vh, 90dvh);
+                height: ${isSmallScreen ? 'min(90vh, 90dvh)' : 'auto'};
+                min-height: ${isSmallScreen ? '0' : '800px'};
+                max-height: 90vh;
                 display: flex;
                 flex-direction: column;
                 background: var(--SmartThemeBlurTintColor, #1a1a2e);
@@ -3545,7 +3548,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (modal && previewEl && previewHeader) {
             const rect = modal.getBoundingClientRect();
             const spaceOnRight = window.innerWidth - rect.right;
-            if (spaceOnRight >= 320 && window.innerWidth > 700) {
+            if (spaceOnRight >= 320 && !isSmallScreen) {
                 // Desktop: show floating panel and toggle button
                 previewEl.style.display = 'flex';
                 previewEl.style.left = (rect.right + 20) + 'px';
