@@ -780,6 +780,21 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
+     * One-time migration: custom fields with an old monolithic `renderType` get
+     * that field removed and an empty `rows` array inserted in its place.
+     * Runs every settings load — safe to call repeatedly.
+     */
+    function migrateCustomFields() {
+        const s = getSettings();
+        (s.customFields || []).forEach(field => {
+            if (field.renderType !== undefined && !field.rows) {
+                field.rows = [];
+                delete field.renderType;
+            }
+        });
+    }
+
+    /**
      * RNG Engine Implementation
      */
     const RNG_QUEUE_LEN = 8;
@@ -2359,13 +2374,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
-     * Finds the first user-defined sub-field rule whose label matches the
-     * start of `line` (case-insensitive, colon optional in rule definition).
-     * Returns the rule object or null.
+     * Generic row-rule resolver. Scans `rulesArray` for the first rule whose
+     * label prefix matches the start of `line` (case-insensitive).
+     * Pass getSettings().subFieldRules for global rules, or a custom field's
+     * `rows` array for module-scoped rules.
      */
-    function resolveSubFieldRule(line) {
-        const rules = getSettings().subFieldRules || [];
-        for (const rule of rules) {
+    function resolveRowRule(line, rulesArray) {
+        if (!rulesArray) return null;
+        for (const rule of rulesArray) {
             if (!rule.label || !rule.label.trim()) continue;
             const prefix = rule.label.trim().toLowerCase().replace(/:$/, '');
             if (line.toLowerCase().startsWith(prefix + ':')) return rule;
@@ -2374,8 +2390,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     }
 
     /**
-     * Renders a sub-field line according to a user-defined rule.
-     * Extracts the value after the first colon and applies the rule's renderType.
+     * Renders a line according to a row rule (label → renderType → color).
+     * Flexible "salad bar" renderers — hp_bar and xp_bar accept any X/Y value.
      */
     function renderSubFieldByRule(rule, line) {
         const colonIdx = line.indexOf(':');
@@ -2391,10 +2407,70 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 return `<div class="rt-entity-sub-line rt-units-container">${labelHtml} <span class="rt-unit-pill no-desc"><span class="rt-unit-name">${escapeHtmlWithColor(value)}</span></span></div>`;
             case 'highlight':
                 return `<div class="rt-entity-sub-line">${labelHtml} ${highlightParens(escapeHtmlWithColor(value))}</div>`;
+            case 'hp_bar': {
+                // Flexible: parses any "X/Y" optionally with extra text e.g. "45/100 (5 temp)"
+                const m = value.match(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/);
+                if (m) {
+                    const cur = parseInt(m[1].replace(/,/g, ''), 10);
+                    const max = parseInt(m[2].replace(/,/g, ''), 10);
+                    const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+                    const extra = value.replace(m[0], '').trim();
+                    return `<div class="rt-entity-sub-line" style="gap:6px;">
+                        ${labelHtml}
+                        <div class="rt-hp-bar-wrap" style="flex:1; position:relative; height:14px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
+                            <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:linear-gradient(90deg,#e74c3c,#c0392b); transition:width 0.3s;"></div>
+                        </div>
+                        <span style="font-size:0.82em; opacity:0.85; white-space:nowrap;">${cur}/${max}${extra ? ' ' + escapeHtml(extra) : ''}</span>
+                    </div>`;
+                }
+                // Fallback: plain text
+                return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
+            }
+            case 'xp_bar': {
+                // Flexible: parses any "X/Y" with optional "(Level N)" anywhere in value
+                const xm = value.match(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/);
+                const lm = value.match(/level\s*(\d+)/i);
+                if (xm) {
+                    const cur = parseInt(xm[1].replace(/,/g, ''), 10);
+                    const max = parseInt(xm[2].replace(/,/g, ''), 10);
+                    const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+                    const levelStr = lm ? `<span style="font-size:0.8em; opacity:0.75;">Lv ${lm[1]}</span> ` : '';
+                    return `<div class="rt-entity-sub-line" style="gap:6px; flex-wrap:wrap;">
+                        ${labelHtml} ${levelStr}
+                        <div class="rt-hp-bar-wrap" style="flex:1; min-width:60px; position:relative; height:10px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
+                            <div style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:linear-gradient(90deg,#f39c12,#e67e22); transition:width 0.3s;"></div>
+                        </div>
+                        <span style="font-size:0.78em; opacity:0.8; white-space:nowrap;">${xm[1]}/${xm[2]}</span>
+                    </div>`;
+                }
+                return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
+            }
+            case 'kv':
+                return `<div class="rt-card-kv"><span class="rt-card-key">${labelHtml}</span><span class="rt-card-val">${escapeHtmlWithColor(value)}</span></div>`;
             case 'text':
             default:
                 return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
         }
+    }
+
+    /**
+     * Renders a single line from a custom block (non-built-in tag).
+     * Resolution order:
+     *   1. Module-scoped rows (field.rows)
+     *   2. Global sub-field rules (settings.subFieldRules)
+     *   3. Plain kv fallback
+     */
+    function renderCustomBlockLine(tag, line) {
+        const s = getSettings();
+        const field = (s.customFields || []).find(f => f.tag.toUpperCase() === tag.toUpperCase());
+        const rule =
+            resolveRowRule(line, field?.rows) ||
+            resolveRowRule(line, s.subFieldRules);
+        if (rule) return renderSubFieldByRule(rule, line);
+        // Plain kv fallback
+        const kv = line.match(/^([^:]+):\s*(.+)$/);
+        if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}:</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
+        return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
     }
 
     /**
@@ -2768,8 +2844,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                             results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`;
                         }
                     } else {
-                        // Check user-defined sub-field rules before falling to generic plain line
-                        const subFieldRule = resolveSubFieldRule(line);
+                        // Check global sub-field rules before falling to generic plain line
+                        const subFieldRule = resolveRowRule(line, getSettings().subFieldRules);
                         if (subFieldRule && lastEntityIdx !== -1) {
                             results[lastEntityIdx] += renderSubFieldByRule(subFieldRule, line);
                         } else {
@@ -2926,11 +3002,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 return allAbilities.map(t => renderPills(t));
             }
             default:
-                return lines.map(line => {
-                    const kv = line.match(/^([^:]+):\s*(.+)$/);
-                    if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
-                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
-                });
+                // Custom blocks: resolve each line via module rows → global rules → kv fallback
+                return lines.map(line => renderCustomBlockLine(tag, line));
         }
     }
 
@@ -4211,210 +4284,236 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
     };
 
+    // Row type options shared by both the custom field editor and the global sub-field rules list
+    const ROW_TYPE_OPTIONS = [
+        ['pills',     'Pills (comma-separated chips)'],
+        ['badge',     'Badge (single chip)'],
+        ['highlight', 'Highlight (paren emphasis)'],
+        ['hp_bar',    'HP Bar (X/Y progress)'],
+        ['xp_bar',    'XP Bar (X/Y with optional level)'],
+        ['kv',        'Key / Value pair'],
+        ['text',      'Plain Text'],
+    ];
+
+    function buildRowTypeSelect(selectedVal) {
+        const sel = document.createElement('select');
+        sel.className = 'text_pole';
+        sel.style.cssText = 'flex:2; min-width:110px; height:28px; padding:2px 4px; font-size:12px;';
+        ROW_TYPE_OPTIONS.forEach(([val, label]) => {
+            const opt = document.createElement('option');
+            opt.value = val; opt.textContent = label;
+            if (val === selectedVal) opt.selected = true;
+            sel.appendChild(opt);
+        });
+        return sel;
+    }
+
     function openCustomFieldEditor(index) {
         const s = getSettings();
         const field = s.customFields[index];
         if (!field) return;
 
+        // Ensure rows array exists (migration safety)
+        if (!field.rows) field.rows = [];
+
         let overlay = document.getElementById('rt_cfe_overlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'rt_cfe_overlay';
-            overlay.style.position = 'fixed';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100vw';
-            overlay.style.height = '100vh';
-            overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-            overlay.style.zIndex = '10000000';
-            overlay.style.display = 'flex';
-            overlay.style.alignItems = 'center';
-            overlay.style.justifyContent = 'center';
-            overlay.innerHTML = `
-                <div class="popup shadowBase" style="min-width: 400px; max-width: 550px;">
-                    <div class="popup-header">
-                        <h3 class="margin0">Edit Custom Field</h3>
-                        <div id="rt_cfe_close" class="popup-close interactable"><i class="fa-solid fa-times"></i></div>
+        if (overlay) overlay.remove(); // Always rebuild so layout is clean
+
+        overlay = document.createElement('div');
+        overlay.id = 'rt_cfe_overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);z-index:10000000;display:flex;align-items:center;justify-content:center;';
+        overlay.innerHTML = `
+            <div class="popup shadowBase" style="min-width:420px;max-width:580px;max-height:90vh;display:flex;flex-direction:column;">
+                <div class="popup-header">
+                    <h3 class="margin0">Edit Custom Module</h3>
+                    <div id="rt_cfe_close" class="popup-close interactable"><i class="fa-solid fa-times"></i></div>
+                </div>
+                <div class="popup-body flex-container flexFlowColumn gap-1" style="padding:10px;overflow-y:auto;flex:1;">
+                    <!-- Identity row -->
+                    <div class="flex-container gap-1 alignitemscenter">
+                        <input type="text" id="rt_cfe_icon" class="text_pole" style="width:44px;text-align:center;" title="Icon (emoji)">
+                        <input type="text" id="rt_cfe_tag"  class="text_pole" style="width:130px;font-family:monospace;" placeholder="TAG">
+                        <input type="text" id="rt_cfe_label" class="text_pole" style="flex:1;" placeholder="Display label">
                     </div>
-                    <div class="popup-body flex-container flexFlowColumn gap-1" style="padding: 10px;">
-                        <div class="flex-container gap-1 alignitemscenter">
-                            <input type="text" id="rt_cfe_icon" class="text_pole" style="width: 50px; text-align: center;" title="Icon (Emoji)">
-                            <input type="text" id="rt_cfe_tag" class="text_pole" style="width: 140px; font-family: monospace;" placeholder="TAG">
-                            <input type="text" id="rt_cfe_label" class="text_pole" style="flex: 1;" placeholder="Label">
-                        </div>
-                        <label for="rt_cfe_rt">Render Style</label>
-                        <select id="rt_cfe_rt" class="text_pole">
-                             <option value="CHARACTER">Entity Rows — HP Bars (Characters / Party)</option>
-                             <option value="COMBAT">Entity Rows — HP Bars (Enemies / Combat)</option>
-                             <option value="SPELLS">Spell Pips — Slot Tracker</option>
-                             <option value="INVENTORY">Bullet Points — Item List</option>
-                             <option value="ABILITIES">Oval Pills — Trait Tags</option>
-                        </select>
-                        <div id="rt_cfe_hint" style="font-size: 0.82em; opacity: 0.75; padding: 6px 8px; background: rgba(255,255,255,0.05); border-left: 3px solid rgba(255,255,255,0.2); border-radius: 2px; white-space: pre-wrap; font-family: monospace;"></div>
 
-                        <label for="rt_cfe_test_data" style="margin-top: 6px;">Test Data <small style="opacity:0.6;">(edit to see how your data looks)</small></label>
-                        <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize: vertical; font-family: monospace; font-size: 0.85em;"></textarea>
+                    <!-- Row rules -->
+                    <div style="margin-top:8px;">
+                        <b style="font-size:13px;">Rows</b>
+                        <small style="display:block;opacity:0.7;margin-bottom:4px;">Define what each line renders as. Any combination, any order — HP bars, pills, XP bars, text…</small>
+                        <div id="rt_cfe_row_list" class="flex-container flexFlowColumn gap-1"></div>
+                        <button id="rt_cfe_add_row" class="menu_button interactable" style="margin-top:6px;width:100%;">
+                            <i class="fa-solid fa-plus"></i> Add Row
+                        </button>
+                    </div>
 
-                        <label for="rt_cfe_prompt" style="margin-top: 6px;">AI Instructions <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize: vertical;" placeholder="E.g. 'Track hunger and thirst on a scale of 0–10. Format each as a Key: Value line.'"></textarea>
+                    <!-- Test Data -->
+                    <div style="margin-top:8px;">
+                        <label for="rt_cfe_test_data" style="font-size:12px;"><b>Test Data</b> <small style="opacity:0.6;">(paste sample memo lines to preview)</small></label>
+                        <textarea id="rt_cfe_test_data" class="text_pole" rows="4" style="resize:vertical;font-family:monospace;font-size:0.85em;margin-top:3px;" placeholder="Hunger: 45/100&#10;Status: Poisoned, Fatigued&#10;Type: Undead"></textarea>
+                    </div>
 
-                        <div class="flex-container gap-1 justifycontentend" style="margin-top: 10px;">
-                            <button id="rt_cfe_delete" class="menu_button interactable" style="color: var(--dangerColor); margin-right: auto;"><i class="fa-solid fa-trash"></i> Delete</button>
-                            <button id="rt_cfe_cancel" class="menu_button interactable">Cancel</button>
-                            <button id="rt_cfe_save" class="menu_button interactable">Save Changes</button>
-                        </div>
+                    <!-- AI Prompt -->
+                    <div style="margin-top:6px;">
+                        <label for="rt_cfe_prompt" style="font-size:12px;"><b>AI Instructions</b> <small style="opacity:0.6;">(what should the model track and how to format it?)</small></label>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize:vertical;margin-top:3px;" placeholder="E.g. Track hunger and thirst on a 0–100 scale. Format: 'Hunger: 45/100'"></textarea>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex-container gap-1 justifycontentend" style="margin-top:10px;">
+                        <button id="rt_cfe_delete" class="menu_button interactable" style="color:var(--dangerColor);margin-right:auto;"><i class="fa-solid fa-trash"></i> Delete</button>
+                        <button id="rt_cfe_cancel" class="menu_button interactable">Cancel</button>
+                        <button id="rt_cfe_save" class="menu_button interactable">Save Changes</button>
                     </div>
                 </div>
-                <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin: 0; display: flex; flex-direction: column; cursor: default; height: auto; min-height: 44px; width: 300px;">
-                    <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor: move; user-select: none; font-size: 0.75em; opacity: 0.7; padding: 5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right: 6px;"></i> Live Preview</div>
-                    <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
-                </div>
-            `;
-            document.body.appendChild(overlay);
+            </div>
+            <div id="rt_cfe_preview" class="rpg-tracker-panel" style="margin:0;display:flex;flex-direction:column;cursor:default;height:auto;min-height:44px;width:300px;position:fixed;">
+                <div id="rt_cfe_preview_header" class="rpg-tracker-header" style="cursor:move;user-select:none;font-size:0.75em;opacity:0.7;padding:5px 10px;"><i class="fa-solid fa-grip-lines" style="margin-right:6px;"></i>Live Preview</div>
+                <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('mousedown', e => e.stopPropagation());
+        overlay.addEventListener('click', e => e.stopPropagation());
 
-            // Prevent clicks/mousedowns on the editor overlay (backdrop and preview drag)
-            // from bubbling up to SillyTavern's document listeners that close the extension panel.
-            overlay.addEventListener('mousedown', e => e.stopPropagation());
-            overlay.addEventListener('click', e => e.stopPropagation());
-        }
-
-        const iconEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_icon'));
-        const tagEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_tag'));
-        const labelEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_cfe_label'));
-        const rtEl = /** @type {HTMLSelectElement} */ (document.getElementById('rt_cfe_rt'));
-        const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
+        const iconEl     = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_icon'));
+        const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
+        const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
+        const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
         const testDataEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_test_data'));
-        const hintEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_hint'));
-        const previewEl = /** @type {HTMLDivElement} */ (document.getElementById('rt_cfe_preview'));
+        const rowListEl  = document.getElementById('rt_cfe_row_list');
+        const previewEl  = document.getElementById('rt_cfe_preview');
 
-        iconEl.value = field.icon;
-        tagEl.value = field.tag;
-        labelEl.value = field.label;
-        rtEl.value = field.renderType;
-        promptEl.value = field.prompt;
+        iconEl.value  = field.icon  || '📄';
+        tagEl.value   = field.tag   || '';
+        labelEl.value = field.label || '';
+        promptEl.value = field.prompt || '';
 
         // ── Live Preview ──
         let _previewDebounce = null;
-        const _seededExamples = new Set(); // track which examples we auto-seeded so we can re-seed on style change
-
-        const updatePreview = () => {
-            const rt = rtEl.value;
-            const hint = RENDER_HINTS[rt];
-
-            // Update hint text
-            if (hint && hintEl) {
-                hintEl.textContent = hint.description + '\n\nExample:\n' + hint.example;
-            }
-
-            // Render preview using the real renderMemoAsCards pipeline
-            const renderView = document.getElementById('rt_cfe_preview_view');
-            if (!renderView) return;
-            const testContent = testDataEl ? testDataEl.value.trim() : '';
-            if (!testContent) {
-                renderView.innerHTML = '<div style="opacity:0.4; font-size:0.85em; padding:8px;">Enter test data above to see a preview.</div>';
-                return;
-            }
-
-            // Use a sentinel tag that can't clash with real tags
-            const previewTag = '__PREVIEW__';
-            const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
-
-            // Temporarily inject the current editor state as a customField so
-            // renderMemoAsCards can resolve icon, label, and renderType correctly.
-            const s = getSettings();
-            if (!s.customFields) s.customFields = [];
-            const tempField = {
-                tag: previewTag,
-                label: labelEl.value || tagEl.value || 'Preview',
-                icon: iconEl.value || '📄',
-                renderType: rt,
-                prompt: '',
-                enabled: true
-            };
-            s.customFields.push(tempField);
-
-            try {
-                renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag);
-                bindRenderedCardEvents(renderView, fakeMemo, true, updatePreview);
-            } finally {
-                // Always clean up the temp entry regardless of errors
-                const idx = s.customFields.indexOf(tempField);
-                if (idx !== -1) s.customFields.splice(idx, 1);
-            }
-        };
-
         const schedulePreview = () => {
             clearTimeout(_previewDebounce);
             _previewDebounce = setTimeout(updatePreview, 180);
         };
 
-        // When render style changes, re-seed test data if it shows a canonical example
-        rtEl.onchange = () => {
-            const hint = RENDER_HINTS[rtEl.value];
-            if (hint && testDataEl && (!testDataEl.value.trim() || _seededExamples.has(testDataEl.value.trim()))) {
-                testDataEl.value = hint.example;
-                _seededExamples.add(hint.example);
+        const updatePreview = () => {
+            const renderView = document.getElementById('rt_cfe_preview_view');
+            if (!renderView) return;
+            const testContent = testDataEl.value.trim();
+            if (!testContent) {
+                renderView.innerHTML = '<div style="opacity:0.4;font-size:0.85em;padding:8px;">Enter test data above to preview.</div>';
+                return;
             }
-            updatePreview();
+
+            const previewTag = '__PREVIEW__';
+            const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
+
+            // Temporarily inject a ghost field that mirrors the current editor state
+            const ghostField = {
+                tag:     previewTag,
+                label:   labelEl.value || tagEl.value || 'Preview',
+                icon:    iconEl.value || '📄',
+                rows:    [...field.rows], // snapshot of current rows
+                prompt:  '',
+                enabled: true
+            };
+            const savedCustomFields = s.customFields;
+            s.customFields = [...savedCustomFields, ghostField];
+            try {
+                renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag);
+                bindRenderedCardEvents(renderView, fakeMemo, true, updatePreview);
+            } finally {
+                s.customFields = savedCustomFields;
+            }
         };
 
-        if (testDataEl) testDataEl.oninput = schedulePreview;
-        iconEl.oninput = schedulePreview;
-        labelEl.oninput = schedulePreview;
-
-        // Reset & seed test data on open
-        if (testDataEl) {
-            testDataEl.value = '';
-            const hint = RENDER_HINTS[field.renderType];
-            if (hint) {
-                testDataEl.value = hint.example;
-                _seededExamples.add(hint.example);
+        // ── Row list UI ──
+        const refreshRowList = () => {
+            rowListEl.innerHTML = '';
+            if (field.rows.length === 0) {
+                rowListEl.innerHTML = '<small style="opacity:0.55;font-style:italic;">No rows yet. Click "Add Row" to define how each line renders.</small>';
             }
-        }
+            field.rows.forEach((row, ri) => {
+                const rowEl = document.createElement('div');
+                rowEl.style.cssText = 'display:flex;align-items:center;gap:5px;padding:4px;border:1px solid rgba(255,255,255,0.08);border-radius:6px;background:rgba(255,255,255,0.03);';
 
-        // Initial render
+                // Label input
+                const lbl = document.createElement('input');
+                lbl.type = 'text'; lbl.className = 'text_pole';
+                lbl.placeholder = 'Row label (e.g. Hunger)';
+                lbl.value = row.label || '';
+                lbl.style.cssText = 'flex:2;min-width:80px;height:28px;padding:2px 6px;font-size:12px;';
+                lbl.addEventListener('input', () => { row.label = lbl.value; schedulePreview(); });
+
+                // Type select
+                const typeSel = buildRowTypeSelect(row.renderType || 'text');
+                typeSel.addEventListener('change', () => { row.renderType = typeSel.value; schedulePreview(); });
+
+                // Color picker + clear
+                const colorWrap = document.createElement('div');
+                colorWrap.style.cssText = 'display:flex;align-items:center;gap:2px;flex-shrink:0;';
+                const colorPick = document.createElement('input');
+                colorPick.type = 'color'; colorPick.value = row.color || '#ffffff';
+                colorPick.style.cssText = 'width:24px;height:24px;border:none;padding:0;cursor:pointer;border-radius:4px;background:transparent;';
+                colorPick.title = 'Label color (optional)';
+                colorPick.addEventListener('input', () => { row.color = colorPick.value; schedulePreview(); });
+                const clearBtn = document.createElement('button');
+                clearBtn.className = 'menu_button interactable'; clearBtn.title = 'Clear color';
+                clearBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                clearBtn.style.cssText = 'padding:2px 5px;font-size:10px;flex-shrink:0;';
+                clearBtn.addEventListener('click', () => { row.color = ''; colorPick.value = '#ffffff'; schedulePreview(); });
+                colorWrap.appendChild(colorPick); colorWrap.appendChild(clearBtn);
+
+                // Delete row
+                const delBtn = document.createElement('button');
+                delBtn.className = 'menu_button interactable'; delBtn.title = 'Delete row';
+                delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                delBtn.style.cssText = 'padding:2px 7px;font-size:11px;flex-shrink:0;color:#ff5555;';
+                delBtn.addEventListener('click', () => { field.rows.splice(ri, 1); refreshRowList(); schedulePreview(); });
+
+                rowEl.appendChild(lbl); rowEl.appendChild(typeSel); rowEl.appendChild(colorWrap); rowEl.appendChild(delBtn);
+                rowListEl.appendChild(rowEl);
+            });
+        };
+
+        document.getElementById('rt_cfe_add_row').addEventListener('click', () => {
+            field.rows.push({ label: '', renderType: 'text', color: '' });
+            refreshRowList();
+            schedulePreview();
+        });
+
+        testDataEl.addEventListener('input', schedulePreview);
+        iconEl.addEventListener('input', schedulePreview);
+        labelEl.addEventListener('input', schedulePreview);
+
+        refreshRowList();
         updatePreview();
-
         overlay.style.display = 'flex';
 
-        // Position the preview relative to the popup and make it draggable
+        // Position & drag preview panel
         const popup = overlay.querySelector('.popup');
         const previewHeader = /** @type {HTMLElement} */ (document.getElementById('rt_cfe_preview_header'));
         if (popup && previewEl && previewHeader) {
             const rect = popup.getBoundingClientRect();
             previewEl.style.left = (rect.right + 20) + 'px';
-            previewEl.style.top = rect.top + 'px';
+            previewEl.style.top  = rect.top + 'px';
             // @ts-ignore
             makeDraggable(previewEl, previewHeader);
         }
 
         const save = () => {
-            field.icon = iconEl.value;
+            field.icon  = iconEl.value;
             const newTag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-            if (!newTag) {
-                toastr['error']('Tag cannot be empty.', 'RPG Tracker');
-                return;
-            }
+            if (!newTag) { toastr['error']('Tag cannot be empty.', 'RPG Tracker'); return; }
+            if (BLOCK_ORDER.includes(newTag)) { toastr['error'](`[${newTag}] is a reserved stock module name.`, 'RPG Tracker'); return; }
+            const dup = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
+            if (dup) { toastr['error'](`Tag [${newTag}] is already in use.`, 'RPG Tracker'); return; }
 
-            const isStock = BLOCK_ORDER.includes(newTag);
-            if (isStock) {
-                toastr['error'](`Tag [${newTag}] is a reserved stock module name.`, 'RPG Tracker');
-                return;
-            }
-
-            const duplicate = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
-            if (duplicate) {
-                toastr['error'](`Tag [${newTag}] is already in use by another custom field.`, 'RPG Tracker');
-                return;
-            }
-
-            field.tag = newTag;
+            field.tag   = newTag;
             field.label = labelEl.value;
-            field.renderType = rtEl.value;
             field.prompt = promptEl.value;
+            // field.rows already mutated in-place
 
-            overlay.style.display = 'none';
-            cleanup();
+            overlay.remove();
             SillyTavern.getContext().saveSettingsDebounced();
             refreshOrderList();
             refreshRenderedView();
@@ -4422,53 +4521,31 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const del = () => {
             const tagToDelete = field.tag.toUpperCase();
-            if (confirm(`Delete custom field [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
-                // 1. Remove from custom fields array
+            if (confirm(`Delete custom module [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
                 s.customFields.splice(index, 1);
-
-                // 2. Remove from block reordering list
-                if (s.blockOrder) {
-                    s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
-                }
-
-                // 3. Strip the data block from the current memo
-                const memoBlocks = parseMemoBlocks(s.currentMemo || "");
+                if (s.blockOrder) s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
+                const memoBlocks = parseMemoBlocks(s.currentMemo || '');
                 if (memoBlocks[tagToDelete] !== undefined) {
                     delete memoBlocks[tagToDelete];
-                    // Reconstruct memo from remaining blocks
-                    s.currentMemo = Object.entries(memoBlocks)
-                        .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
-                        .join('\n\n');
-
-                    // Update UI components
+                    s.currentMemo = Object.entries(memoBlocks).map(([k, v]) => `[${k}]\n${v}\n[/${k}]`).join('\n\n');
                     updateUIMemo(s.currentMemo);
                 }
-
-                overlay.style.display = 'none';
-                cleanup();
+                overlay.remove();
                 SillyTavern.getContext().saveSettingsDebounced();
                 refreshOrderList();
                 refreshRenderedView();
             }
         };
 
-        const close = () => { overlay.style.display = 'none'; cleanup(); };
-
-        const cleanup = () => {
-            document.getElementById('rt_cfe_save').onclick = null;
-            document.getElementById('rt_cfe_delete').onclick = null;
-            document.getElementById('rt_cfe_cancel').onclick = null;
-            document.getElementById('rt_cfe_close').onclick = null;
-        };
-
-        document.getElementById('rt_cfe_save').onclick = save;
+        const close = () => overlay.remove();
+        document.getElementById('rt_cfe_save').onclick   = save;
         document.getElementById('rt_cfe_delete').onclick = del;
         document.getElementById('rt_cfe_cancel').onclick = close;
-        document.getElementById('rt_cfe_close').onclick = close;
+        document.getElementById('rt_cfe_close').onclick  = close;
     }
-
     function openPromptEditor(title, currentText, defaultText, onSave) {
         let overlay = document.getElementById('rt_pe_overlay');
+
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'rt_pe_overlay';
@@ -4564,16 +4641,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 refreshRenderedView();
             });
 
-            // Render type dropdown
-            const typeSelect = document.createElement('select');
-            typeSelect.className = 'text_pole';
-            typeSelect.style.cssText = 'flex:2; min-width:90px; height:28px; padding:2px 4px; font-size:12px;';
-            [['pills','Pills'], ['badge','Badge'], ['highlight','Highlight'], ['text','Plain Text']].forEach(([val, label]) => {
-                const opt = document.createElement('option');
-                opt.value = val; opt.textContent = label;
-                if (rule.renderType === val) opt.selected = true;
-                typeSelect.appendChild(opt);
-            });
+            // Render type dropdown — reuse the shared options (includes hp_bar, xp_bar, kv)
+            const typeSelect = buildRowTypeSelect(rule.renderType || 'text');
+            typeSelect.style.cssText = 'flex:2; min-width:110px; height:28px; padding:2px 4px; font-size:12px;';
             typeSelect.addEventListener('change', () => {
                 s.subFieldRules[idx].renderType = typeSelect.value;
                 SillyTavern.getContext().saveSettingsDebounced();
@@ -4785,6 +4855,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
 
         getSettings();
+        migrateCustomFields();
         createPanel();
 
         try {
