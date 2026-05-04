@@ -10,6 +10,8 @@ What this framework does is essentially turn SillyTavern into something like AI 
 
 I wasn't satisfied with any of the commercial offerings available (AI Realm, AI Dungeon, Friends & Fables, etc.,) so I made my own D&D platform inside SillyTavern. 
 
+**Crucially, the system is input-output, not just some glorified stats collector. Your state info feeds back into the narrative AI.**
+
 ### The Fatbody D&D Framework involves three core components:
 
 1. 🖥️ **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
