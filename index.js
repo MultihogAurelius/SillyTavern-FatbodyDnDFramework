@@ -3477,13 +3477,12 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const generateAutoData = () => {
             if (!field.rows || field.rows.length === 0) return;
             const data = field.rows.map(row => {
-                const label = row.label ? `${row.label}: ` : '';
                 switch (row.renderType) {
-                    case 'hp_bar': return `${label}45/100`;
-                    case 'xp_bar': return `${label}1200/2700 (Level 3)`;
-                    case 'pills': return `${label}Value 1, Value 2`;
-                    case 'badge': return `${label}Value`;
-                    default: return `${label}Value`;
+                    case 'hp_bar': return `45/100`;
+                    case 'xp_bar': return `1200/2700 (Level 3)`;
+                    case 'pills': return `Value 1, Value 2`;
+                    case 'badge': return `Value`;
+                    default: return `Value`;
                 }
             }).join('\n');
             testDataEl.value = data;
