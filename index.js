@@ -1222,6 +1222,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const promptsMap = settings.stockPrompts || DEFAULT_STOCK_PROMPTS;
         
         // 1. Stock Modules
+        modulesText += "### CORE MODULES\n";
         for (const [key, prompt] of Object.entries(promptsMap)) {
             if (settings.modules[key]) {
                 modulesText += `- [${key.toUpperCase()}]: ${prompt}\n`;
@@ -1229,17 +1230,17 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         }
         
         // 2. Custom Modules
-        if (settings.customFields && settings.customFields.length > 0) {
-            settings.customFields.forEach(f => {
-                if (f.enabled && f.tag) {
-                    const instruction = buildModuleFormatInstruction(f);
-                    if (instruction) {
-                        modulesText += `- [${f.tag.toUpperCase()}]: ${instruction}\n`;
-                    }
+        const enabledCustomFields = (settings.customFields || []).filter(f => f.enabled && f.tag);
+        if (enabledCustomFields.length > 0) {
+            modulesText += "\n### CUSTOM MODULES\n";
+            enabledCustomFields.forEach(f => {
+                const instruction = buildModuleFormatInstruction(f);
+                if (instruction) {
+                    modulesText += `- [${f.tag.toUpperCase()}]: ${instruction}\n`;
                 }
             });
         }
-        return modulesText;
+        return modulesText.trim();
     }
 
     /**
@@ -1251,9 +1252,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         let text = field.prompt || '';
         if (!field.template) return text;
 
-        const template = `\nRequired formatting structure:\n${field.template}`;
+        const template = `\nOUTPUT TEMPLATE (STRICT ADHERENCE REQUIRED):\n${field.template}`;
         // Append template if not already present in the prompt
-        if (!text.includes('Required formatting structure:')) {
+        if (!text.includes('OUTPUT TEMPLATE')) {
             text = (text + '\n' + template).trim();
         }
         return text;
@@ -4304,11 +4305,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         } catch (e) {
             console.error("[RPG Tracker] Failed to build settings UI", e);
         }
-
-        // Hook into the end of the generation loop instead of message reception
-        // This prevents the state model from interrupting active Tool Calls or API loops
-        eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
-        eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
 
         // Add wand button to toggle panel visibility
         addWandButton();
