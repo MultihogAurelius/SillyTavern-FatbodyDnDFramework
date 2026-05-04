@@ -137,37 +137,7 @@
                 <button id="rpg_tracker_add_subfield_rule" class="menu_button interactable" style="margin-top: 10px;">
                     <i class="fa-solid fa-plus"></i> Add Sub-Field Rule
                 </button>
-            </div>
-        </div>
-    </div>
 
-    <!-- 2. WORLD MODEL SECTION -->
-    <div class="inline-drawer">
-        <div class="inline-drawer-toggle inline-drawer-header">
-            <i class="fa-solid fa-earth-americas"></i>
-            <b>World Model (Simulation)</b>
-            <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
-        </div>
-        <div class="inline-drawer-content">
-            <div class="flex-container flexFlowColumn gap-1">
-                <label class="checkbox_label">
-                    <input id="rpg_tracker_wm_enabled" type="checkbox" />
-                    <span>Enable World Model</span>
-                </label>
-                <div class="flex-container alignitemscenter gap-1">
-                    <label for="rpg_tracker_wm_interval">Fire every</label>
-                    <input id="rpg_tracker_wm_interval" type="number" class="text_pole" style="width: 40px;" min="1" />
-                    <span>day(s) at</span>
-                    <input id="rpg_tracker_wm_trigger_time" type="text" class="text_pole" style="width: 80px;" placeholder="6:00 AM" />
-                </div>
-                <small id="rpg_tracker_wm_next_fire_hint" style="opacity: 0.6; margin-top: -5px; margin-bottom: 5px;"></small>
-                <div class="flex-container alignitemscenter gap-1" style="margin-top: 5px;">
-                    <label for="rpg_tracker_wm_max_history">Max History Context</label>
-                    <input id="rpg_tracker_wm_max_history" type="range" class="text_pole" style="flex: 1;" min="0" max="20" step="1" />
-                    <span id="rpg_tracker_wm_max_history_val" style="width: 30px; text-align: right;">5</span>
-                </div>
-
-                
                 <hr>
                 <b>State Model Core Instruction</b>
                 <small>Edit the prompt logic the State Model uses. Use <code>{{modulesText}}</code> to inject the active module guidelines.</small>
