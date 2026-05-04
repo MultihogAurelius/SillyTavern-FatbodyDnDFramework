@@ -3427,7 +3427,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 overflow: hidden;
             ">
                 <div class="popup-header">
-                    <h3 class="margin0" style="font-size:14px; flex:1;">Module Template Editor</h3>
+                    <h3 class="margin0" style="font-size:14px; flex:1;">Custom Module Editor</h3>
                     <button id="rt_cfe_preview_btn" class="menu_button interactable" style="font-size:11px;padding:3px 8px;display:none;margin-right:6px;"><i class="fa-solid fa-eye"></i> Preview</button>
                     <div id="rt_cfe_close" class="popup-close interactable" title="Close"><i class="fa-solid fa-times"></i></div>
                 </div>
