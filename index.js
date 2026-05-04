@@ -1243,21 +1243,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         return modulesText.trim();
     }
 
-    /**
-     * Generates a structural template instruction for a custom module based on its defined rows.
-     * @param {any} field - The custom field object.
-     * @returns {string} The formatting instruction.
-     */
     function buildModuleFormatInstruction(field) {
-        let text = field.prompt || '';
-        if (!field.template) return text;
-
-        const template = `\nOUTPUT TEMPLATE (STRICT ADHERENCE REQUIRED):\n${field.template}`;
-        // Append template if not already present in the prompt
-        if (!text.includes('OUTPUT TEMPLATE')) {
-            text = (text + '\n' + template).trim();
-        }
-        return text;
+        return field.template || field.prompt || '';
     }
 
     /**
@@ -3431,19 +3418,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         </div>
                     </div>
 
-                    <!-- AI Prompt & Generated Template -->
-                    <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
-                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-                            <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
-                            <b style="font-size:12px;">AI Instructions</b>
-                        </div>
-                        
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="3" style="resize:vertical; width:100%; margin-bottom:8px;" placeholder="Describe what the AI should track here..."></textarea>
-                        
-                        <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">Full Instruction Preview:</div>
-                        <div id="rt_cfe_generated_template" style="background:rgba(0,0,0,0.3); padding:8px; border-radius:4px; font-family:monospace; font-size:11px; white-space:pre-wrap; border:1px dashed rgba(255,255,255,0.1); color:#00ffaa;"></div>
-                    </div>
-
                     <!-- UI Live Preview (Mobile) -->
                     <div id="rt_cfe_preview_mobile_wrap" style="margin-top:15px; display:none;">
                         <b style="font-size:12px;">UI Preview</b>
@@ -3471,27 +3445,17 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
         const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
         const templateEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_template'));
-        const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
-        const genTempEl  = document.getElementById('rt_cfe_generated_template');
         const previewEl  = document.getElementById('rt_cfe_preview');
 
-        iconEl.value  = field.icon  || '📄';
-        tagEl.value   = field.tag   || '';
-        labelEl.value = field.label || '';
+        iconEl.value     = field.icon  || '📄';
+        tagEl.value      = field.tag   || '';
+        labelEl.value    = field.label || '';
         templateEl.value = field.template || '';
-        promptEl.value = field.prompt || '';
-
-        const updateGeneratedTemplate = () => {
-            if (!genTempEl) return;
-            const fullPrompt = buildModuleFormatInstruction({ tag: tagEl.value, template: templateEl.value, prompt: promptEl.value });
-            genTempEl.textContent = fullPrompt;
-        };
 
         // ── Live Preview ──
         let _previewDebounce = null;
         let _bgRefreshDebounce = null;
         const schedulePreview = () => {
-            updateGeneratedTemplate();
             clearTimeout(_previewDebounce);
             _previewDebounce = setTimeout(updatePreview, 180);
             clearTimeout(_bgRefreshDebounce);
@@ -3544,9 +3508,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         tagEl.addEventListener('input', schedulePreview);
         labelEl.addEventListener('input', schedulePreview);
         templateEl.addEventListener('input', schedulePreview);
-        promptEl.addEventListener('input', schedulePreview);
 
-        updateGeneratedTemplate();
         updatePreview();
         overlay.style.display = 'flex';
 
@@ -3584,10 +3546,10 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const dup = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
             if (dup) { toastr['error'](`Tag [${newTag}] is already in use.`, 'RPG Tracker'); return; }
 
-            field.tag   = newTag;
-            field.label = labelEl.value;
+            field.tag      = newTag;
+            field.label    = labelEl.value;
             field.template = templateEl.value;
-            field.prompt = promptEl.value;
+            delete field.prompt;
             delete field.rows;
             delete field.renderType;
 
