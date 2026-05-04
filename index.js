@@ -3413,21 +3413,21 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         const field = s.customFields[index];
         const overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:100000;display:none;overflow-y:auto;padding:40px 0;';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8) !important;z-index:9999999 !important;display:none;overflow-y:auto;padding:20px 0;';
 
         overlay.innerHTML = `
             <div id="rt_cfe_modal" style="
                 width: min(540px, 94vw);
-                margin: 0 auto;
+                margin: 20px auto;
                 min-height: ${isSmallScreen ? '400px' : '80vh'};
                 max-height: none;
                 display: flex;
                 flex-direction: column;
-                background: var(--SmartThemeBlurTintColor, #1a1a2e);
-                border: 1px solid rgba(255,255,255,0.12);
-                border-radius: 10px;
-                box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-                color: var(--SmartThemeBodyColor, #ccc);
+                background: #1a1a2e !important;
+                border: 1px solid rgba(255,255,255,0.3) !important;
+                border-radius: 12px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+                color: #ccc !important;
                 font-family: var(--mainFontFamily, sans-serif);
                 font-size: 13px;
                 overflow: hidden;
