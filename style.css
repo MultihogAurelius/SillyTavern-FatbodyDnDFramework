@@ -861,13 +861,64 @@
 }
 
 .rt-unit-descr {
-    font-size: 0.9em;
-    opacity: 0.75;
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 15, 15, 0.98);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--rt-accent-dim);
+    color: var(--rt-text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
     font-weight: 400;
-    margin-left: 2px;
+    white-space: normal;
+    min-width: 120px;
+    max-width: 220px;
+    z-index: 10001;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    pointer-events: none;
+    text-align: center;
+    line-height: 1.4;
 }
 
+/* Tooltip arrow */
+.rt-unit-descr::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: var(--rt-accent-dim) transparent transparent transparent;
+}
 
+.rt-unit-pill:hover .rt-unit-descr,
+.rt-unit-pill.active .rt-unit-descr {
+    display: block;
+}
+
+/* Suppress hover reveals when another pill in the same container is active */
+.rt-units-container:has(.rt-unit-pill.active) .rt-unit-pill:not(.active):hover .rt-unit-descr,
+.rt-abilities-body:has(.rt-unit-pill.active) .rt-unit-pill:not(.active):hover .rt-unit-descr {
+    display: none !important;
+}
+
+/* Subtle dot on pills that have a tooltip, so users know to hover */
+.rt-unit-pill:not(.no-desc)::after {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--rt-accent-dim);
+    flex-shrink: 0;
+    opacity: 0.6;
+    margin-left: 2px;
+    align-self: center;
+}
 
 /* ── Status Pill Color Variants ── */
 .rt-pill-buff {
