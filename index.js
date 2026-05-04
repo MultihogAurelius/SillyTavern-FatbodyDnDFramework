@@ -3328,6 +3328,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                         <button id="rt_cfe_add_row" class="menu_button interactable" style="margin-top:6px;width:100%;">
                             <i class="fa-solid fa-plus"></i> Add Row
                         </button>
+                        <small style="display:block;margin-top:5px;opacity:0.5;font-style:italic;">💡 Pills tip: write <code>Name (detail)</code> — the name shows always, detail appears on hover.</small>
                     </div>
 
                     <!-- Test Data -->
