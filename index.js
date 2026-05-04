@@ -4561,6 +4561,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             labelInput.addEventListener('input', () => {
                 s.subFieldRules[idx].label = labelInput.value;
                 SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
             });
 
             // Render type dropdown
@@ -4576,6 +4577,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             typeSelect.addEventListener('change', () => {
                 s.subFieldRules[idx].renderType = typeSelect.value;
                 SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
             });
 
             // Color picker (label color)
@@ -4589,6 +4591,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             colorDot.addEventListener('input', () => {
                 s.subFieldRules[idx].color = colorDot.value;
                 SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
             });
             const clearColor = document.createElement('button');
             clearColor.className = 'menu_button interactable';
@@ -4599,6 +4602,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 s.subFieldRules[idx].color = '';
                 colorDot.value = '#ffffff';
                 SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
             });
             colorWrap.appendChild(colorDot);
             colorWrap.appendChild(clearColor);
@@ -4613,6 +4617,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 s.subFieldRules.splice(idx, 1);
                 SillyTavern.getContext().saveSettingsDebounced();
                 refreshSubFieldRuleList();
+                refreshRenderedView();
             });
 
             row.appendChild(labelInput);
@@ -5362,6 +5367,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 settings.subFieldRules.push({ label: '', renderType: 'pills', color: '' });
                 ctx.saveSettingsDebounced();
                 refreshSubFieldRuleList();
+                refreshRenderedView();
             });
 
             $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
