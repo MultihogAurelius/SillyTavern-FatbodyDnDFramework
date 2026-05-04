@@ -1230,8 +1230,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         const templateLines = field.rows.map(row => {
             const marker = UI_TO_MARKER[row.renderType] || 'TEXT';
-            const label = row.label || 'Key';
-            return `((${marker})) ${label}: [value]`;
+            const label = row.label ? `${row.label}: ` : '';
+            return `((${marker})) ${label}[value]`;
         });
 
         const template = `\nRequired formatting structure:\n${templateLines.join('\n')}`;
@@ -1641,11 +1641,22 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      * Flexible "salad bar" renderers — hp_bar and xp_bar accept any X/Y value.
      */
     function renderSubFieldByRule(rule, line) {
+        let labelText = '';
+        let value = line.trim();
+
+        // Check for a colon to split label/value
         const colonIdx = line.indexOf(':');
-        // If there's no colon, the whole line is the value (no label)
-        const hasLabel = colonIdx !== -1;
-        const labelText = hasLabel ? line.substring(0, colonIdx + 1).trim() : '';
-        const value     = hasLabel ? line.substring(colonIdx + 1).trim() : line.trim();
+        if (colonIdx !== -1) {
+            const potentialLabel = line.substring(0, colonIdx).trim();
+            const ruleLabel = rule.label ? rule.label.trim().replace(/:$/, '') : null;
+
+            // Split if it matches the rule's expected label, OR if no rule label is defined (marker call) and it's a short "Header:"
+            if ((ruleLabel && potentialLabel.toLowerCase() === ruleLabel.toLowerCase()) || (!ruleLabel && colonIdx < 32)) {
+                labelText = line.substring(0, colonIdx + 1).trim();
+                value = line.substring(colonIdx + 1).trim();
+            }
+        }
+
         const labelStyle = rule.color ? ` style="color:${rule.color}"` : '';
         const labelHtml  = labelText
             ? `<span class="rt-entity-sub-label"${labelStyle}>${escapeHtml(labelText)}</span>`
@@ -3476,13 +3487,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         const generateAutoData = () => {
             if (!field.rows || field.rows.length === 0) return;
             const data = field.rows.map(row => {
-                const label = row.label || 'Item';
+                const label = row.label ? `${row.label}: ` : '';
                 switch (row.renderType) {
-                    case 'hp_bar': return `${label}: 45/100`;
-                    case 'xp_bar': return `${label}: 1200/2700 (Level 3)`;
-                    case 'pills': return `${label}: Value 1, Value 2`;
-                    case 'badge': return `${label}: Value`;
-                    default: return `${label}: Value`;
+                    case 'hp_bar': return `${label}45/100`;
+                    case 'xp_bar': return `${label}1200/2700 (Level 3)`;
+                    case 'pills': return `${label}Value 1, Value 2`;
+                    case 'badge': return `${label}Value`;
+                    default: return `${label}Value`;
                 }
             }).join('\n');
             testDataEl.value = data;
