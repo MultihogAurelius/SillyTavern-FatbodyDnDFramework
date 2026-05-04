@@ -1568,10 +1568,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      */
     function renderSubFieldByRule(rule, line) {
         const colonIdx = line.indexOf(':');
-        const labelText = line.substring(0, colonIdx + 1).trim();
-        const value     = line.substring(colonIdx + 1).trim();
+        // If there's no colon, the whole line is the value (no label)
+        const hasLabel = colonIdx !== -1;
+        const labelText = hasLabel ? line.substring(0, colonIdx + 1).trim() : '';
+        const value     = hasLabel ? line.substring(colonIdx + 1).trim() : line.trim();
         const labelStyle = rule.color ? ` style="color:${rule.color}"` : '';
-        const labelHtml  = `<span class="rt-entity-sub-label"${labelStyle}>${escapeHtml(labelText)}</span>`;
+        const labelHtml  = labelText
+            ? `<span class="rt-entity-sub-label"${labelStyle}>${escapeHtml(labelText)}</span>`
+            : '';
 
         switch (rule.renderType) {
             case 'pills':
@@ -1637,18 +1641,23 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
     /**
      * Renders a single line from a custom block (non-built-in tag).
      * Resolution order:
-     *   1. Module-scoped rows (field.rows)
-     *   2. Global sub-field rules (settings.subFieldRules)
-     *   3. Plain kv fallback
+     *   1. Module-scoped rows — by label prefix, then positionally (lineIdx mod rows.length)
+     *   2. Global sub-field rules — by label prefix only
+     *   3. Plain kv fallback, then plain text
      */
-    function renderCustomBlockLine(tag, line) {
+    function renderCustomBlockLine(tag, line, lineIdx = 0) {
         const s = getSettings();
         const field = (s.customFields || []).find(f => f.tag.toUpperCase() === tag.toUpperCase());
-        const rule =
-            resolveRowRule(line, field?.rows) ||
-            resolveRowRule(line, s.subFieldRules);
+        // 1a. Label-based match against module rows
+        let rule = resolveRowRule(line, field?.rows);
+        // 1b. Positional fallback: if module has rows but none matched by label, use row[lineIdx % rows.length]
+        if (!rule && field?.rows?.length) {
+            rule = field.rows[lineIdx % field.rows.length];
+        }
+        // 2. Global sub-field rules (label-only — no positional fallback here)
+        if (!rule) rule = resolveRowRule(line, s.subFieldRules);
         if (rule) return renderSubFieldByRule(rule, line);
-        // Plain kv fallback
+        // 3. Plain kv fallback
         const kv = line.match(/^([^:]+):\s*(.+)$/);
         if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}:</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
         return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
@@ -2185,7 +2194,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             }
             default:
                 // Custom blocks: resolve each line via module rows → global rules → kv fallback
-                return lines.map(line => renderCustomBlockLine(tag, line));
+                // Pass line index so positional row matching works even without label prefixes
+                return lines.map((line, idx) => renderCustomBlockLine(tag, line, idx));
         }
     }
 
@@ -2676,11 +2686,15 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         // Handle manual edits to live memo
         const textarea = panel.querySelector('#rpg-tracker-memo');
+        let _rawEditDebounce = null;
         textarea.addEventListener('input', (e) => {
             if (_historyViewIndex !== -1) return;
             settings.currentMemo = /** @type {HTMLTextAreaElement} */ (e.target).value;
             panel.querySelector('#rpg-tracker-count').textContent = `~${Math.round(settings.currentMemo.length / 2.62)} tokens`;
             SillyTavern.getContext().saveSettingsDebounced();
+            // Refresh the rendered view live so changes are visible without toggling modes
+            clearTimeout(_rawEditDebounce);
+            _rawEditDebounce = setTimeout(refreshRenderedView, 400);
         });
 
         // ── RNG & Dice Toggle Logic ──
@@ -3375,9 +3389,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
         // ── Live Preview ──
         let _previewDebounce = null;
+        let _bgRefreshDebounce = null;
         const schedulePreview = () => {
             clearTimeout(_previewDebounce);
             _previewDebounce = setTimeout(updatePreview, 180);
+            // Also refresh the background tracker so it picks up the new rows immediately
+            clearTimeout(_bgRefreshDebounce);
+            _bgRefreshDebounce = setTimeout(refreshRenderedView, 300);
         };
 
         const updatePreview = () => {
@@ -3496,6 +3514,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             field.tag   = newTag;
             field.label = labelEl.value;
             field.prompt = promptEl.value;
+            delete field.renderType; // Migrate legacy modules to salad bar
             // field.rows already mutated in-place
 
             overlay.remove();
@@ -4054,7 +4073,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 settings.customFields.push({
                     tag: newTag, label: 'New Field', icon: '📝',
                     prompt: 'What should the AI track for this new field? Describe it here.',
-                    renderType: 'CHARACTER', enabled: true
+                    rows: [], enabled: true
                 });
                 refreshOrderList();
                 ctx.saveSettingsDebounced();
