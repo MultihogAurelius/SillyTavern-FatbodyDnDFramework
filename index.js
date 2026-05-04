@@ -1245,7 +1245,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      * @param {string} narrativeOutput The last narrative message to parse.
      * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
      */
-    async function runStateModelPass(narrativeOutput, isFullContext = false) {
+    async function runStateModelPass(narrativeOutput, isFullContext = false, overrideLookback = null) {
         const settings = getSettings();
         const { generateRaw, saveSettingsDebounced } = SillyTavern.getContext();
 
@@ -1271,18 +1271,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
 
             const { chat } = SillyTavern.getContext();
-            const N = (settings.lookbackMessages !== undefined) ? settings.lookbackMessages : 2;
+            // overrideLookback comes from the Lookback Update menu; it wins over settings
+            const N = overrideLookback !== null ? overrideLookback
+                    : isFullContext          ? chat.length
+                    : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
             const recentChat = chat.slice(-N);
             const chatLog = recentChat.map(m => {
                 const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                let text = (m.mes || '').trim();
-                // Clean tags from history so the AI doesn't get confused by thought blocks
-                text = text.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
-                text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
-                text = text.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
-                text = text.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
-                text = text.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
-                return `${name}: ${text.trim()}`;
+                return `${name}: ${m.mes}`;
             }).join('\n\n');
 
             let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
@@ -2675,9 +2671,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 </div>
                 <div class="flex-container gap-1 alignitemscenter rt-utility-footer-group">
                     <span id="rpg-tracker-count">~${Math.round(settings.currentMemo.length / 2.62)} tokens</span>
-                    <div class="rt-footer-lookback-control" title="Auto Update Lookback: how many recent messages the tracker sees" style="display: flex; align-items: center; gap: 3px; margin-left: 5px; font-size: 9px; opacity: 0.8;">
-                        LB: <input type="number" id="rt-footer-lookback-val" value="${settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2}" min="1" max="20" style="width: 24px; height: 16px; font-size: 9px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; text-align: center; padding: 0;">
-                    </div>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
@@ -2927,6 +2920,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             const { chat, Popup } = SillyTavern.getContext();
             let narrative = "";
             let isFullAudit = false;
+            let customLookbackN = null;
 
             if (type === 'regular') {
                 narrative = getNarrativeBlocks(chat, -1);
@@ -2935,13 +2929,14 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             } else if (type === 'custom') {
                 const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
                 if (!count || isNaN(parseInt(count))) return;
-                narrative = getNarrativeBlocks(chat, parseInt(count));
+                customLookbackN = parseInt(count);
+                narrative = getNarrativeBlocks(chat, customLookbackN);
             }
 
             if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
 
             toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
-            await runStateModelPass(narrative, isFullAudit);
+            await runStateModelPass(narrative, isFullAudit, customLookbackN);
         };
 
         const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
@@ -3018,16 +3013,6 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             _historyViewIndex = -1;
             SillyTavern.getContext().saveSettingsDebounced();
             syncMemoView();
-        });
-
-        // Footer Lookback override
-        panel.querySelector('#rt-footer-lookback-val').addEventListener('change', (e) => {
-            const val = parseInt(/** @type {HTMLInputElement} */(e.target).value);
-            settings.lookbackMessages = isNaN(val) ? 2 : val;
-            // Sync to settings UI if open
-            const settingsInput = $('#rpg_tracker_lookback_messages');
-            if (settingsInput.length) settingsInput.val(settings.lookbackMessages);
-            SillyTavern.getContext().saveSettingsDebounced();
         });
 
         // Clear memo button
