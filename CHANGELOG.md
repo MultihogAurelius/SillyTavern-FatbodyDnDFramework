@@ -2,6 +2,26 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.7.0] - 2026-05-04
+
+**Custom Field Overhaul and Universal Markers**  
+A major refactor of the Custom Field Editor and rendering engine, giving users total control over AI instructions while enabling high-fidelity markers (pills, bars) in every stock module.
+
+### Added
+- **Universal Marker Support**: `((PILLS))`, `((BAR))`, `((XPBAR))`, `((BADGE))`, and `((HIGHLIGHT))` now work in ALL built-in modules (INVENTORY, ABILITIES, SPELLS, XP, TIME).
+- **Decoupled AI Instructions**: The Custom Field Editor now separates the visual template from the AI prompt, allowing for raw, unmanipulated instruction sets.
+- **CFE Help System**: Added tooltips to the Custom Field Editor to clarify the distinction between UI previews and AI instructions.
+- **Instruction Hardening**: Added a new `<custom_formatting>` block to core instructions to better guide the AI on when to use graphical markers.
+
+### Changed
+- **Decommissioned Sub-Field Rules**: Removed the legacy global label-mapping system. All rendering is now handled via the more powerful and flexible template system.
+- **Renamed Dice Tool**: "Dice Roll (Fatbody)" is now **"Dice Roll (with DC)"** for better transparency.
+- **Restored Stock Prompts**: Reverted module prompts to their high-performance legacy versions as requested by the community.
+- **UI Typography**: Increased subtext and tooltip font sizes for improved readability.
+
+### Fixed
+- **Lookback Update Logic**: Fixed a bug where manual "Lookback Update" was ignored in favor of persistent settings. It now correctly overrides the context window for one-time refreshes.
+
 ## [1.6.0] - 2026-05-04
 
 **Improved Customization and Advanced Options**  
