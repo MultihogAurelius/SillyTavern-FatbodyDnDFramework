@@ -18,14 +18,14 @@
     let _stateModelRunning = false;
 
     const DEFAULT_STOCK_PROMPTS = {
-        character: `Main character's core stats. Example:\n[CHARACTER]\nKorgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Dwarven Resilience (Adv on poison saves), Trait2\nHD: d10 (2/2)\nStatus: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
-        party: `Companion/Party members. \n\nExample party: \n[PARTY]\nElara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\nTraits: Natural Explorer (ignore difficult terrain)\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\nStatus: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
-        combat: `Active enemies/NPCs in combat. Track the current COMBAT ROUND starting from 1. Decrement buff/debuff durations accordingly.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\nGoblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\nOther: Trait1 (description), Trait2 (description)\nStatus: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
+        character: `Main character's core stats. Use markers for formatting. Example:\n[CHARACTER]\n((BAR)) Korgath (Dwarven Warrior): 23/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3 Crushing, Fire) | Shirtless, Generic Pants (AC: 13, base 10)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\n((PILLS)) Traits: Dwarven Resilience (Adv on poison saves), Fire Resistant\nHD: d10 (2/2)\n((PILLS)) Status: Healthy, Mage Armor (+3 AC, 5h 32m)\n[/CHARACTER]\n\nUpon LEVEL UP, incorporate attribute changes.`,
+        party: `Companion/Party members. Use ((BAR)) for HP and ((PILLS)) for status/traits.\n\nExample party: \n[PARTY]\n((BAR)) Elara (Ranger): 26/45 HP\nAtt/def: Shortbow (+4 / 1d6+3 P) | Leather Armor (AC: 15)\nAttr: STR 12, DEX 16, CON 14, INT 10, WIS 14, CHA 12\nSaves: Fort +4 (base +2) | Ref +6 (base +5) | Will +3 (base +2)\nSkills: Athletics +3, Perception +5\n((PILLS)) Traits: Natural Explorer\nSpells: Cantrips: Mage Hand\nSpells: Level 1 (2/2): Hunter's Mark, Goodberry\nHD: d10 (5/5)\n((PILLS)) Status: Healthy, Inspired (+1 all saves, 2h 1m)\n[/PARTY]\n\n<party_constraints>\n1. For spells: output ONE \`Spells:\` line per spell level. Do NOT merge multiple levels onto one line with pipes.\n2. Only add party members if you see (X joins the party.)\nOnly remove party members if you see (X leaves the party.)\n3. PERSISTENCE: If the party changes, you MUST output the ENTIRE [PARTY] block including all existing characters. Never omit a character unless they leave the party.\n</party_constraints>`,
+        combat: `Active enemies/NPCs in combat. Use ((BAR)) for HP and ((PILLS)) for status.\n\nExample:\n[COMBAT]\nCOMBAT ROUND 1\n((BAR)) Goblin 1: 15/15 HP\nAtt/def: Spear (+2 / 1d5+1 Piercing) | Hide Armor (AC: 10)\nSaves: Fort +1, Ref +1, Will -2\n((PILLS)) Other: Trait1, Trait2\n((PILLS)) Status: (-) Bleeding (-2 HP/turn, 3 turns)\n[/COMBAT]\n\n<combat_contraints>\n1. [COMBAT] section is only created when actual combat begins, not when enemies are simply present in the scene.\n2. If an entity dies in combat, output it as 0/X HP, for example "Shambling Corpse B (Fodder): 0/9 HP | AC: 10," do not omit it completely from the next state.\n3. Do not put members of [PARTY] into [COMBAT].\n4. You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. \n</combat_contraints>`,
         inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.\n\nExample:\n[INVENTORY]\n- [Legendary] Volcanic Mace\n- [Rare] Leather Armor\n- [Uncommon] Healing Potion\n- 1,000 GP\n- Meat (spoils in 2h 39m)\n[/INVENTORY]`,
         abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.\n\nExample:\n[ABILITIES]\n- Second Wind (1/1, Regain 1d10+4 HP)\n- Combat Superiority (2/4, d8 dice)\n[/ABILITIES]`,
         spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
         time: "Current time and day (e.g. '8:43 AM, Day 1') and time of the last rest (e.g. 'Last Rest: 10:00 PM, Day 0'). Use this to track out-of-combat buff durations by comparing to the PRIOR MEMO's time.\n\n'Last Rest' is ONLY triggered on Long Rest, NOT Short Rest. If the [TIME] delta between PREVIOUS STATE MEMO and your current update is only an hour, it is a Short Rest.",
-        xp: "Track character experience points. Use this format:\n[XP]\nLevel: 3 | XP: 1,200/2,700\n[/XP]",
+        xp: "Track character experience points. Use ((XPBAR)) marker. Example:\n[XP]\n((XPBAR)) Total: 1,200 / 2,700 XP (Level 3)\n[/XP]",
     };
 
     // System prompts embedded directly for mobile/Termux compatibility (no fetch needed)
@@ -499,6 +499,16 @@ You must track the following enabled modules:
 6. If there are absolutely NO CHANGES to any section, you MUST output exactly: \`NO_CHANGES_DETECTED\`
 7. Output ONLY the changed sections (or NO_CHANGES_DETECTED). No preamble, no explanation, no commentary.
 </rules>
+
+<module_formatting>
+For any section, you can use markers to force specific UI rendering:
+- ((BAR)) Label: X/Y  -> Renders a progress bar (useful for HP, Mana, etc.)
+- ((PILLS)) Item1, Item2 -> Renders unit pills (useful for conditions, equipment, or traits)
+- ((BADGE)) Text -> Renders a single prominent badge
+- ((XPBAR)) Label: X/Y -> Renders an orange XP-style progress bar
+- ((TEXT)) Content -> Renders as plain text (default)
+You can mix and match these markers within any block. Prefer these markers for all status lines or health lines.
+</module_formatting>
 
 <list_formatting>
 For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):
@@ -1662,6 +1672,25 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
      *   3. Plain kv fallback, then plain text
      */
     function renderCustomBlockLine(tag, line, lineIdx = 0) {
+        // 0. Explicit Marker check: ((PILLS)), ((BAR)), ((XPBAR)), ((TEXT)), etc.
+        // These override all other rules and don't require label matching.
+        const markerMatch = line.match(/^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*(.*)$/i);
+        if (markerMatch) {
+            const [, mType, mContent] = markerMatch;
+            const typeMap = {
+                'PILLS': 'pills',
+                'BAR': 'hp_bar',
+                'HPBAR': 'hp_bar',
+                'XPBAR': 'xp_bar',
+                'TEXT': 'text',
+                'BADGE': 'badge',
+                'HIGHLIGHT': 'highlight'
+            };
+            const renderType = typeMap[mType.toUpperCase()] || 'text';
+            // We pass the content directly. renderSubFieldByRule handles label/value splitting via colon.
+            return renderSubFieldByRule({ renderType }, mContent.trim());
+        }
+
         const s = getSettings();
         const field = (s.customFields || []).find(f => f.tag.toUpperCase() === tag.toUpperCase());
         // 1a. Label-based match against module rows
@@ -1688,6 +1717,8 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         if (!text) return text;
         // First convert <br> variants to newlines so line structure is preserved
         let stripped = text.replace(/<br\s*\/?>/gi, '\n');
+        // Remove rendering markers like ((PILLS)), ((BAR)), etc.
+        stripped = stripped.replace(/^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*/gim, '');
         // Remove all remaining HTML tags, keeping their inner text
         stripped = stripped.replace(/<[^>]+>/g, '');
         return stripped;
