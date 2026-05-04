@@ -474,7 +474,7 @@ Declare their COMBAT PROFILE immediately:
             completionPresetId: "",
             renderedViewActive: true,
             maxTokens: 0,
-            fontSize: 15,
+            fontSize: 14,
             rngEnabled: true,
             diceFunctionTool: true,
             systemPromptTemplate:
