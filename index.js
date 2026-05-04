@@ -973,20 +973,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         }
     }
 
-    async function getCurrentConnectionProfile() {
-        if (!(await checkConnectionProfilesActive())) return null;
-        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-        const result = await executeSlashCommandsWithOptions(`/profile`);
-        return result?.pipe?.trim() || null;
-    }
-
-    async function setConnectionProfile(name) {
-        if (!(await checkConnectionProfilesActive())) return;
-        if (!name) return;
-        const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
-        await executeSlashCommandsWithOptions(`/profile ${name}`);
-    }
-
     async function getCurrentCompletionPreset() {
         const { executeSlashCommandsWithOptions } = SillyTavern.getContext();
         const result = await executeSlashCommandsWithOptions(`/preset`);
@@ -1001,22 +987,106 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
     /**
      * Send the request through the configured backend.
-     * Uses the v1.5.2 "physical switch-execute-restore" pattern:
-     * temporarily switches the active profile/preset via slash commands,
-     * fires generateRaw, then restores both in the finally block.
      */
     async function sendStateRequest(settings, systemPrompt, userPrompt) {
-        const { generateRaw } = SillyTavern.getContext();
-        let originalProfile = null;
-        let originalPreset = null;
+        const context = SillyTavern.getContext();
 
-        try {
-            if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
-                originalProfile = await getCurrentConnectionProfile();
-                if (settings.debugMode) console.log(`[RPG Tracker] Switching Connection Profile: ${originalProfile} -> ${settings.connectionProfileId}`);
-                await setConnectionProfile(settings.connectionProfileId);
+        // ── Diagnostic: log connection settings on every call ──
+        console.log(`[RPG Tracker] sendStateRequest — source: "${settings.connectionSource}", profileId: "${settings.connectionProfileId}", preset: "${settings.completionPresetId}"`);
+
+        // ── Profile mode: use ConnectionManagerRequestService (silent, no UI flicker) ──
+        if (settings.connectionSource === 'profile' && settings.connectionProfileId) {
+            const service = context.ConnectionManagerRequestService;
+
+            if (!service || typeof service.sendRequest !== 'function') {
+                // Graceful fallback: warn and fall through to generateRaw
+                console.warn('[RPG Tracker] ConnectionManagerRequestService not available (ST too old?). Falling back to generateRaw with profile switch.');
+            } else {
+                if (settings.debugMode) console.log(`[RPG Tracker] Sending via profile (silent): ${settings.connectionProfileId}${settings.completionPresetId ? `, preset override: ${settings.completionPresetId}` : ''}`);
+
+                // ── Manual Profile Implementation ──
+                // We bypass the standard service because it doesn't allow per-call preset overrides.
+                // This logic is adapted from ST's ConnectionManagerRequestService.
+                let profile;
+                try {
+                    // Try by ID first (UUID)
+                    profile = service.getProfile(settings.connectionProfileId);
+                } catch {
+                    // Fallback: try to find by name (for older settings)
+                    const profiles = context.extensionSettings?.connectionManager?.profiles || [];
+                    profile = profiles.find(p => p.name === settings.connectionProfileId || p.id === settings.connectionProfileId);
+                }
+
+                if (!profile) throw new Error(`[RPG Tracker] Connection Profile not found: ${settings.connectionProfileId}`);
+
+                const selectedApiMap = service.validateProfile(profile);
+                const messages = [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user',   content: userPrompt   },
+                ];
+
+                const maxTokens = settings.maxTokens && settings.maxTokens > 0 ? settings.maxTokens : undefined;
+                const presetToUse = settings.completionPresetId || profile.preset;
+
+                let raw;
+                if (selectedApiMap.selected === 'openai') {
+                    const proxies = context.proxies || [];
+                    const proxyPreset = proxies.find((p) => p.name === profile.proxy);
+                    raw = await context.ChatCompletionService.processRequest({
+                        stream: false,
+                        messages,
+                        max_tokens: maxTokens,
+                        model: profile.model,
+                        chat_completion_source: selectedApiMap.source,
+                        secret_id: profile['secret-id'],
+                        custom_url: profile['api-url'],
+                        vertexai_region: profile['api-url'],
+                        zai_endpoint: profile['api-url'],
+                        siliconflow_endpoint: profile['api-url'],
+                        minimax_endpoint: profile['api-url'],
+                        reverse_proxy: proxyPreset?.url,
+                        proxy_password: proxyPreset?.password,
+                        custom_prompt_post_processing: profile['prompt-post-processing'],
+                    }, {
+                        presetName: presetToUse,
+                    }, true);
+                } else if (selectedApiMap.selected === 'textgenerationwebui') {
+                    raw = await context.TextCompletionService.processRequest({
+                        stream: false,
+                        prompt: messages, // TextCompletionService handles message arrays
+                        max_tokens: maxTokens,
+                        model: profile.model,
+                        api_type: selectedApiMap.type,
+                        api_server: profile['api-url'],
+                        secret_id: profile['secret-id'],
+                    }, {
+                        instructName: profile.instruct,
+                        presetName: presetToUse,
+                    }, true);
+                } else {
+                    throw new Error(`[RPG Tracker] Unsupported API type: ${selectedApiMap.selected}`);
+                }
+
+                // Normalise return type (mirrors Summaryception's handling)
+                if (typeof raw === 'string') return raw;
+                const r = /** @type {any} */ (raw);
+                const text = r?.content
+                    ?? r?.message?.content
+                    ?? r?.choices?.[0]?.message?.content
+                    ?? r?.choices?.[0]?.text
+                    ?? null;
+
+                if (text) return text;
+                throw new Error(`[RPG Tracker] Profile request returned unexpected type: ${JSON.stringify(raw).substring(0, 200)}`);
             }
+        }
 
+        // ── Default mode: generateRaw through the active connection ──
+        const { generateRaw } = context;
+        if (!generateRaw) throw new Error('[RPG Tracker] generateRaw is not available.');
+
+        let originalPreset = null;
+        try {
             if (settings.completionPresetId) {
                 originalPreset = await getCurrentCompletionPreset();
                 if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
@@ -1038,10 +1108,10 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             if (typeof result === 'string') return result;
             const r = /** @type {any} */ (result);
             return r?.choices?.[0]?.message?.content
-                || r?.choices?.[0]?.text
-                || r?.message?.content
-                || r?.content
-                || JSON.stringify(result);
+                ?? r?.choices?.[0]?.text
+                ?? r?.message?.content
+                ?? r?.content
+                ?? JSON.stringify(result);
 
         } catch (err) {
             console.error('[RPG Tracker] Request failed:', err);
@@ -1050,10 +1120,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             if (originalPreset && settings.completionPresetId && originalPreset !== settings.completionPresetId) {
                 if (settings.debugMode) console.log(`[RPG Tracker] Restoring preset: ${originalPreset}`);
                 await setCompletionPreset(originalPreset);
-            }
-            if (originalProfile && settings.connectionProfileId && originalProfile !== settings.connectionProfileId) {
-                if (settings.debugMode) console.log(`[RPG Tracker] Restoring profile: ${originalProfile}`);
-                await setConnectionProfile(originalProfile);
             }
         }
     }
