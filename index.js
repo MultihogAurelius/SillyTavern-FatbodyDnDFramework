@@ -587,7 +587,11 @@ STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive s
 
 <progression_logic>
 Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus increasing to 2d6, etc.
-</progression_logic>`,
+</progression_logic>
+
+<custom_formatting>
+You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIGHLIGHT)). These are for graphical rendering options; use them if instructed but only if instructed in a specific [MODULE].
+</custom_formatting>`,
             modules: {
                 character: true,
                 party: true,
