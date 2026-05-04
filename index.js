@@ -737,7 +737,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 worldModelSystemPrompt: DEFAULT_WORLD_MODEL_PROMPT,
                 debugMode: true,
                 // Context Sources
-                ctxWorldInfo: true,
+                ctxWorldInfo: false,
                 ctxPersona: false,
                 ctxAuthorNote: false,
                 lorebookFilter: [],
