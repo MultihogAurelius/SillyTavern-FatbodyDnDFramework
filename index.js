@@ -3413,14 +3413,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         const field = s.customFields[index];
         const overlay = document.createElement('div');
         overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);z-index:10001;display:none;align-items:center;justify-content:center;';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);backdrop-filter:blur(2px);z-index:10001;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding-top:5vh;';
 
         overlay.innerHTML = `
             <div id="rt_cfe_modal" style="
                 width: min(540px, 94vw);
-                height: ${isSmallScreen ? 'min(90vh, 90dvh)' : 'auto'};
-                min-height: ${isSmallScreen ? '0' : '800px'};
-                max-height: 90vh;
+                height: 85vh;
+                max-height: 1000px;
+                margin: 0 auto;
                 display: flex;
                 flex-direction: column;
                 background: var(--SmartThemeBlurTintColor, #1a1a2e);
@@ -3465,13 +3465,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                             <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
                             <b style="font-size:12px;">AI Instructions</b>
                         </div>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="10" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above to create and paste a formatting instructions template here.&#10;&#10;Example: Track the Limit Break charge level of the protagonist. Increment Times Used on use; increase level by 1 on each use.&#10;&#10;Format:&#10;[LIMIT BREAK]&#10;((XPBAR)) Limit Break: 10/100 Level 4&#10;Times Used: 3&#10;[/LIMIT BREAK]"></textarea>
-                    </div>
-
-                    <!-- UI Live Preview (Mobile) -->
-                    <div id="rt_cfe_preview_mobile_wrap" style="margin-top:15px; display:none;">
-                        <b style="font-size:12px;">UI Preview</b>
-                        <div id="rt_cfe_preview_view_mobile" class="rpg-tracker-render-view" style="margin-top:4px;"></div>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="10" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above with the live preview (desktop only for now!) to create and paste a formatting instructions template here.&#10;&#10;Example: Track the Limit Break charge level of the protagonist. Increment Times Used on use; increase level by 1 on each use.&#10;&#10;Format:&#10;[LIMIT BREAK]&#10;((XPBAR)) Limit Break: 10/100 Level 4&#10;Times Used: 3&#10;[/LIMIT BREAK]"></textarea>
                     </div>
                 </div>
                 <!-- Footer -->
@@ -3519,7 +3513,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         };
 
         const renderPreviewInto = (targetEl) => {
-            const renderView = targetEl || document.getElementById('rt_cfe_preview_view') || document.getElementById('rt_cfe_preview_view_mobile');
+            const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
             if (!renderView) return;
 
             const testContent = templateEl.value || 'No template defined.';
@@ -3571,7 +3565,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         const modal = document.getElementById('rt_cfe_modal');
         const previewHeader = (document.getElementById('rt_cfe_preview_header'));
         const previewBtn = document.getElementById('rt_cfe_preview_btn');
-        const previewMobileWrap = document.getElementById('rt_cfe_preview_mobile_wrap');
 
         if (modal && previewEl && previewHeader) {
             const rect = modal.getBoundingClientRect();
@@ -3588,9 +3581,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         if (previewEl) previewEl.style.display = previewEl.style.display === 'none' ? 'flex' : 'none';
                     });
                 }
-            } else {
-                // Mobile or no space: show preview inside the modal
-                if (previewMobileWrap) previewMobileWrap.style.display = 'block';
             }
         }
 
