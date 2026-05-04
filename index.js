@@ -3545,6 +3545,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
         templateEl.addEventListener('input', schedulePreview);
         promptEl.addEventListener('input', schedulePreview);
 
+        updateGeneratedTemplate();
         updatePreview();
         overlay.style.display = 'flex';
 
