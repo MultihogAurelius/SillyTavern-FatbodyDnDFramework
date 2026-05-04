@@ -963,9 +963,9 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
             injections += buildRngBlock(queue);
         }
 
-        // 2. State Memo Injection
+        // 2. State Memo Injection (strip display-only HTML before sending to AI)
         if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
-            injections += `### STATE MEMO (DO NOT REPEAT)\n${settings.currentMemo}\n\n`;
+            injections += `### STATE MEMO (DO NOT REPEAT)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
         }
 
         if (!injections) return;
@@ -2021,13 +2021,13 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
                 return `${name}: ${m.mes}`;
             }).join('\n\n');
 
-            let priorMemoText = `## TRACKER STATE 0 (Current)\n${settings.currentMemo}\n\n`;
+            let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
             const historyCount = (settings.trackerHistoryCount || 1) - 1; // 1 means only current, >1 includes history
             if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
                 const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse(); // oldest first (State -N up to -1)
                 const historyString = historyToInclude.map((memo, i) => {
                     const offset = -(historyToInclude.length - i);
-                    return `## TRACKER STATE ${offset}\n${memo}`;
+                    return `## TRACKER STATE ${offset}\n${stripMemoHtml(memo)}`;
                 }).join('\n\n');
                 priorMemoText = historyString + '\n\n' + priorMemoText;
             }
@@ -2158,7 +2158,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
             const systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
 
-            const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+            const sanitizedCurrent = stripMemoHtml(settings.currentMemo.replace(/<\/?memo>/gi, '').trim());
 
             const userPrompt =
                 `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
@@ -2343,6 +2343,20 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 
     function escapeHtml(str) {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /**
+     * Strip all HTML tags from a memo string, preserving inner text.
+     * Used before sending the memo to the AI to avoid token bloat from
+     * color markup (<font>, <span>, etc.) that is purely for display.
+     */
+    function stripMemoHtml(text) {
+        if (!text) return text;
+        // First convert <br> variants to newlines so line structure is preserved
+        let stripped = text.replace(/<br\s*\/?>/gi, '\n');
+        // Remove all remaining HTML tags, keeping their inner text
+        stripped = stripped.replace(/<[^>]+>/g, '');
+        return stripped;
     }
 
     /**
