@@ -2883,7 +2883,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <b style="color: var(--rt-accent); font-size: 14px;">Initial Setup:</b><br><br>
                     1. Use the archetype buttons above to roll a new character, or <b>manually describe a character</b> by clicking 💬.<br><br>
                     2. Create a character card for your "narrator" (e.g. Game Master). <b>Leave the card fields empty</b>, as the framework handles all logic via the system prompt.<br><br>
-                    3. Finally, copy <code>sysprompt.txt</code> into your Quick Prompts "Main" box—or <a id="rt-onboarding-auto-apply" href="javascript:void(0)" style="color: var(--rt-accent); text-decoration: underline;"><b>click here to reset &amp; apply everything automatically</b></a>.<br><br>
+                    3. Finally, copy <code>sysprompt.txt</code> (or from the <b>SYSPROMPT</b> button) into your Quick Prompts "Main" box—or <a id="rt-onboarding-auto-apply" href="javascript:void(0)" style="color: var(--rt-accent); text-decoration: underline;"><b>click here to reset &amp; apply everything automatically</b></a>.<br><br>
                     <span style="color: #ffaa00; font-size: 11px;"><b>NOTE:</b> When you update the framework, remember to reset prompts in settings (or use the link above) to ensure you have the latest logic.</span>
                 </div>
             </div>`;
