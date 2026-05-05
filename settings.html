@@ -11,19 +11,13 @@
                     <span>Enable RPG Tracker</span>
                 </label>
 
-                <div class="flex-container gap-1 alignitemscenter" style="margin-top: 5px;">
-                    <label class="checkbox_label" style="margin: 0; padding: 0;">
-                        <input id="rpg_tracker_chat_link_enabled" type="checkbox" />
-                        <span>Chat-Linked Mode</span>
-                    </label>
+                <label class="checkbox_label">
+                    <input id="rpg_tracker_chat_link_enabled" type="checkbox" />
+                    <span>Chat-Linked Mode</span>
                     <i class="fa-solid fa-circle-question interactable"
-                        title="When enabled, the tracker state (memo) and module configuration are automatically saved and restored per chat ID. Switching chats will reload that specific campaign's state."></i>
-                    <button id="rpg_tracker_clear_chat_states" class="menu_button interactable"
-                        style="margin-left: auto; padding: 2px 6px; font-size: 0.8em;"
-                        title="Clear all saved chat-specific states (this session is unaffected)">
-                        <i class="fa-solid fa-trash-can"></i> Clear All Saved States
-                    </button>
-                </div>
+                        title="When enabled, the tracker state (memo) is automatically saved and restored per chat ID. Switching chats will reload that specific campaign's state."></i>
+                </label>
+
 
                 <label class="checkbox_label">
                     <input id="rpg_tracker_legacy_dice" type="checkbox" />
@@ -33,8 +27,11 @@
                         title="Restores the original behavior of the D&D Dice extension. When enabled, the tool call remains 'RollTheDice' but removes the mandatory DC (Difficulty Class) anchoring and success/failure adjudication."></i>
                 </label>
 
-
-
+                <button id="rpg_tracker_clear_chat_states" class="menu_button interactable"
+                    style="margin-top: 10px; width: 100%; justify-content: center; gap: 8px;"
+                    title="Clear all saved chat-specific states (your current live state is unaffected)">
+                    <i class="fa-solid fa-trash-can"></i> Clear All Saved Chat States
+                </button>
 
                 <hr>
                 <b>Visual Theme</b>
