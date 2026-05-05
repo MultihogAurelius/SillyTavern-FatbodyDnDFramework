@@ -2,6 +2,24 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.8.0] - 2026-05-05
+
+**Chat-Linked State Persistence**  
+This major update introduces per-chat isolation for the RPG State Tracker, allowing for seamless transitions between different campaigns and characters.
+
+### Added
+- **Chat-Specific Isolation**: Memos and history are now automatically scoped to the active SillyTavern Chat ID. Switching chats will swap the tracker state instantly.
+- **Smart Conflict Resolution**: When linking to a chat that has existing data, a native SillyTavern modal prompts for **RESTORE**, **OVERWRITE**, or **CANCEL**.
+- **Automatic History Backup**: Discarded "Global" work is automatically pushed into the chat's history during transitions to prevent data loss.
+- **Clean Slate Onboarding**: New chats automatically start with an empty tracker while preserving your custom module configurations.
+
+### Changed
+- **Unified Versioning**: Synchronized framework version to **1.8.0** across manifest, changelog, and system prompt UI.
+- **Improved Modal Experience**: Replaced generic browser alerts with premium, native SillyTavern popups.
+
+### Fixed
+- **State Overwrite Bug**: Resolved an issue where toggling Chat Link could accidentally wipe existing chat data with the current live state.
+
 ## [1.7.5] - 2026-05-05
 
 **Waterproof Markers & UI Streamlining**  
