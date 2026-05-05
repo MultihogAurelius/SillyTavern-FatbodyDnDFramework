@@ -2,6 +2,21 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.7.5] - 2026-05-05
+
+**Waterproof Markers & UI Streamlining**  
+This update focuses on "waterproofing" the RPG Marker system and cleaning up the Editor UI for a more professional experience.
+
+### Fixed
+- **"Waterproof" Marker System**: Resolved the long-standing bug where visual markers like `((PILLS))`, `((BAR))`, and `((XPBAR))` were being stripped from the state data sent to the AI. The system now preserves these markers throughout the entire round-trip, ensuring 100% reliable HUD formatting.
+- **ST API Compatibility**: Added support for both `max_tokens` and `max_new_tokens` in the TextCompletionService payload, ensuring stability across different SillyTavern backends.
+- **UI Logic Stability**: Fixed a critical `TypeError` in `sendStateRequest` that could occur when switching between connection profiles.
+- **General Linting**: Fixed multiple "silent" errors including missing header definitions, incorrect API signatures, and jQuery type-safety issues in both the main extension and the `Summaryception` connection utility.
+
+### Changed
+- **Editor UI Refinement**: Removed the "Preview" toggle button from the Custom Field Editor. On supported desktop displays, the **Testing Sandbox** is now permanently visible to provide instant feedback.
+- **Version Synchronization**: Incremented framework version to **1.7.5** across the manifest and the internal system prompt footer.
+
 ## [1.7.4] - 2026-05-05
 
 **Enhanced Connectivity and UI Refinement**  
