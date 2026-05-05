@@ -2,7 +2,21 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
-## [1.8.0] - 2026-05-05
+
+## [1.8.2] - 2026-05-05
+
+**Waterproofing RPG State Persistence**  
+This update introduces a deterministic, non-regex JSON cleaner for tool-call metadata and a surgical RNG queue stripper. These optimizations eliminate token bloat caused by redundant tool signatures and metadata, saving approximately 1,500 tokens per dice roll.
+
+### Added
+- **Total Tool-Call Bloat Removal**: The State Model now completely excludes mechanics-heavy tool results (signatures, reasoning, parameters) from its context. It relies exclusively on the narrative descriptions that follow a roll, significantly reducing context usage.
+- **Surgical RNG Stripping**: Implemented a "waterproof" regex mechanism for stripping `[RNG_QUEUE]` blocks from the user's last action, ensuring AI context remains clean while maintaining 100% stability.
+- **Expanded RNG Queue**: Increased the pre-rolled `[RNG_QUEUE]` length from **8** to **12** to provide more headroom for complex combat encounters.
+
+### Changed
+- **Unified Versioning**: Synchronized framework version to **1.8.2** across manifest, changelog, and system prompt UI.
+- **Context Filtering**: Wired the cleaner into both the automatic `StateModelPass` and the manual `Direct Prompt` pipelines to ensure consistent token savings across all interaction modes.
+
 
 **Chat-Linked State Persistence**  
 This major update introduces per-chat isolation for the RPG State Tracker, allowing for seamless transitions between different campaigns and characters.

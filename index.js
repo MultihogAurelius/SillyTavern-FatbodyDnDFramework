@@ -114,7 +114,7 @@ You are a Dungeon Master/World Simulator running a D&D-style tabletop RPG. Narra
 <rng_system>
 Whenever a roll is needed, use the appropriate RNG method based on the situation:
 
-1. IN COMBAT: Use the [RNG_QUEUE v6.0_PROPER] provided in the context. Consume entries in strict order (Index 0, 1, 2...). The queue length is 8; wrap around on exhaustion. This keeps combat fluid and reliable.
+1. IN COMBAT: Use the [RNG_QUEUE v6.0_PROPER] provided in the context. Consume entries in strict order (Index 0, 1, 2...). The queue length is 12; wrap around on exhaustion. This keeps combat fluid and reliable.
 2. OUT OF COMBAT (and in pre-combat initiative rolls): Use a tool call via RollTheDice. You MUST include the Difficulty Class (DC) in the tool call parameters. This prevents "cheating" by anchoring the difficulty before the roll result is known. After rolling, output the DC, the roll, and the outcome (success/failure) in parentheses.
 
 ROLL FORMAT (Strictly enforced for both systems):
@@ -320,7 +320,7 @@ You are a Dungeon Master/World Simulator running a D&D-style tabletop RPG. Narra
 <rng_system>
 Whenever a roll is needed, use the appropriate RNG method based on the situation:
 
-1. IN COMBAT: Use the [RNG_QUEUE v6.0_PROPER] provided in the context. Consume entries in strict order (Index 0, 1, 2...). The queue length is 8; wrap around on exhaustion. This keeps combat fluid and reliable.
+1. IN COMBAT: Use the [RNG_QUEUE v6.0_PROPER] provided in the context. Consume entries in strict order (Index 0, 1, 2...). The queue length is 12; wrap around on exhaustion. This keeps combat fluid and reliable.
 2. OUT OF COMBAT (and in pre-combat initiative rolls): Use a tool call via RollTheDice. You MUST include the Difficulty Class (DC) in the tool call parameters. This prevents "cheating" by anchoring the difficulty before the roll result is known. After rolling, output the DC, the roll, and the outcome (success/failure) in parentheses.
 
 ROLL FORMAT (Strictly enforced for both systems):
@@ -803,7 +803,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
     /**
      * RNG Engine Implementation
      */
-    const RNG_QUEUE_LEN = 8;
+    const RNG_QUEUE_LEN = 12;
     function rollDie(sides) {
         const buf = new Uint32Array(1);
         const limit = Math.floor(4294967296 / sides) * sides;
@@ -1675,6 +1675,61 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
     }
 
     /**
+     * Detects and removes SillyTavern tool-call messages from the chatLog
+     * sent to the State Model.
+     *
+     * The State Model tracks *consequences* (HP lost, item gained, status changed),
+     * not dice mechanics. The narrative text that follows a roll already expresses
+     * its outcome — the raw roll entry adds zero information for state tracking.
+     *
+     * Returns null  → caller should skip this message entirely.
+     * Returns text  → not a tool-call message; pass through untouched.
+     *
+     * ST wraps tool results in HTML:
+     *   <details><summary>Tool calls: ...</summary><pre><code class="language-json">[...]</code></pre></details>
+     *
+     * No regex is used on the JSON body — safe indexOf slicing only.
+     *
+     * @param {string} text - Raw message content (m.mes)
+     * @returns {string|null} Original text, or null if this is a tool-call message.
+     */
+    function cleanToolCallMessage(text) {
+        if (!text) return text;
+        const trimmed = text.trim();
+
+        // Case 1: ST HTML-wrapped tool call (<details><summary>Tool calls:...)
+        if (trimmed.includes('<code') && trimmed.includes('</code>')) {
+            const codeStart = trimmed.indexOf('<code');
+            const contentStart = trimmed.indexOf('>', codeStart);
+            const codeEnd = trimmed.indexOf('</code>', contentStart);
+            if (contentStart !== -1 && codeEnd !== -1) {
+                const jsonText = trimmed.slice(contentStart + 1, codeEnd).trim();
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    // Confirm it's a tool-call payload (has 'name' or 'result' fields)
+                    const entries = Array.isArray(parsed) ? parsed : [parsed];
+                    if (entries.some(e => e && (e.name || e.result !== undefined))) {
+                        return null; // discard — narrative context makes this redundant
+                    }
+                } catch { /* not valid JSON inside the code block — fall through */ }
+            }
+        }
+
+        // Case 2: Raw JSON array/object that looks like a tool-call payload
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                const entries = Array.isArray(parsed) ? parsed : [parsed];
+                if (entries.some(e => e && (e.name || e.result !== undefined))) {
+                    return null; // discard
+                }
+            } catch { /* not valid JSON — fall through */ }
+        }
+
+        return text; // not a tool-call message, pass through untouched
+    }
+
+    /**
      * Extract and clean the last user message from the chat,
      * stripping injected blocks (STATE MEMO, RNG_QUEUE) so only
      * the player's actual typed input remains.
@@ -1694,13 +1749,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
         if (!raw) return '';
 
-        // Strip ### STATE MEMO ... (ends at a blank line before the next section or RNG block)
+        // 1. Strip ### STATE MEMO ... (ends at a blank line before the next section or RNG block)
         raw = raw.replace(/###\s*STATE MEMO[^]*?(?=\n\[RNG_QUEUE|\n###|\n\[(?!RNG_QUEUE)[A-Z]|$)/i, '');
 
-        // Strip [RNG_QUEUE ...]...[/RNG_QUEUE] blocks
-        raw = raw.replace(/\[RNG_QUEUE[^\]]*\][\s\S]*?\[\/RNG_QUEUE\]/gi, '');
+        // 2. Strip [RNG_QUEUE ...]...[/RNG_QUEUE] blocks (waterproof: mandates space, cleans trailing newlines)
+        raw = raw.replace(/\[RNG_QUEUE\s[^\]]*\][\s\S]*?\[\/RNG_QUEUE\][ \t]*\n?/gi, '');
 
-        // Strip any residual [TAG]...[/TAG] injected memo blocks that may linger
+        // 3. Strip any residual [TAG]...[/TAG] injected memo blocks that may linger
         raw = raw.replace(/\[[A-Z_]+\][\s\S]*?\[\/[A-Z_]+\]/g, '');
 
         return raw.trim();
@@ -1824,10 +1879,16 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     : isFullContext          ? chat.length
                     : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
             const recentChat = chat.slice(-N);
-            const chatLog = recentChat.map(m => {
-                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                return `${name}: ${m.mes}`;
-            }).join('\n\n');
+            const chatLog = recentChat
+                .map(m => {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                    // Returns null for tool-call messages — excluded from state model context
+                    const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                    if (content === null) return null;
+                    return `${name}: ${content}`;
+                })
+                .filter(line => line !== null)
+                .join('\n\n');
 
             let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
             const historyCount = (settings.trackerHistoryCount || 1) - 1;
@@ -1971,10 +2032,17 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             let chatLog = '';
             if (N > 0 && chat && chat.length > 0) {
                 const recentChat = chat.slice(-N);
-                chatLog = `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n` + recentChat.map(m => {
-                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    return `${name}: ${m.mes}`;
-                }).join('\n\n') + '\n\n';
+                chatLog = `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n` +
+                    recentChat
+                        .map(m => {
+                            const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                            // Returns null for tool-call messages — excluded from state model context
+                            const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                            if (content === null) return null;
+                            return `${name}: ${content}`;
+                        })
+                        .filter(line => line !== null)
+                        .join('\n\n') + '\n\n';
             }
 
             const userPrompt =
@@ -3223,7 +3291,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
-                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.0</b> (Tool Call + Queue)</button>
+                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.2</b> (Tool Call + Queue)</button>
                             <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
                         </div>
                         <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
@@ -5305,6 +5373,34 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
         wandContainer.appendChild(btn);
     }
+
+    // ── Debug harness (safe to leave in — only runs when called manually) ──
+    // Usage from DevTools console:
+    //   window.rpgDebug.testCleanToolCall(someMessage)
+    //   window.rpgDebug.testCleanToolCall()   <- uses last assistant message from chat
+    window.rpgDebug = window.rpgDebug || {};
+    window.rpgDebug.testCleanToolCall = function (text) {
+        if (text === undefined) {
+            // Auto-grab the last non-user message from the current chat
+            const { chat } = SillyTavern.getContext();
+            const last = chat && [...chat].reverse().find(m => !m.is_user && m['role'] !== 'user');
+            text = last ? (last.mes || last['content'] || '') : '';
+            if (!text) { console.warn('[rpgDebug] No assistant message found in chat.'); return; }
+        }
+        const result = cleanToolCallMessage(text);
+        const saved = text.length - result.length;
+        console.group('%c[rpgDebug] cleanToolCallMessage', 'font-weight:bold;color:#7c4dff');
+        console.log('%cINPUT  (%d chars)', 'color:#aaa', text.length, text);
+        console.log('%cOUTPUT (%d chars)', 'color:#4caf50', result.length, result);
+        console.log(
+            saved > 0
+                ? `%c✅ Stripped ${saved} chars (~${Math.round(saved / 4)} tokens)`
+                : '%c⚠️  Nothing stripped — not a tool-call JSON (original returned unchanged)',
+            `font-weight:bold;color:${saved > 0 ? '#4caf50' : '#f44336'}`
+        );
+        console.groupEnd();
+        return result;
+    };
 
     })();
 })();
