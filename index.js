@@ -1448,9 +1448,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
      * If duplicates are found, the last one in the string is preserved.
      */
     function deduplicateMemo(memo) {
-        // Disabled for now: potentially causing issues with custom field merging
-        return memo;
-        /*
         if (!memo) return "";
         const settings = getSettings();
 
@@ -1485,7 +1482,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         }
 
         return cleanedMemo.replace(/\n{3,}/g, '\n\n').trim();
-        */
     }
 
     /**
@@ -1537,9 +1533,15 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REMOVED`);
             } else {
                 const fullBlock = `[${tag}]\n${newContent}\n[/${tag}]`;
-                // Replacement mechanism disabled: always append
-                memo = memo.trimEnd() + '\n\n' + fullBlock;
-                if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] APPENDED`);
+                const before = memo;
+                memo = memo.replace(existingPattern, () => '\n\n' + fullBlock);
+                if (memo !== before) {
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] REPLACED`);
+                } else {
+                    // Section doesn't exist yet — append it
+                    memo = memo.trimEnd() + '\n\n' + fullBlock;
+                    if (settings.debugMode) console.log(`[RPG Tracker] mergeMemo: [${tag}] APPENDED (new section)`);
+                }
             }
         }
 
