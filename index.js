@@ -61,7 +61,8 @@ Spells: Level 1 (2/2): Hunter's Mark, Goodberry
 HD: d10 (5/5)
 Status: Healthy
 [/PARTY]`,
-        combat: `Active enemies/NPCs in combat. Track the current [COMBAT ROUND] starting from 1. Decrement buff/debuff durations by 1 each round. Format each combatant as:
+        combat: `Active enemies/NPCs in combat. Track the current COMBAT ROUND starting from 1. Decrement buff/debuff durations by 1 each round. Format each combatant as:
+COMBAT ROUND X
 Name: current/max HP
 Att/def: Weapon (+X / damage) | Armor (AC: Z)
 Saves: Fort +X, Ref +X, Will +X
@@ -606,6 +607,12 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             trackerHistoryCount: 1,
             ctxWorldInfo: false,
             lorebookFilter: [],
+            ollamaUrl: "http://localhost:11434",
+            ollamaModel: "",
+            openaiUrl: "",
+            openaiKey: "",
+            openaiModel: "",
+            openaiMaxTokens: 0,
 
         };
 
@@ -988,6 +995,263 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
     /**
      * Send the request through the configured backend.
      */
+    // ─── Connection Utility Helpers (Ported from Summaryception) ───
+    function proxiedUrl(url, useProxy = true) {
+        if (!useProxy) return url;
+        return `/proxy/${url}`;
+    }
+
+    function getProxyHeaders() {
+        try {
+            const ctx = SillyTavern.getContext();
+            if (typeof ctx.getRequestHeaders === 'function') {
+                return ctx.getRequestHeaders();
+            }
+        } catch (e) { /* fallback */ }
+        return { 'Content-Type': 'application/json' };
+    }
+
+    async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTokens, presetSettings = {}) {
+        if (!url) throw new Error('Ollama URL is not configured.');
+        if (!model) throw new Error('Ollama model is not selected.');
+
+        const baseUrl = url.replace(/\/+$/, '');
+        const targetUrl = `${baseUrl}/api/chat`;
+
+        const requestBody = {
+            model: model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+            ],
+            stream: false,
+            options: {
+                temperature: presetSettings.temperature ?? presetSettings.temp ?? presetSettings.temp_openai ?? 0.1,
+                top_p: presetSettings.top_p ?? presetSettings.top_p_openai ?? 1.0,
+                top_k: presetSettings.top_k ?? presetSettings.top_k_openai ?? 40,
+                repeat_penalty: presetSettings.repetition_penalty ?? presetSettings.rep_pen ?? presetSettings.repetition_penalty_openai ?? 1.1,
+                num_predict: (maxTokens && maxTokens > 0) ? maxTokens : undefined,
+            },
+        };
+        console.log(`[RPG Tracker] sendViaOllama — model: "${model}", url: "${targetUrl}"`);
+        if (Object.keys(presetSettings).length > 0) console.log(`[RPG Tracker] Applied Preset Data:`, presetSettings);
+        console.log(`[RPG Tracker] Parameters — Temp: ${requestBody.options.temperature}, Top_P: ${requestBody.options.top_p}, Top_K: ${requestBody.options.top_k}`);
+        console.log(`[RPG Tracker] Prompts — System: "${systemPrompt.substring(0, 50)}...", User: "${userPrompt.substring(0, 50)}..."`);
+
+        let response;
+        try {
+            const proxyHeaders = getProxyHeaders();
+            // Don't overwrite ST's own auth with the target's auth when using proxy
+            const finalHeaders = { ...headers, ...proxyHeaders };
+            
+            response = await fetch(proxiedUrl(targetUrl), {
+                method: 'POST',
+                headers: finalHeaders,
+                body: JSON.stringify(requestBody),
+            });
+            if (!response.ok && response.status === 404) {
+                throw new Error('Proxy 404');
+            }
+        } catch (proxyError) {
+            try {
+                response = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(requestBody),
+                });
+            } catch (directError) {
+                throw new Error(`Failed to connect to Ollama. Proxy error: ${proxyError.message}. Direct error: ${directError.message}`);
+            }
+        }
+
+        if (!response.ok) {
+            if (response.status === 401) throw new Error('Ollama returned 401 Unauthorized. Check that no authentication is required, or configure it correctly.');
+            throw new Error(`Ollama request failed (${response.status})`);
+        }
+        const data = await response.json();
+        const result = data.message.content;
+        console.log(`[RPG Tracker] Response from Ollama: "${result.substring(0, 100)}..."`);
+        return result;
+    }
+
+    async function fetchOllamaModels(url) {
+        if (!url) throw new Error('Ollama URL is not configured.');
+        const baseUrl = url.replace(/\/+$/, '');
+        const targetUrl = `${baseUrl}/api/tags`;
+        let response;
+        try {
+            const proxyHeaders = getProxyHeaders();
+            response = await fetch(proxiedUrl(targetUrl), { method: 'GET', headers: proxyHeaders });
+            // If proxy is not available (returns 404 itself), fall through to direct
+            if (!response.ok && response.status === 404) {
+                response = await fetch(targetUrl, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+            }
+        } catch (e) {
+            response = await fetch(targetUrl, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+        }
+        if (!response.ok) {
+            if (response.status === 401) throw new Error('Ollama returned 401 Unauthorized. Check that no authentication is required.');
+            throw new Error(`Failed to fetch Ollama models (${response.status})`);
+        }
+        const data = await response.json();
+        return data.models || [];
+    }
+
+    async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTokens, presetSettings = {}) {
+        if (!url) throw new Error('OpenAI Compatible URL is not configured.');
+        if (!model) throw new Error('OpenAI Compatible model name is not set.');
+
+        const baseUrl = url.replace(/\/+$/, '');
+        let endpoint = baseUrl;
+        if (!endpoint.endsWith('/chat/completions')) {
+            if (endpoint.endsWith('/v1')) endpoint += '/chat/completions';
+            else if (!endpoint.includes('/chat/completions')) endpoint += '/v1/chat/completions';
+        }
+
+        const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i.test(endpoint);
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        const requestBody = {
+            model: model,
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            temperature: presetSettings.temperature ?? presetSettings.temp ?? presetSettings.temp_openai ?? 0.1,
+            top_p: presetSettings.top_p ?? presetSettings.top_p_openai ?? 1.0,
+            frequency_penalty: presetSettings.frequency_penalty ?? presetSettings.freq_pen ?? presetSettings.freq_pen_openai ?? 0,
+            presence_penalty: presetSettings.presence_penalty ?? presetSettings.presence_pen ?? presetSettings.pres_pen_openai ?? 0,
+            stream: true,
+        };
+        if (maxTokens && maxTokens > 0) requestBody.max_tokens = maxTokens;
+        
+        console.log(`[RPG Tracker] sendViaOpenAI — model: "${model}", url: "${endpoint}"`);
+        if (Object.keys(presetSettings).length > 0) console.log(`[RPG Tracker] Applied Preset Data:`, presetSettings);
+        console.log(`[RPG Tracker] Parameters — Temp: ${requestBody.temperature}, Top_P: ${requestBody.top_p}, Freq_Pen: ${requestBody.frequency_penalty}`);
+        console.log(`[RPG Tracker] Prompts — System: "${systemPrompt.substring(0, 50)}...", User: "${userPrompt.substring(0, 50)}..."`);
+
+        let response;
+        if (isLocal) {
+            try {
+                const proxyHeaders = getProxyHeaders();
+                const finalHeaders = { ...headers, ...proxyHeaders };
+                response = await fetch(proxiedUrl(endpoint), { method: 'POST', headers: finalHeaders, body: JSON.stringify(requestBody) });
+                if (!response.ok && response.status === 404) {
+                    throw new Error('Proxy 404');
+                }
+            } catch (e) {
+                // Proxy failed — try direct. credentials: 'omit' prevents browser auth dialogs.
+                response = await fetch(endpoint, { method: 'POST', headers: headers, body: JSON.stringify(requestBody), credentials: 'omit' });
+            }
+        } else {
+            // External endpoint (e.g. OpenRouter) — go direct.
+            // credentials: 'omit' prevents browser from showing its native auth dialog on 401 responses.
+            response = await fetch(endpoint, { method: 'POST', headers: headers, body: JSON.stringify(requestBody), credentials: 'omit' });
+        }
+
+        if (!response.ok) {
+            if (response.status === 401) throw new Error('OpenAI endpoint returned 401 Unauthorized. Check your API key.');
+            throw new Error(`OpenAI request failed (${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let buffer = '';
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.startsWith('data:')) continue;
+                    const data = trimmed.slice(5).trim();
+                    if (data === '[DONE]') continue;
+                    try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta?.content;
+                        if (delta) fullContent += delta;
+                    } catch (e) { }
+                }
+            }
+        } finally { reader.releaseLock(); }
+
+        if (!fullContent.trim()) throw new Error('OpenAI returned an empty response.');
+        console.log(`[RPG Tracker] Response from OpenAI: "${fullContent.substring(0, 100)}..."`);
+        return fullContent;
+    }
+
+    async function fetchOpenAIModels(url, apiKey) {
+        if (!url) throw new Error('OpenAI URL is not configured.');
+        const baseUrl = url.replace(/\/+$/, '');
+        let endpoint = baseUrl;
+        if (!endpoint.endsWith('/models')) {
+            if (endpoint.endsWith('/v1')) endpoint += '/models';
+            else if (!endpoint.includes('/models')) endpoint += '/v1/models';
+        }
+
+        const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i.test(endpoint);
+        const headers = { 'Content-Type': 'application/json' };
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+        // For local endpoints, try the CORS proxy first (avoids browser CORS restrictions)
+        if (isLocal) {
+            try {
+                const proxyHeaders = getProxyHeaders();
+                const finalHeaders = { ...headers, ...proxyHeaders };
+                const proxyResponse = await fetch(proxiedUrl(endpoint), { method: 'GET', headers: finalHeaders });
+                if (proxyResponse.ok) {
+                    const data = await proxyResponse.json();
+                    return data.data || data.models || [];
+                }
+                // Proxy not available or non-OK — fall through to direct
+            } catch (e) { /* proxy network error, fall through */ }
+        }
+
+        // For external URLs (e.g. OpenRouter), or if proxy failed: go direct
+        // credentials: 'omit' is critical — prevents browser from showing its native
+        // auth dialog if the endpoint returns a 401 WWW-Authenticate response
+        try {
+            const directResponse = await fetch(endpoint, {
+                method: 'GET',
+                headers: headers,
+                credentials: 'omit',
+            });
+            if (directResponse.ok) {
+                const data = await directResponse.json();
+                return data.data || data.models || [];
+            }
+            if (directResponse.status === 401) {
+                throw new Error('Endpoint returned 401 Unauthorized. Check your API key.');
+            }
+            throw new Error(`HTTP ${directResponse.status}`);
+        } catch (e) {
+            if (e.message.includes('401')) throw e; // re-throw auth errors as-is
+            // For local endpoints that failed both proxy and direct: likely CORS
+            if (isLocal) {
+                throw new Error(
+                    `Cannot reach ${endpoint} due to CORS restrictions.\n\n` +
+                    `Solutions:\n` +
+                    `1. Enable ST's CORS proxy: set "enableCorsProxy: true" in config.yaml and restart ST.\n` +
+                    `2. Or type the model name manually in the text box below.\n\n` +
+                    `(Original error: ${e.message})`
+                );
+            }
+            throw e;
+        }
+    }
+
+    async function testOpenAIConnection(url, apiKey, model) {
+        try {
+            const result = await sendViaOpenAI(url, apiKey, model || 'test', 'You are a test assistant.', 'Respond with exactly: CONNECTION_OK', 100);
+            return { success: true, message: `Connection successful! Response: "${result.substring(0, 100)}"` };
+        } catch (error) {
+            return { success: false, message: `Connection failed: ${error.message}` };
+        }
+    }
+
     async function sendStateRequest(settings, systemPrompt, userPrompt) {
         const context = SillyTavern.getContext();
 
@@ -1081,6 +1345,43 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             }
         }
 
+        // Helper to get selected preset settings
+        const getPresetData = () => {
+            if (!settings.completionPresetId) return {};
+            
+            // Try the currently active API manager first
+            let manager = context.getPresetManager();
+            let data = manager ? manager.getCompletionPresetByName(settings.completionPresetId) : null;
+            
+            // Fallback to 'textgenerationwebui' (most common for local/OAI backends)
+            if (!data) {
+                manager = context.getPresetManager('textgenerationwebui');
+                data = manager ? manager.getCompletionPresetByName(settings.completionPresetId) : null;
+            }
+            
+            // Fallback to 'openai'
+            if (!data) {
+                manager = context.getPresetManager('openai');
+                data = manager ? manager.getCompletionPresetByName(settings.completionPresetId) : null;
+            }
+
+            if (!data && settings.debugMode) console.warn(`[RPG Tracker] Preset "${settings.completionPresetId}" not found in common PresetManagers.`);
+            return data || {};
+        };
+        const presetSettings = getPresetData();
+
+        // ── Ollama Mode ──
+        if (settings.connectionSource === 'ollama') {
+            if (settings.debugMode) console.log(`[RPG Tracker] Sending via Ollama: ${settings.ollamaModel}`);
+            return await sendViaOllama(settings.ollamaUrl, settings.ollamaModel, systemPrompt, userPrompt, settings.maxTokens, presetSettings);
+        }
+
+        // ── OpenAI Compatible Mode ──
+        if (settings.connectionSource === 'openai') {
+            if (settings.debugMode) console.log(`[RPG Tracker] Sending via OpenAI Compatible: ${settings.openaiModel}`);
+            return await sendViaOpenAI(settings.openaiUrl, settings.openaiKey, settings.openaiModel, systemPrompt, userPrompt, settings.maxTokens, presetSettings);
+        }
+
         // ── Default mode: generateRaw through the active connection ──
         const { generateRaw } = context;
         if (!generateRaw) throw new Error('[RPG Tracker] generateRaw is not available.');
@@ -1088,6 +1389,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         let originalPreset = null;
         try {
             if (settings.completionPresetId) {
+                const { getCurrentCompletionPreset, setCompletionPreset } = SillyTavern.getContext();
                 originalPreset = await getCurrentCompletionPreset();
                 if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
                 await setCompletionPreset(settings.completionPresetId);
@@ -3970,14 +4272,142 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             const sourceSelect = $('#rpg_tracker_connection_source');
             const profileGroup = $('#rpg_tracker_profile_group');
             const profileSelect = $('#rpg_tracker_connection_profile');
+            const ollamaGroup = $('#rpg_tracker_ollama_group');
+            const openaiGroup = $('#rpg_tracker_openai_group');
             const maxTokensInput = $('#rpg_tracker_max_tokens');
+
+            function updateConnectionPanels() {
+                const source = sourceSelect.val();
+                profileGroup.toggle(source === 'profile');
+                ollamaGroup.toggle(source === 'ollama');
+                openaiGroup.toggle(source === 'openai');
+            }
 
             sourceSelect.val(settings.connectionSource).on('change', function () {
                 settings.connectionSource = $(this).val();
-                profileGroup.toggle(settings.connectionSource === 'profile');
+                updateConnectionPanels();
                 ctx.saveSettingsDebounced();
             });
-            profileGroup.toggle(settings.connectionSource === 'profile');
+            updateConnectionPanels();
+
+            // Ollama
+            $('#rpg_tracker_ollama_url').val(settings.ollamaUrl).on('input', function () {
+                settings.ollamaUrl = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+            const ollamaModelSelect = $('#rpg_tracker_ollama_model');
+            ollamaModelSelect.val(settings.ollamaModel).on('change', function () {
+                settings.ollamaModel = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            async function refreshOllamaModelsList() {
+                const url = $('#rpg_tracker_ollama_url').val();
+                if (!url) return toastr['info']("Please enter an Ollama URL first.");
+                try {
+                    toastr['info']("Fetching Ollama models...");
+                    const models = await fetchOllamaModels(url);
+                    ollamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                    models.forEach(m => {
+                        ollamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
+                    });
+                    ollamaModelSelect.val(settings.ollamaModel);
+                    toastr['success']("Ollama models updated.");
+                } catch (e) {
+                    console.error("[RPG Tracker] Ollama fetch failed:", e);
+                    toastr['error']("Failed to fetch Ollama models. Check console.");
+                }
+            }
+            $('#rpg_tracker_ollama_refresh').on('click', refreshOllamaModelsList);
+
+            // OpenAI
+            $('#rpg_tracker_openai_url').val(settings.openaiUrl).on('input', function () {
+                settings.openaiUrl = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+            $('#rpg_tracker_openai_key').val(settings.openaiKey).on('input', function () {
+                settings.openaiKey = $(this).val();
+                ctx.saveSettingsDebounced();
+            });
+
+            const openaiModelSelect = $('#rpg_tracker_openai_model');
+            const openaiModelManual = $('#rpg_tracker_openai_model_manual');
+
+            // The effective model is: manual input (if filled) > dropdown selection
+            function getOpenAIModel() {
+                const manual = openaiModelManual.val()?.trim();
+                return manual || openaiModelSelect.val() || '';
+            }
+
+            // Initialize: if saved model isn't in dropdown yet, show it in the manual field
+            openaiModelManual.val(settings.openaiModel || '');
+            openaiModelSelect.on('change', function () {
+                const val = $(this).val();
+                if (val) {
+                    // Dropdown selected — clear manual, save selection
+                    openaiModelManual.val('');
+                    settings.openaiModel = val;
+                } else {
+                    settings.openaiModel = openaiModelManual.val()?.trim() || '';
+                }
+                ctx.saveSettingsDebounced();
+            });
+            openaiModelManual.on('input', function () {
+                const manual = $(this).val()?.trim();
+                if (manual) {
+                    // Manual overrides dropdown — deselect it visually
+                    openaiModelSelect.val('');
+                }
+                settings.openaiModel = manual || openaiModelSelect.val() || '';
+                ctx.saveSettingsDebounced();
+            });
+
+            async function refreshOpenAIModelsList() {
+                const url = $('#rpg_tracker_openai_url').val();
+                const key = $('#rpg_tracker_openai_key').val();
+                if (!url) return toastr['info']("Please enter an Endpoint URL first.");
+                try {
+                    toastr['info']("Fetching models from endpoint...");
+                    const models = await fetchOpenAIModels(url, key);
+                    openaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                    models.forEach(m => {
+                        const id = typeof m === 'string' ? m : (m.id || m.name);
+                        if (id) openaiModelSelect.append($('<option></option>').val(id).text(id));
+                    });
+                    // Restore saved selection
+                    const saved = settings.openaiModel;
+                    if (saved && openaiModelSelect.find(`option[value="${saved}"]`).length) {
+                        openaiModelSelect.val(saved);
+                        openaiModelManual.val('');
+                    }
+                    toastr['success'](`${models.length} model(s) found.`);
+                } catch (e) {
+                    console.error("[RPG Tracker] OpenAI fetch failed:", e);
+                    // Show a short toast; full details logged to console
+                    toastr['warning'](
+                        "Cannot auto-detect models (CORS). Type the model name manually below, or enable enableCorsProxy: true in ST's config.yaml.",
+                        "Model Sniffing Unavailable",
+                        { timeOut: 8000 }
+                    );
+                }
+            }
+            $('#rpg_tracker_openai_refresh').on('click', refreshOpenAIModelsList);
+
+            $('#rpg_tracker_openai_test').on('click', async function () {
+                const url = $('#rpg_tracker_openai_url').val();
+                const key = $('#rpg_tracker_openai_key').val();
+                const model = getOpenAIModel();
+                if (!url) return toastr['info']("Enter the Endpoint URL first.");
+                if (!model) return toastr['info']("Enter or select a model name first.");
+                toastr['info']("Testing OpenAI connection...");
+                const result = await testOpenAIConnection(url, key, model);
+                if (result.success) {
+                    toastr['success'](result.message);
+                    await refreshOpenAIModelsList();
+                } else {
+                    toastr['error'](result.message);
+                }
+            });
 
             maxTokensInput.val(settings.maxTokens || "").on('input', function () {
                 settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
