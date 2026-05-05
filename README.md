@@ -1,7 +1,3 @@
-**💬 Important recent changes. Check out the [v.1.4.0 patch notes](https://github.com/MultihogAurelius/SillyTavern-FatbodyDnDFramework/releases/tag/v1.4.0) under releases.**
-
----
-
 **"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
 
 *A D&D-lite simulation engine for SillyTavern.*
