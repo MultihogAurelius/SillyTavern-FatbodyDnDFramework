@@ -1339,6 +1339,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     raw = await context.TextCompletionService.processRequest({
                         stream: false,
                         prompt: promptString,
+                        max_tokens: maxTokens,
                         max_new_tokens: maxTokens,
                         model: profile.model,
                         api_type: selectedApiMap.type,
