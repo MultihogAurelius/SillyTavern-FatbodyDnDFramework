@@ -1407,7 +1407,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         let originalPreset = null;
         try {
             if (settings.completionPresetId) {
-                const { getCurrentCompletionPreset, setCompletionPreset } = SillyTavern.getContext();
                 originalPreset = await getCurrentCompletionPreset();
                 if (settings.debugMode) console.log(`[RPG Tracker] Switching Preset: ${originalPreset} -> ${settings.completionPresetId}`);
                 await setCompletionPreset(settings.completionPresetId);
