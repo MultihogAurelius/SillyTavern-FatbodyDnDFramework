@@ -1059,6 +1059,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         let response;
         try {
             const proxyHeaders = getProxyHeaders();
+            const headers = { 'Content-Type': 'application/json' };
             // Don't overwrite ST's own auth with the target's auth when using proxy
             const finalHeaders = { ...headers, ...proxyHeaders };
             
@@ -1333,9 +1334,11 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         presetName: presetToUse,
                     }, true);
                 } else if (selectedApiMap.selected === 'textgenerationwebui') {
+                    // TextCompletionService expects a string prompt. Format messages into a single string.
+                    const promptString = messages.map(m => `### ${m.role}:\n${m.content}`).join('\n\n');
                     raw = await context.TextCompletionService.processRequest({
                         stream: false,
-                        prompt: messages, // TextCompletionService handles message arrays
+                        prompt: promptString,
                         max_tokens: maxTokens,
                         model: profile.model,
                         api_type: selectedApiMap.type,
@@ -4314,8 +4317,8 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
             // The effective model is: manual input (if filled) > dropdown selection
             function getOpenAIModel() {
-                const manual = openaiModelManual.val()?.trim();
-                return manual || openaiModelSelect.val() || '';
+                const manual = String(openaiModelManual.val() || '').trim();
+                return manual || String(openaiModelSelect.val() || '') || '';
             }
 
             // Initialize: if saved model isn't in dropdown yet, show it in the manual field
@@ -4327,12 +4330,12 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     openaiModelManual.val('');
                     settings.openaiModel = val;
                 } else {
-                    settings.openaiModel = openaiModelManual.val()?.trim() || '';
+                    settings.openaiModel = String(openaiModelManual.val() || '').trim() || '';
                 }
                 ctx.saveSettingsDebounced();
             });
             openaiModelManual.on('input', function () {
-                const manual = $(this).val()?.trim();
+                const manual = String($(this).val() || '').trim();
                 if (manual) {
                     // Manual overrides dropdown — deselect it visually
                     openaiModelSelect.val('');
