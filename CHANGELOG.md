@@ -2,6 +2,28 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.7.4] - 2026-05-05
+
+**Enhanced Connectivity and UI Refinement**  
+A comprehensive upgrade to the external LLM pipeline and settings organization, enabling direct-to-backend connections with robust parameter mapping.
+
+### Added
+- **Direct Backend Connectivity**: Introduced the ability to route State Tracking requests directly to **Ollama** or **OpenAI-Compatible** endpoints (like OpenRouter, LM Studio), bypassing SillyTavern's internal profile system for ultra-low-latency background updates.
+- **Universal Parameter Mapping**: Implemented a multi-tier fallback system for generation settings. The framework now correctly extracts and maps `temperature`, `top_p`, `frequency_penalty`, and `repetition_penalty` across all SillyTavern preset formats (supporting both TextGen and OpenAI-specific key names).
+- **Diagnostic Transparency**: Added high-verbosity browser console logging (Debug Mode) that explicitly outputs the `Applied Preset Data` and final `Parameters` used for each request.
+
+### Changed
+- **Settings UI Drawer System**: Refactored the settings panel into an expandable **Drawer** system. 
+    - **Connection Settings** and **Advanced Options** now reside in collapsible headers to keep the main menu clean.
+    - **Context & Lorebooks** has been promoted to a top-level section for better discoverability.
+- **Header Aesthetics**: Updated the extension's main drawer icon and bold styling to match SillyTavern's native visual standards.
+- **Layout Optimization**: Optimized button widths (Add Custom Field, Test Connection, Factory Reset) for better responsiveness in narrow sidebars.
+- **Combat Tracking**: Updated the default [COMBAT] prompt to include explicit `COMBAT ROUND X` tracking per combatant.
+
+### Fixed
+- **Property Name Collision**: Resolved an issue where presets created under OpenAI profiles would fail to apply their temperature settings due to differing property names (e.g., `temp` vs `temp_openai`).
+- **Button Alignment**: Fixed vertical squishing and awkward text wrapping on manual action buttons.
+
 ## [1.7.1] - 2026-05-04
 
 ### Fixed
