@@ -2155,17 +2155,17 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
     }
 
     /**
-     * Strip all HTML tags from a memo string, preserving inner text.
+     * Strip HTML tags from a memo string, preserving inner text.
      * Used before sending the memo to the AI to avoid token bloat from
      * color markup (<font>, <span>, etc.) that is purely for display.
+     * NOTE: ((MARKERS)) like ((PILLS)), ((BAR)), etc. are intentionally
+     * preserved so the AI can faithfully echo them back in its output.
      */
     function stripMemoHtml(text) {
         if (!text) return text;
-        // First convert <br> variants to newlines so line structure is preserved
+        // Convert <br> variants to newlines so line structure is preserved
         let stripped = text.replace(/<br\s*\/?>/gi, '\n');
-        // Remove rendering markers like ((PILLS)), ((BAR)), etc.
-        stripped = stripped.replace(/^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*/gim, '');
-        // Remove all remaining HTML tags, keeping their inner text
+        // Remove all HTML tags, keeping their inner text
         stripped = stripped.replace(/<[^>]+>/g, '');
         return stripped;
     }
