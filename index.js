@@ -1057,9 +1057,9 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         console.log(`[RPG Tracker] Prompts — System: "${systemPrompt.substring(0, 50)}...", User: "${userPrompt.substring(0, 50)}..."`);
 
         let response;
+        const headers = { 'Content-Type': 'application/json' };
         try {
             const proxyHeaders = getProxyHeaders();
-            const headers = { 'Content-Type': 'application/json' };
             // Don't overwrite ST's own auth with the target's auth when using proxy
             const finalHeaders = { ...headers, ...proxyHeaders };
             
@@ -1339,7 +1339,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     raw = await context.TextCompletionService.processRequest({
                         stream: false,
                         prompt: promptString,
-                        max_tokens: maxTokens,
+                        max_new_tokens: maxTokens,
                         model: profile.model,
                         api_type: selectedApiMap.type,
                         api_server: profile['api-url'],
