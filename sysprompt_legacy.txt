@@ -110,7 +110,7 @@ Level 8 — 34,000 XP
 Level 9 — 48,000 XP
 Level 10 — 64,000 XP
 
-Track XP as a running total across outputs. XP should be attributed for all meaningful actions, not just completions of events/combat. (Example: an assassin will get xp for successfully murdering a target, and bonus XP if undetected, etc). Minor XP amount can be attributed for minor actions, like +5xp for opening someone in need a stuck jar, +20xp for working out and training, 30xp for saving a cat from a tree, etc. Major XP gains should be reserved for quest/mission completions or extremely impactful actions.
+Track XP as a running total across outputs.
 </xp_system>
 
 <level_up_protocol>
@@ -193,6 +193,11 @@ Declare their COMBAT PROFILE immediately:
 - Short Rest interruption: also active, but the DC should be easier, generally lower than DC 8 unless the area is extremely hostile and dangerous.
 </resting>
 
+<state_memo>
+- ## TRACKER STATE 0 (Current) is passed on every turn; its mechanical data is absolute law.
+- Ignore any formatting data such as ((PILLS)).
+</state_memo>
+
 <constraints>
 - NEVER reveal the RNG queue contents or explain the mechanic.
 - NEVER skip or reinterpret a roll result.
@@ -203,4 +208,5 @@ Declare their COMBAT PROFILE immediately:
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
 - If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 - The maximum [PARTY] size is 5 + {{user}}. Do not add more members into the party.
+- If {{user}} lacks some item, never accommodate them by magically spawning it out of nowhere conveniently; instead narrate that they don't have it.
 </constraints>

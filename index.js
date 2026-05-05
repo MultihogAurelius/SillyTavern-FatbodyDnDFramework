@@ -3302,6 +3302,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         const choice = await Popup.show.confirm('⚠️ Chat Link Conflict', body, {
                             okButton: 'RESTORE',
                             cancelButton: 'OVERWRITE',
+                            customButtons: [
+                                {
+                                    text: 'CANCEL',
+                                    result: POPUP_RESULT.CANCELLED,
+                                    appendAtEnd: true,
+                                }
+                            ],
                         });
 
                         if (choice === POPUP_RESULT.AFFIRMATIVE) {
@@ -4302,21 +4309,38 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         setTimeout(() => {
             const copyBtn = document.getElementById('rt_share_copy');
             if (copyBtn) {
-                copyBtn.addEventListener('click', () => {
-                    const ta = document.createElement('textarea');
-                    ta.value = jsonString;
-                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
-                    document.body.appendChild(ta);
-                    ta.focus();
-                    ta.select();
+                copyBtn.addEventListener('click', async () => {
                     try {
-                        document.execCommand('copy');
-                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                        // Use modern Clipboard API if available and in secure context
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(jsonString);
+                            toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                            return;
+                        }
+
+                        // Fallback for non-secure contexts (HTTP) or older browsers
+                        const ta = document.createElement('textarea');
+                        ta.value = jsonString;
+                        ta.style.position = 'fixed';
+                        ta.style.left = '-9999px';
+                        ta.style.top = '0';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.focus();
+                        ta.select();
+                        ta.setSelectionRange(0, 99999); // Important for mobile
+
+                        const success = document.execCommand('copy');
+                        document.body.removeChild(ta);
+
+                        if (success) {
+                            toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                        } else {
+                            throw new Error('execCommand returned false');
+                        }
                     } catch (err) {
                         console.error('[Fatbody Framework] clipboard copy failed:', err);
-                        toastr['error']('Could not copy. Please select the text manually.', 'Fatbody Framework');
-                    } finally {
-                        document.body.removeChild(ta);
+                        toastr['error']('Could not copy automatically. Please select the text manually.', 'Fatbody Framework');
                     }
                 });
             }
@@ -5130,17 +5154,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             });
 
             $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
-                if (!confirm('This will reset the Core Prompt, Module Prompts, Active Modules, and Module Order to their factory defaults. This cannot be undone. Proceed?')) return;
+                if (!confirm('This will reset the Module Prompts, Active Modules, and Module Order to their factory defaults. Custom modules will be moved to the bottom of the list. Your Core Prompt will not be affected. Proceed?')) return;
                 const { extensionSettings } = SillyTavern.getContext();
-                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
                 delete extensionSettings[MODULE_NAME].stockPrompts;
                 delete extensionSettings[MODULE_NAME].blockOrder;
                 delete extensionSettings[MODULE_NAME].modules;
-                const freshSettings = getSettings();
-                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
                 refreshOrderList();
                 ctx.saveSettingsDebounced();
-                toastr['success']('All prompts, modules, and layout order reset to factory defaults.', 'RPG Tracker');
+                toastr['success']('Stock modules, order, and prompts reset to factory defaults.', 'RPG Tracker');
             });
 
             $('#rpg_tracker_btn_update').on('click', async function () {

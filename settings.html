@@ -11,6 +11,20 @@
                     <span>Enable RPG Tracker</span>
                 </label>
 
+                <div class="flex-container gap-1 alignitemscenter" style="margin-top: 5px;">
+                    <label class="checkbox_label" style="margin: 0; padding: 0;">
+                        <input id="rpg_tracker_chat_link_enabled" type="checkbox" />
+                        <span>Chat-Linked Mode</span>
+                    </label>
+                    <i class="fa-solid fa-circle-question interactable"
+                        title="When enabled, the tracker state (memo) and module configuration are automatically saved and restored per chat ID. Switching chats will reload that specific campaign's state."></i>
+                    <button id="rpg_tracker_clear_chat_states" class="menu_button interactable"
+                        style="margin-left: auto; padding: 2px 6px; font-size: 0.8em;"
+                        title="Clear all saved chat-specific states (this session is unaffected)">
+                        <i class="fa-solid fa-trash-can"></i> Clear All Saved States
+                    </button>
+                </div>
+
                 <label class="checkbox_label">
                     <input id="rpg_tracker_legacy_dice" type="checkbox" />
                     <span>Legacy Dice Logic (Vanilla) <small style="opacity: 0.8; font-style: italic;">— Not
@@ -203,7 +217,22 @@
                 </div>
                 <button id="rpg_tracker_add_custom_field" class="menu_button interactable"
                     style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px; width: 100%;">
-                    <i class="fa-solid fa-plus"></i> <span>Add Custom Field</span>
+                    <i class="fa-solid fa-plus"></i> <span>Add Custom Module</span>
+                </button>
+                <div class="flex-container gap-1" style="margin-top: 5px;">
+                    <button id="rpg_tracker_export_all_modules" class="menu_button interactable"
+                        style="flex: 1; font-size: 12px;" title="Export all custom modules to a JSON blob">
+                        <i class="fa-solid fa-file-export"></i> Export All
+                    </button>
+                    <button id="rpg_tracker_import_modules" class="menu_button interactable"
+                        style="flex: 1; font-size: 12px;" title="Import custom modules from a shared code">
+                        <i class="fa-solid fa-file-import"></i> Import
+                    </button>
+                </div>
+                <button id="rpg_tracker_delete_all_custom_modules" class="menu_button interactable"
+                    style="margin-top: 5px; width: 100%; color: #ff5555; font-size: 11px;"
+                    title="Remove all user-defined modules and their data from the current state">
+                    <i class="fa-solid fa-trash-can"></i> Delete All Custom
                 </button>
 
 
@@ -215,12 +244,13 @@
                 <textarea id="rpg_tracker_core_prompt" class="text_pole autoSetHeight" rows="5"></textarea>
                 <div class="flex-container gap-1" style="margin-top: 5px;">
                     <button id="rpg_tracker_btn_reset_prompt" class="menu_button interactable" style="flex: 1;">
-                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset Core
+                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset Core Prompt
                     </button>
                     <button id="rpg_tracker_btn_reset_all_prompts" class="menu_button interactable" style="flex: 1;">
-                        <i class="fa-solid fa-broom"></i> Reset ALL
+                        <i class="fa-solid fa-broom"></i> Reset Stock Modules
                     </button>
                 </div>
+                <small style="opacity: 0.7; font-style: italic; display: block; margin-top: 4px;">NOTE: does not affect custom modules in any way!</small>
 
                 <hr>
                 <div class="flex-container gap-1 flexFlowColumn">
