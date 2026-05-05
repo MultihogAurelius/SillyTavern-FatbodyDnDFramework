@@ -20,7 +20,7 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 
 ---
 
-⚠️ **Updating?** To stay up to date after the extension, either copy and paste the system prompt from the SYSPROMPT button in the bottom right corner of the UI, or press the "Reset All and Apply Main System Prompt" button in the settings.
+⚠️ **Updating?** To stay up to date after the extension, copy and paste the system prompt from the SYSPROMPT button in the bottom right corner of the UI and reset all the core prompt and the module prompts in the settings. Alternatively, just press the "Reset All and Apply Main System Prompt" button in the settings.
 
 <img width="228" height="133" alt="image" src="https://github.com/user-attachments/assets/cf5e5cab-c4c9-413c-9b20-ff601c9e82fc" />
 
