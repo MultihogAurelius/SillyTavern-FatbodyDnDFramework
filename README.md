@@ -20,11 +20,12 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 
 ---
 
-⚠️ **Updating?** Reset all prompts to default in settings or they won't update. Also apply the new `sysprompt.txt` into Quick Prompts Edit "Main."
+⚠️ **Updating?** To stay up to date after the extension, either copy and paste the system prompt from the SYSPROMPT button in the bottom right corner of the UI, or press the "Reset All and Apply Main System Prompt" button in the settings.
 
 <img width="228" height="133" alt="image" src="https://github.com/user-attachments/assets/cf5e5cab-c4c9-413c-9b20-ff601c9e82fc" />
 
-<img width="206" height="195" alt="image" src="https://github.com/user-attachments/assets/da85ac09-bdd2-4f28-a6c7-3af8b732b710" />
+<img width="500" height="..." alt="image" src="https://github.com/user-attachments/assets/07bdbaee-3e65-44ed-b384-09f638592bda" />
+
 
 ---
 
