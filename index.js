@@ -5232,6 +5232,70 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 toastr['success']('Stock modules, order, and prompts reset to factory defaults.', 'RPG Tracker');
             });
 
+            $('#rpg_tracker_btn_reset_and_apply_sysprompt').on('click', async function () {
+                if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
+
+                const { extensionSettings } = SillyTavern.getContext();
+
+                // 1. Reset Core prompt
+                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+                const freshSettings = getSettings();
+                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+
+                // 2. Reset stock modules, order, active modules
+                delete extensionSettings[MODULE_NAME].stockPrompts;
+                delete extensionSettings[MODULE_NAME].blockOrder;
+                delete extensionSettings[MODULE_NAME].modules;
+                refreshOrderList();
+                ctx.saveSettingsDebounced();
+
+                // 3. Fetch sysprompt.txt and apply to ST Quick Prompt "Main"
+                const fileName = 'sysprompt.txt';
+                let content;
+                try {
+                    const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                    if (response.ok) {
+                        content = await response.text();
+                        console.log(`[Fatbody Framework] Loaded ${fileName} from live file for auto-apply.`);
+                    } else {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                } catch (err) {
+                    console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                    content = RT_PROMPTS[fileName];
+                }
+
+                if (!content) {
+                    toastr['error']('Could not load sysprompt.txt. Reset completed but Main prompt was NOT updated.', 'RPG Tracker');
+                    return;
+                }
+
+                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+                if (mainTextarea) {
+                    mainTextarea.value = content;
+                    // Fire blur to trigger ST's handleQuickEditSave listener
+                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                    toastr['success']('All prompts reset & Main sysprompt applied! ✅', 'RPG Tracker');
+                } else {
+                    // Fallback: ST might not be in OpenAI mode, so the quick-edit textarea may not exist.
+                    // Copy to clipboard as a graceful fallback.
+                    const ta = document.createElement('textarea');
+                    ta.value = content;
+                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try {
+                        document.execCommand('copy');
+                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found (wrong API mode?). Sysprompt copied to clipboard instead — paste it manually.', 'RPG Tracker');
+                    } catch (e) {
+                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found and clipboard copy failed. Use the SYSPROMPT button to copy manually.', 'RPG Tracker');
+                    } finally {
+                        document.body.removeChild(ta);
+                    }
+                }
+            });
+
             $('#rpg_tracker_btn_update').on('click', async function () {
                 const { chat } = SillyTavern.getContext();
                 if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
