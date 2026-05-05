@@ -2859,13 +2859,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <div style="font-size: 17px; font-weight: bold; color: var(--rt-text);">Fatbody D&D Framework</div>
                 </div>
 
-                <div style="font-size: 13px; opacity: 0.9; margin-top: 4px; flex-shrink: 0; line-height: 1.4;">
-                    <b style="color: var(--rt-accent); font-size: 14px;">Initial Setup:</b><br><br>
-                    1. Use the archetype buttons below to roll a new character, paste an existing sheet into the "Raw View", or <b>manually describe a character</b> by clicking 💬 and asking the tracker to create one for you (e.g., "Create a level 5 Orc Paladin").<br><br>
-                    2. Create a character card for your "narrator", such as Simulation Engine or Game Master.<br><br>
-                    3. Finally, copy <code>sysprompt.txt</code> (or from the SYSPROMPT button) into your Quick Prompts "Main" box.<br><br>
-                    <span style="color: #ffaa00;"><b>NOTE:</b> When you update Fatbody D&D Framework, make sure you copy SYSPROMPT from the bottom right again and also reset the prompts in the extension settings. The system prompt is often also updated.</span>
-                </div>
                 <div style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 8px 0 4px 0; flex-shrink: 0;">
                     <span style="font-size: 12px; opacity: 0.8; font-weight: bold; font-style: italic;">Starting Level:</span>
                     <select id="rt-starting-level" class="text_pole" style="width: auto; min-width: 60px; padding: 2px 4px; font-size: 12px; height: 24px; border-radius: 4px; background: var(--black70a);">
@@ -2884,6 +2877,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <div><b style="color: var(--rt-accent);">Prompt Injection:</b> The State Memo and RNG Queue are injected seamlessly into your outgoing prompt. It acts as the "source of truth," assuring the model accurately remembers HP, inventory, and mechanical outcomes.</div>
 
                     <div><b style="color: var(--rt-accent);">Validation:</b> Use the Delta Log (δ) to verify changes. If the AI ever makes a mistake, step backwards using the Snapshot Navigation (←/→) to restore a clean state.</div>
+                </div>
+
+                <div style="font-size: 13px; opacity: 0.9; margin-top: 12px; flex-shrink: 0; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                    <b style="color: var(--rt-accent); font-size: 14px;">Initial Setup:</b><br><br>
+                    1. Use the archetype buttons above to roll a new character, or <b>manually describe a character</b> by clicking 💬.<br><br>
+                    2. Create a character card for your "narrator" (e.g. Game Master). <b>Leave the card fields empty</b>, as the framework handles all logic via the system prompt.<br><br>
+                    3. Finally, copy <code>sysprompt.txt</code> into your Quick Prompts "Main" box—or <a id="rt-onboarding-auto-apply" href="javascript:void(0)" style="color: var(--rt-accent); text-decoration: underline;"><b>click here to reset &amp; apply everything automatically</b></a>.<br><br>
+                    <span style="color: #ffaa00; font-size: 11px;"><b>NOTE:</b> When you update the framework, remember to reset prompts in settings (or use the link above) to ensure you have the latest logic.</span>
                 </div>
             </div>`;
         }
@@ -2992,6 +2993,71 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 await sendDirectPrompt(prompts[archetype]);
             });
         });
+        
+        const onboardingResetLink = el.querySelector('#rt-onboarding-auto-apply');
+        if (onboardingResetLink) {
+            onboardingResetLink.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
+
+                const ctx2 = SillyTavern.getContext();
+                const { extensionSettings } = ctx2;
+
+                // 1. Reset Core prompt
+                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+                const freshSettings = getSettings();
+                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+
+                // 2. Reset stock modules, order, active modules
+                delete extensionSettings[MODULE_NAME].stockPrompts;
+                delete extensionSettings[MODULE_NAME].blockOrder;
+                delete extensionSettings[MODULE_NAME].modules;
+                refreshOrderList();
+                ctx2.saveSettingsDebounced();
+
+                // 3. Fetch sysprompt.txt and apply to ST Quick Prompt "Main"
+                const fileName = 'sysprompt.txt';
+                let content;
+                try {
+                    const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                    if (response.ok) {
+                        content = await response.text();
+                    } else {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                } catch (err) {
+                    console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                    content = RT_PROMPTS[fileName];
+                }
+
+                if (!content) {
+                    toastr['error']('Could not load sysprompt.txt. Reset completed but Main prompt was NOT updated.', 'RPG Tracker');
+                    return;
+                }
+
+                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+                if (mainTextarea) {
+                    mainTextarea.value = content;
+                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                    toastr['success']('All prompts reset & Main sysprompt applied! ✅', 'RPG Tracker');
+                } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = content;
+                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try {
+                        document.execCommand('copy');
+                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found (wrong API mode?). Sysprompt copied to clipboard — paste it manually.', 'RPG Tracker');
+                    } catch (e) {
+                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found and clipboard copy failed. Use the SYSPROMPT button to copy manually.', 'RPG Tracker');
+                    } finally {
+                        document.body.removeChild(ta);
+                    }
+                }
+            });
+        }
 
         el.querySelectorAll('.rt-section-header').forEach(header => {
             // Unbind to prevent duplicate listeners
@@ -3291,7 +3357,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
-                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.2</b> (Tool Call + Queue)</button>
+                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.27</b> (Tool Call + Queue)</button>
                             <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
                         </div>
                         <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
