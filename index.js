@@ -3805,7 +3805,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             ">
                 <div class="popup-header">
                     <h3 class="margin0" style="font-size:14px; flex:1;">Custom Module Editor</h3>
-                    <button id="rt_cfe_preview_btn" class="menu_button interactable" style="font-size:11px;padding:3px 8px;display:none;margin-right:6px;"><i class="fa-solid fa-eye"></i> Preview</button>
                     <div id="rt_cfe_close" class="popup-close interactable" title="Close"><i class="fa-solid fa-times"></i></div>
                 </div>
                 <div class="popup-body flex-container flexFlowColumn gap-1" style="padding:10px 14px; overflow-y:auto; flex:1;">
@@ -3915,7 +3914,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
         const modal = document.getElementById('rt_cfe_modal');
         const previewHeader = (document.getElementById('rt_cfe_preview_header'));
-        const previewBtn = document.getElementById('rt_cfe_preview_btn');
 
         if (modal && previewEl && previewHeader) {
             const rect = modal.getBoundingClientRect();
@@ -3926,12 +3924,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 previewEl.style.top  = rect.top + 'px';
                 // @ts-ignore
                 makeDraggable(previewEl, previewHeader);
-                if (previewBtn) {
-                    previewBtn.style.display = 'flex';
-                    previewBtn.addEventListener('click', () => {
-                        if (previewEl) previewEl.style.display = previewEl.style.display === 'none' ? 'flex' : 'none';
-                    });
-                }
             }
         }
 
