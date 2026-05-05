@@ -10,16 +10,18 @@
                     <input id="rpg_tracker_enabled" type="checkbox" />
                     <span>Enable RPG Tracker</span>
                 </label>
-                
+
                 <label class="checkbox_label">
                     <input id="rpg_tracker_legacy_dice" type="checkbox" />
-                    <span>Legacy Dice Logic (Vanilla) <small style="opacity: 0.8; font-style: italic;">— Not Recommended</small></span>
-                    <i class="fa-solid fa-circle-question interactable" title="Restores the original behavior of the D&D Dice extension. When enabled, the tool call remains 'RollTheDice' but removes the mandatory DC (Difficulty Class) anchoring and success/failure adjudication."></i>
+                    <span>Legacy Dice Logic (Vanilla) <small style="opacity: 0.8; font-style: italic;">— Not
+                            Recommended</small></span>
+                    <i class="fa-solid fa-circle-question interactable"
+                        title="Restores the original behavior of the D&D Dice extension. When enabled, the tool call remains 'RollTheDice' but removes the mandatory DC (Difficulty Class) anchoring and success/failure adjudication."></i>
                 </label>
 
 
 
-                
+
                 <hr>
                 <b>Visual Theme</b>
                 <div class="flex-container flexFlowColumn gap-1">
@@ -32,7 +34,8 @@
                     </select>
                     <div class="flex-container alignitemscenter gap-1" style="margin-top: 5px;">
                         <label for="rpg_tracker_font_size">Font Size (px)</label>
-                        <input id="rpg_tracker_font_size" type="number" class="text_pole" style="width: 60px; margin-left: auto;" min="8" max="32" step="1" />
+                        <input id="rpg_tracker_font_size" type="number" class="text_pole"
+                            style="width: 60px; margin-left: auto;" min="8" max="32" step="1" />
                     </div>
                 </div>
 
@@ -43,7 +46,8 @@
                         <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
                     </div>
                     <div class="inline-drawer-content">
-                        <small>Route the State Model pass through a specific SillyTavern profile or direct local/OAI backend.</small>
+                        <small>Route the State Model pass through a specific SillyTavern profile or direct local/OAI
+                            backend.</small>
                         <div class="flex-container flexFlowColumn gap-1" style="margin-top: 10px;">
                             <label for="rpg_tracker_connection_source">Connection Source</label>
                             <select id="rpg_tracker_connection_source" class="text_pole">
@@ -63,14 +67,16 @@
                             <div id="rpg_tracker_ollama_group" style="display: none;">
                                 <div class="flex-container flexFlowColumn gap-1">
                                     <label for="rpg_tracker_ollama_url">Ollama URL</label>
-                                    <input id="rpg_tracker_ollama_url" type="text" class="text_pole" placeholder="http://localhost:11434" />
-                                    
+                                    <input id="rpg_tracker_ollama_url" type="text" class="text_pole"
+                                        placeholder="http://localhost:11434" />
+
                                     <label for="rpg_tracker_ollama_model">Model</label>
                                     <div class="flex-container gap-1">
                                         <select id="rpg_tracker_ollama_model" class="text_pole" style="flex: 1;">
                                             <option value="">-- Select Model --</option>
                                         </select>
-                                        <button id="rpg_tracker_ollama_refresh" class="menu_button interactable" title="Refresh Models">
+                                        <button id="rpg_tracker_ollama_refresh" class="menu_button interactable"
+                                            title="Refresh Models">
                                             <i class="fa-solid fa-arrows-rotate"></i>
                                         </button>
                                     </div>
@@ -80,37 +86,45 @@
                             <div id="rpg_tracker_openai_group" style="display: none;">
                                 <div class="flex-container flexFlowColumn gap-1">
                                     <label for="rpg_tracker_openai_url">Endpoint URL</label>
-                                    <input id="rpg_tracker_openai_url" type="text" class="text_pole" placeholder="http://localhost:1234/v1" />
-                                    
+                                    <input id="rpg_tracker_openai_url" type="text" class="text_pole"
+                                        placeholder="http://localhost:1234/v1" />
+
                                     <label for="rpg_tracker_openai_key">API Key (Optional)</label>
-                                    <input id="rpg_tracker_openai_key" type="password" class="text_pole" placeholder="API Key" autocomplete="off" />
-                                    
+                                    <input id="rpg_tracker_openai_key" type="password" class="text_pole"
+                                        placeholder="API Key" autocomplete="off" />
+
                                     <label for="rpg_tracker_openai_model">Model
-                                        <small style="opacity: 0.7; font-weight: normal;"> — click Refresh to auto-detect, or type manually</small>
+                                        <small style="opacity: 0.7; font-weight: normal;"> — click Refresh to
+                                            auto-detect, or type manually</small>
                                     </label>
                                     <div class="flex-container gap-1">
                                         <select id="rpg_tracker_openai_model" class="text_pole" style="flex: 1;">
                                             <option value="">-- Select Model --</option>
                                         </select>
-                                        <button id="rpg_tracker_openai_refresh" class="menu_button interactable" title="Fetch available models from endpoint">
+                                        <button id="rpg_tracker_openai_refresh" class="menu_button interactable"
+                                            title="Fetch available models from endpoint">
                                             <i class="fa-solid fa-arrows-rotate"></i>
                                         </button>
                                     </div>
-                                    <input id="rpg_tracker_openai_model_manual" type="text" class="text_pole" placeholder="Or type model name manually (e.g. llama-3.1-8b)" />
-                                    
-                                    <button id="rpg_tracker_openai_test" class="menu_button interactable" style="margin-top: 5px; width: 100%;">
+                                    <input id="rpg_tracker_openai_model_manual" type="text" class="text_pole"
+                                        placeholder="Or type model name manually (e.g. llama-3.1-8b)" />
+
+                                    <button id="rpg_tracker_openai_test" class="menu_button interactable"
+                                        style="margin-top: 5px; width: 100%;">
                                         <i class="fa-solid fa-plug-circle-check"></i> Test Connection
                                     </button>
                                 </div>
                             </div>
 
-                            <label for="rpg_tracker_completion_preset" style="margin-top: 10px;">Generation Settings Preset</label>
+                            <label for="rpg_tracker_completion_preset" style="margin-top: 10px;">Generation Settings
+                                Preset</label>
                             <select id="rpg_tracker_completion_preset" class="text_pole">
                                 <option value="">-- Use Current Settings --</option>
                             </select>
 
                             <label for="rpg_tracker_max_tokens">Max Response Tokens</label>
-                            <input id="rpg_tracker_max_tokens" type="number" class="text_pole" placeholder="0 = No limit" />
+                            <input id="rpg_tracker_max_tokens" type="number" class="text_pole"
+                                placeholder="0 = No limit" />
                         </div>
                     </div>
                 </div>
@@ -122,11 +136,14 @@
                     </div>
                     <div class="inline-drawer-content">
                         <div class="flex-container flexFlowColumn gap-1">
-                            <label for="rpg_tracker_lookback_messages">Number of Messages the Tracker Sees (User + Assistant)</label>
-                            <input id="rpg_tracker_lookback_messages" type="number" class="text_pole" value="2" min="1" max="9999" />
-                            
+                            <label for="rpg_tracker_lookback_messages">Number of Messages the Tracker Sees (User +
+                                Assistant)</label>
+                            <input id="rpg_tracker_lookback_messages" type="number" class="text_pole" value="2" min="1"
+                                max="9999" />
+
                             <label for="rpg_tracker_history_count">Number of Previous States the Tracker Sees</label>
-                            <input id="rpg_tracker_history_count" type="number" class="text_pole" value="1" min="1" max="9999" />
+                            <input id="rpg_tracker_history_count" type="number" class="text_pole" value="1" min="1"
+                                max="9999" />
                         </div>
                     </div>
                 </div>
@@ -134,7 +151,8 @@
                 <hr>
                 <div class="flex-container alignitemscenter gap-1">
                     <b>Context & Lorebooks</b>
-                    <button id="rpg_tracker_lorebook_list_refresh" class="menu_button interactable" title="Refresh lorebook list" style="padding: 1px 4px; font-size: 0.8em;">
+                    <button id="rpg_tracker_lorebook_list_refresh" class="menu_button interactable"
+                        title="Refresh lorebook list" style="padding: 1px 4px; font-size: 0.8em;">
                         <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
                 </div>
@@ -145,7 +163,8 @@
                             <span>Inject Lorebooks / World Info</span>
                         </label>
                     </div>
-                    <div id="rpg_tracker_lorebook_filter_group" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 5px; border-radius: 4px;">
+                    <div id="rpg_tracker_lorebook_filter_group"
+                        style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); padding: 5px; border-radius: 4px;">
                         <div id="rpg_tracker_lorebook_list" class="flex-container flexFlowColumn gap-1"></div>
                     </div>
                 </div>
@@ -158,10 +177,12 @@
                         <option value="">-- No Profile --</option>
                     </select>
                     <div class="flex-container gap-1">
-                        <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;" title="Overwrite currently selected profile">
+                        <button id="rpg_tracker_profile_save" class="menu_button interactable" style="flex: 1;"
+                            title="Overwrite currently selected profile">
                             <i class="fa-solid fa-floppy-disk"></i> Save
                         </button>
-                        <button id="rpg_tracker_profile_save_as" class="menu_button interactable" style="flex: 1;" title="Save current settings as a new profile">
+                        <button id="rpg_tracker_profile_save_as" class="menu_button interactable" style="flex: 1;"
+                            title="Save current settings as a new profile">
                             <i class="fa-solid fa-file-export"></i> Save As
                         </button>
                         <button id="rpg_tracker_profile_load" class="menu_button interactable" style="flex: 1;">
@@ -180,7 +201,8 @@
                 <div id="rpg_tracker_order_list" class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
                     <!-- Populated by JS -->
                 </div>
-                <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px; width: 100%;">
+                <button id="rpg_tracker_add_custom_field" class="menu_button interactable"
+                    style="margin-top: 10px; display: flex !important; flex-direction: row !important; align-items: center; justify-content: center; gap: 8px; width: 100%;">
                     <i class="fa-solid fa-plus"></i> <span>Add Custom Field</span>
                 </button>
 
@@ -188,7 +210,8 @@
 
                 <hr>
                 <b>State Model Core Instruction</b>
-                <small>Edit the prompt logic the State Model uses. Use <code>{{modulesText}}</code> to inject the active module guidelines.</small>
+                <small>Edit the prompt logic the State Model uses. Use <code>{{modulesText}}</code> to inject the active
+                    module guidelines.</small>
                 <textarea id="rpg_tracker_core_prompt" class="text_pole autoSetHeight" rows="5"></textarea>
                 <div class="flex-container gap-1" style="margin-top: 5px;">
                     <button id="rpg_tracker_btn_reset_prompt" class="menu_button interactable" style="flex: 1;">
@@ -205,7 +228,9 @@
                         <input id="rpg_tracker_debug" type="checkbox" />
                         <span>Debug Mode (Logs to console)</span>
                     </label>
-                    <button id="rpg_tracker_btn_factory_reset" class="menu_button interactable" style="background: rgba(181, 31, 31, 0.4); border-color: #ff5555; width: 100%;"><i class="fa-solid fa-radiation"></i> FACTORY RESET FRAMEWORK</button>
+                    <button id="rpg_tracker_btn_factory_reset" class="menu_button interactable"
+                        style="background: rgba(181, 31, 31, 0.4); border-color: #ff5555; width: 100%;"><i
+                            class="fa-solid fa-radiation"></i> FACTORY RESET FRAMEWORK</button>
                 </div>
             </div>
         </div>

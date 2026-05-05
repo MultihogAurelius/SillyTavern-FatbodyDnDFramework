@@ -16,6 +16,7 @@
 
     const MODULE_NAME = "rpg_tracker";
     let _stateModelRunning = false;
+    let _currentChatId = null;
 
     const EXAMPLES = `((BAR)) Health: 45/100
 ((XPBAR)) Level 3: 1,200/2,700 XP
@@ -631,6 +632,8 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             openaiKey: "",
             openaiModel: "",
             openaiMaxTokens: 0,
+            chatLinkEnabled: true,
+            chatStates: {},
 
         };
 
@@ -682,6 +685,119 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 delete field.renderType;
             }
         });
+    }
+
+    // ── Chat-Linked State ──────────────────────────────────────────────────────
+
+    /**
+     * Snapshot the current live settings into chatStates[chatId].
+     * Uses saveSettingsDebounced so callers don't need to worry about debounce.
+     * @param {string} chatId
+     */
+    function saveChatState(chatId) {
+        if (!chatId) return;
+        const s = getSettings();
+        if (!s.chatStates) s.chatStates = {};
+        s.chatStates[chatId] = {
+            currentMemo:  s.currentMemo,
+            memoHistory:  JSON.parse(JSON.stringify(s.memoHistory)),
+            lastDelta:    s.lastDelta || '',
+            modules:      JSON.parse(JSON.stringify(s.modules)),
+            blockOrder:   JSON.parse(JSON.stringify(s.blockOrder  || BLOCK_ORDER)),
+            stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
+            customFields: JSON.parse(JSON.stringify(s.customFields || [])),
+        };
+        SillyTavern.getContext().saveSettingsDebounced();
+    }
+
+    /**
+     * Restore a previously saved chat state into the live settings.
+     * Returns true if a saved state was found, false if no state existed (clean slate).
+     * @param {string} chatId
+     * @returns {boolean}
+     */
+    function loadChatState(chatId) {
+        if (!chatId) return false;
+        const s = getSettings();
+        const saved = s.chatStates?.[chatId];
+        if (!saved) return false;
+
+        s.currentMemo  = saved.currentMemo  ?? '';
+        s.memoHistory  = saved.memoHistory  ?? [];
+        s.lastDelta    = saved.lastDelta    ?? '';
+        if (saved.modules)      s.modules      = { ...s.modules, ...saved.modules };
+        if (saved.blockOrder)   s.blockOrder   = JSON.parse(JSON.stringify(saved.blockOrder));
+        if (saved.stockPrompts) s.stockPrompts = JSON.parse(JSON.stringify(saved.stockPrompts));
+        if (saved.customFields) s.customFields = JSON.parse(JSON.stringify(saved.customFields));
+
+        _historyViewIndex = -1;
+
+        const dp = document.getElementById('rpg-tracker-delta-content');
+        if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
+
+        refreshOrderList();
+        syncMemoView();
+        return true;
+    }
+
+    /**
+     * Called on CHAT_CHANGED. Saves the departing chat's state,
+     * then loads the arriving chat's state — or resets the memo if
+     * this is a new/unseen chat (no saved state).
+     * @param {string} newChatId
+     */
+    function onChatChanged(newChatId) {
+        const s = getSettings();
+
+        // Always track the current chat ID even when linking is off
+        const oldChatId = _currentChatId;
+        _currentChatId  = newChatId || null;
+
+        if (!s.chatLinkEnabled) {
+            updateChatLinkUI();
+            return;
+        }
+
+        // Save the departing chat
+        if (oldChatId) saveChatState(oldChatId);
+
+        // Load the arriving chat — if no saved state exists, reset the memo
+        // so a new chat never inherits the previous chat's tracker data.
+        const found = loadChatState(newChatId);
+        if (!found) {
+            s.currentMemo  = '';
+            s.memoHistory  = [];
+            s.lastDelta    = '';
+            _historyViewIndex = -1;
+
+            const dp = document.getElementById('rpg-tracker-delta-content');
+            if (dp) dp.innerHTML = '<span class="delta-empty">No changes yet.</span>';
+
+            updateUIMemo('');
+            refreshRenderedView();
+        }
+
+        updateChatLinkUI();
+    }
+
+    /**
+     * Syncs the 🔗/🔓 icon in the panel header and the settings checkbox
+     * to reflect the current chatLinkEnabled state.
+     */
+    function updateChatLinkUI() {
+        const s = getSettings();
+        const on = s.chatLinkEnabled;
+
+        const btn = document.getElementById('rpg-tracker-chat-link-btn');
+        if (btn) {
+            btn.textContent = on ? '🔗' : '🔓';
+            btn.title = on
+                ? `Chat Link ON — state is bound to the active chat\n(Click to unlock / use global state)`
+                : `Chat Link OFF — using global state\n(Click to re-lock to current chat)`;
+        }
+
+        const cb = document.getElementById('rpg_tracker_chat_link_enabled');
+        if (cb instanceof HTMLInputElement) cb.checked = on;
     }
 
     /**
@@ -3052,6 +3168,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <span>Fatbody D&D Framework</span>
                     <div class="rpg-tracker-status-indicator active" id="rpg-tracker-status"></div>
                     <button class="rpg-tracker-stop-btn" id="rpg-tracker-stop-btn" title="Stop Generation" style="display:none;">■</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-chat-link-btn" style="font-size:13px;" title="Chat Link ON">🔗</button>
                 </div>
                 <div class="rpg-tracker-header-right">
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-update-btn" title="Update State Now">🔄</button>
@@ -3157,6 +3274,85 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             });
         }
 
+        // ── Chat Link Toggle ──
+        const chatLinkBtn = panel.querySelector('#rpg-tracker-chat-link-btn');
+        if (chatLinkBtn) {
+            chatLinkBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const { Popup, POPUP_RESULT } = SillyTavern.getContext();
+                const s = getSettings();
+                const turningOn = !s.chatLinkEnabled;
+
+                if (turningOn && _currentChatId) {
+                    const saved = s.chatStates?.[_currentChatId];
+                    const liveContent = (s.currentMemo || '').trim();
+                    const savedContent = (saved?.currentMemo || '').trim();
+
+                    // Only show conflict if BOTH have content and they are DIFFERENT
+                    if (savedContent && liveContent && liveContent !== savedContent) {
+                        const body = `
+                            <div style="text-align: left;">
+                                <p><b>Conflict Detected:</b> This chat has a saved tracker state, but your current (Global) tracker is not empty.</p>
+                                <p style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
+                                    <b>RESTORE:</b> Use the chat's saved state. (Global work is moved to history)<br>
+                                    <b>OVERWRITE:</b> Keep current work and save it to this chat. (Old chat data is moved to history)
+                                </p>
+                            </div>`;
+                        
+                        const choice = await Popup.show.confirm('⚠️ Chat Link Conflict', body, {
+                            okButton: 'RESTORE',
+                            cancelButton: 'OVERWRITE',
+                        });
+
+                        if (choice === POPUP_RESULT.AFFIRMATIVE) {
+                            // User wants to Restore
+                            if (s.currentMemo) {
+                                saved.memoHistory = saved.memoHistory || [];
+                                saved.memoHistory.unshift({
+                                    memo: s.currentMemo,
+                                    delta: s.lastDelta,
+                                    timestamp: Date.now(),
+                                    label: 'Global Edit (Pre-Link)'
+                                });
+                                if (saved.memoHistory.length > 50) saved.memoHistory.length = 50;
+                            }
+                            loadChatState(_currentChatId);
+                            toastr['success']('Chat Link ON — restored saved state.', 'RPG Tracker');
+                        } else if (choice === POPUP_RESULT.NEGATIVE) {
+                            // User wants to Overwrite
+                            if (saved.currentMemo) {
+                                s.memoHistory.unshift(saved.currentMemo);
+                                if (s.memoHistory.length > 50) s.memoHistory.length = 50;
+                            }
+                            saveChatState(_currentChatId);
+                            toastr['success']('Chat Link ON — current state saved to chat.', 'RPG Tracker');
+                        } else {
+                            // User closed the modal or hit escape — cancel the toggle
+                            return;
+                        }
+                    } else {
+                        // No conflict or chat was empty
+                        saveChatState(_currentChatId);
+                        toastr['success']('Chat Link ON — state bound to this chat.', 'RPG Tracker');
+                    }
+                } else if (turningOn) {
+                    // Normal lock (empty or new chat)
+                    if (_currentChatId) {
+                        const found = loadChatState(_currentChatId);
+                        if (!found) saveChatState(_currentChatId);
+                    }
+                    toastr['success']('Chat Link ON', 'RPG Tracker');
+                } else {
+                    toastr['info']('Chat Link OFF — using global state.', 'RPG Tracker');
+                }
+
+                s.chatLinkEnabled = turningOn;
+                SillyTavern.getContext().saveSettingsDebounced();
+                updateChatLinkUI();
+            });
+        }
+
+        updateChatLinkUI();
         updatePanelStatus();
 
         // Handle manual edits to live memo
@@ -3837,7 +4033,8 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 </div>
                 <!-- Footer -->
                 <div class="popup-footer flex-container gap-1 justifycontentend" style="padding:8px 14px; border-top:1px solid rgba(255,255,255,0.08); flex-shrink:0;">
-                    <button id="rt_cfe_delete" class="menu_button interactable" style="color:#ff5555;margin-right:auto;font-size:12px;"><i class="fa-solid fa-trash"></i> Delete</button>
+                    <button id="rt_cfe_delete" class="menu_button interactable" style="color:#ff5555;font-size:12px;"><i class="fa-solid fa-trash"></i> Delete</button>
+                    <button id="rt_cfe_export" class="menu_button interactable" style="font-size:12px;margin-right:auto;" title="Export this module as a shareable code"><i class="fa-solid fa-file-export"></i> Export</button>
                     <button id="rt_cfe_cancel" class="menu_button interactable" style="font-size:12px;">Cancel</button>
                     <button id="rt_cfe_save" class="menu_button interactable" style="font-size:12px;">Save Changes</button>
                 </div>
@@ -3974,6 +4171,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         document.getElementById('rt_cfe_delete').onclick = del;
         document.getElementById('rt_cfe_cancel').onclick = close;
         document.getElementById('rt_cfe_close').onclick  = close;
+        document.getElementById('rt_cfe_export').onclick = () => exportModules([field]);
     }
     function openPromptEditor(title, currentText, defaultText, onSave) {
         let overlay = document.getElementById('rt_pe_overlay');
@@ -4045,6 +4243,202 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
     }
 
 
+    // ── Module Export / Import ──────────────────────────────────────────────────
+
+    /**
+     * Builds the shareable JSON envelope for the given custom field objects
+     * and opens the share modal.
+     * @param {Array<{icon:string, tag:string, label:string, prompt:string}>} fields
+     */
+    function exportModules(fields) {
+        const payload = {
+            format: 'fatbody-custom-module',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            modules: fields.map(f => ({
+                icon:   f.icon  || '📄',
+                tag:    f.tag,
+                label:  f.label || f.tag,
+                prompt: f.prompt || '',
+            })),
+        };
+        openShareModal(JSON.stringify(payload, null, 2));
+    }
+
+    /**
+     * Opens a read-only copy-to-clipboard modal with the export JSON.
+     * Uses the Termux-safe execCommand fallback (same as sysprompt copy).
+     * @param {string} jsonString
+     */
+    function openShareModal(jsonString) {
+        const { Popup } = SillyTavern.getContext();
+        const escaped = jsonString
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        const content = `
+            <div style="display:flex; flex-direction:column; gap:8px; min-width:360px;">
+                <p style="margin:0; font-size:12px; opacity:0.7;">
+                    Copy this code and share it anywhere. Others can paste it using the <b>Import</b> button.
+                </p>
+                <textarea id="rt_share_blob" readonly rows="12" class="text_pole"
+                    style="font-family:monospace; font-size:11px; resize:vertical; width:100%;"
+                >${escaped}</textarea>
+                <div style="display:flex; gap:8px;">
+                    <button id="rt_share_copy" class="menu_button interactable" style="flex:1;">
+                        <i class="fa-solid fa-copy"></i> Copy to Clipboard
+                    </button>
+                    <button id="rt_share_download" class="menu_button interactable" style="flex:1;">
+                        <i class="fa-solid fa-file-download"></i> Export .json
+                    </button>
+                </div>
+            </div>
+        `;
+        Popup.show.confirm('📤 Share Custom Module', content, {
+            okButton: 'Done',
+            cancelButton: false,
+        });
+        // Wire buttons after the popup DOM renders (next tick)
+        setTimeout(() => {
+            const copyBtn = document.getElementById('rt_share_copy');
+            if (copyBtn) {
+                copyBtn.addEventListener('click', () => {
+                    const ta = document.createElement('textarea');
+                    ta.value = jsonString;
+                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try {
+                        document.execCommand('copy');
+                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                    } catch (err) {
+                        console.error('[Fatbody Framework] clipboard copy failed:', err);
+                        toastr['error']('Could not copy. Please select the text manually.', 'Fatbody Framework');
+                    } finally {
+                        document.body.removeChild(ta);
+                    }
+                });
+            }
+
+            const downloadBtn = document.getElementById('rt_share_download');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', () => {
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `fatbody_module_${new Date().getTime()}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                });
+            }
+        }, 50);
+    }
+
+    /**
+     * Validates and imports custom modules from a pasted JSON export string.
+     * Collects all tag conflicts first, then resolves them with a single prompt.
+     * @param {string} jsonString
+     */
+    async function importModulesFromJson(jsonString) {
+        // Stock module tags — derived from the settings default so they stay in sync
+        const STOCK_TAGS = new Set(['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']);
+
+        let parsed;
+        try {
+            parsed = JSON.parse(jsonString.trim());
+        } catch {
+            toastr['error']('Invalid JSON. Please paste a valid module export.', 'Fatbody Framework');
+            return;
+        }
+
+        if (parsed?.format !== 'fatbody-custom-module' || !Array.isArray(parsed?.modules)) {
+            toastr['error']("This doesn't look like a Fatbody module export.", 'Fatbody Framework');
+            return;
+        }
+
+        // Normalize and filter out malformed entries
+        const incoming = parsed.modules.filter(m => {
+            if (!m.tag || typeof m.tag !== 'string') return false;
+            m.tag = m.tag.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+            return m.tag.length > 0;
+        });
+
+        if (incoming.length === 0) {
+            toastr['warning']('No valid modules found in the export.', 'Fatbody Framework');
+            return;
+        }
+
+        const s = getSettings();
+        const existingTags = new Set((s.customFields || []).map(f => f.tag.toUpperCase()));
+
+        // Hard-block stock tag conflicts
+        const stockConflicts = incoming.filter(m => STOCK_TAGS.has(m.tag));
+        if (stockConflicts.length > 0) {
+            toastr['error'](
+                `Cannot import: [${stockConflicts.map(m => m.tag).join('], [')}] clash with built-in stock modules.`,
+                'Fatbody Framework'
+            );
+            return;
+        }
+
+        // Collect soft (custom) conflicts and resolve with a single popup
+        const softConflicts = incoming.filter(m => existingTags.has(m.tag));
+        let overwriteConflicts = false;
+
+        if (softConflicts.length > 0) {
+            const { Popup } = SillyTavern.getContext();
+            const tagList = softConflicts.map(m => `<b>[${m.tag}]</b>`).join(', ');
+            const choice = await Popup.show.confirm(
+                '⚠️ Import Conflicts',
+                `<p>${softConflicts.length} module(s) already exist: ${tagList}</p><p>What would you like to do?</p>`,
+                { okButton: 'Overwrite Existing', cancelButton: 'Skip Conflicts' }
+            );
+            if (choice === null || choice === undefined) return; // user dismissed
+            overwriteConflicts = (choice === true);
+        }
+
+        if (!s.blockOrder) s.blockOrder = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
+
+        let importedCount = 0;
+        for (const m of incoming) {
+            const isConflict = existingTags.has(m.tag);
+            if (isConflict && !overwriteConflicts) continue;
+
+            const newField = {
+                icon:     m.icon  || '📄',
+                tag:      m.tag,
+                label:    m.label || m.tag,
+                prompt:   m.prompt || '',
+                template: '',   // sandbox always starts blank
+                enabled:  true, // imported modules are active immediately
+            };
+
+            if (isConflict) {
+                const idx = s.customFields.findIndex(f => f.tag.toUpperCase() === m.tag);
+                if (idx !== -1) s.customFields[idx] = newField;
+            } else {
+                s.customFields.push(newField);
+                if (!s.blockOrder.includes(m.tag)) s.blockOrder.push(m.tag);
+            }
+            importedCount++;
+        }
+
+        if (importedCount === 0) {
+            toastr['info']('No modules were imported (all conflicts were skipped).', 'Fatbody Framework');
+            return;
+        }
+
+        SillyTavern.getContext().saveSettingsDebounced();
+        refreshOrderList();
+        syncMemoView();
+        toastr['success'](`Imported ${importedCount} custom module(s).`, 'Fatbody Framework');
+    }
+
+    // ───────────────────────────────────────────────────────────────────────────
 
     function refreshOrderList() {
         const s = getSettings();
@@ -4243,9 +4637,53 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 registerDiceFunctionTool();
             });
 
+            $('#rpg_tracker_chat_link_enabled').on('change', function () {
+                const s = getSettings();
+                const turningOn = !!$(this).prop('checked');
+                
+                // If we're turning it on from the settings menu, just simulate the button click logic
+                // but keep it simple here. The panel button is the primary toggle.
+                s.chatLinkEnabled = turningOn;
+                ctx.saveSettingsDebounced();
+                updateChatLinkUI();
+                
+                if (turningOn && _currentChatId) {
+                    const saved = s.chatStates?.[_currentChatId];
+                    if (saved && saved.currentMemo && s.currentMemo && s.currentMemo !== saved.currentMemo) {
+                        // In settings we'll just do the safe silent restore if they checked the box
+                        // because async confirms in jQuery 'change' events can be janky.
+                        // The panel button handles the explicit decision better.
+                        loadChatState(_currentChatId);
+                    } else {
+                        const found = loadChatState(_currentChatId);
+                        if (!found) saveChatState(_currentChatId);
+                    }
+                }
+            });
+
+            $('#rpg_tracker_clear_chat_states').on('click', function () {
+                const s = getSettings();
+                const count = Object.keys(s.chatStates || {}).length;
+                if (count === 0) return toastr['info']('No saved chat states to clear.', 'RPG Tracker');
+                if (confirm(`Clear ALL ${count} saved chat state(s)?\n\nThis removes the auto-saved tracker data for every chat. Your current live state is unaffected.\n\nProceed?`)) {
+                    s.chatStates = {};
+                    ctx.saveSettingsDebounced();
+                    toastr['success'](`Cleared ${count} chat state(s).`, 'RPG Tracker');
+                }
+            });
+
             // ─── Event Hooks ───
             eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
             eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+
+            // ─── Chat Link ───
+            eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
+            // Bootstrap: restore state for whichever chat is already open
+            const bootChatId = ctx.getCurrentChatId?.() || null;
+            _currentChatId = bootChatId;
+            if (bootChatId && settings.chatLinkEnabled) {
+                loadChatState(bootChatId);
+            }
 
             // ─── Dice System ───
             registerDiceFunctionTool();
@@ -4561,7 +4999,119 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 ctx.saveSettingsDebounced();
             });
 
+            $('#rpg_tracker_export_all_modules').on('click', () => {
+                const s = getSettings();
+                if (!s.customFields || s.customFields.length === 0) {
+                    toastr['info']('No custom modules to export.', 'Fatbody Framework');
+                    return;
+                }
+                exportModules(s.customFields);
+            });
 
+            $('#rpg_tracker_import_modules').on('click', async () => {
+                const { Popup } = SillyTavern.getContext();
+                let pastedValue = '';
+
+                // Attach the file input directly to body so the OS file picker
+                // doesn't steal focus away from the popup and trigger its "outside click" dismiss.
+                const fileInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
+                fileInput.type = 'file';
+                fileInput.accept = '.json';
+                fileInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
+                document.body.appendChild(fileInput);
+
+                const content = `
+                    <div style="display:flex; flex-direction:column; gap:8px; min-width:min(500px, 90vw);">
+                        <p style="margin:0; font-size:12px; opacity:0.7;">
+                            Paste the module export code (JSON) below or load it from a file.
+                        </p>
+                        <textarea id="rt_import_blob" rows="12" class="text_pole"
+                            style="font-family:monospace; font-size:11px; resize:vertical; width:100%;"
+                            placeholder='{"format": "fatbody-custom-module", ...}'
+                        ></textarea>
+                        <button id="rt_import_file_btn" class="menu_button interactable" style="width:100%;">
+                            <i class="fa-solid fa-file-upload"></i> Load from File
+                        </button>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    const fileBtn = document.getElementById('rt_import_file_btn');
+                    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_import_blob'));
+
+                    if (textarea) {
+                        textarea.addEventListener('input', () => {
+                            pastedValue = textarea.value;
+                        });
+                    }
+
+                    if (fileBtn) {
+                        fileBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            fileInput.click();
+                        });
+                    }
+
+                    fileInput.addEventListener('change', () => {
+                        const file = fileInput.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                            const text = String(ev.target?.result || '');
+                            pastedValue = text;
+                            if (textarea) textarea.value = text;
+                        };
+                        reader.readAsText(file);
+                        fileInput.value = ''; // allow re-selecting same file
+                    });
+                }, 100);
+
+                const result = await Popup.show.confirm('📥 Import Custom Module(s)', content, { okButton: 'Import', cancelButton: 'Cancel' });
+                document.body.removeChild(fileInput);
+
+                if (result && pastedValue.trim()) {
+                    await importModulesFromJson(pastedValue);
+                }
+            });
+
+            $('#rpg_tracker_delete_all_custom_modules').on('click', function () {
+                const s = getSettings();
+                if (!s.customFields || s.customFields.length === 0) return toastr['info']('No custom modules to delete.', 'RPG Tracker');
+
+                if (confirm(`Delete ALL (${s.customFields.length}) custom modules?\n\nThis will also remove their data from the current tracker state. Stock modules (COMBAT, CHARACTER, etc.) will not be touched.\n\nProceed?`)) {
+                    const customTags = new Set(s.customFields.map(f => f.tag.toUpperCase()));
+
+                    // Clear fields
+                    s.customFields = [];
+
+                    // Clean block order
+                    if (s.blockOrder) {
+                        s.blockOrder = s.blockOrder.filter(tag => !customTags.has(tag.toUpperCase()));
+                    }
+
+                    // Clean current memo
+                    const memoBlocks = parseMemoBlocks(s.currentMemo || '');
+                    let changed = false;
+                    for (const tag of customTags) {
+                        if (memoBlocks[tag] !== undefined) {
+                            delete memoBlocks[tag];
+                            changed = true;
+                        }
+                    }
+
+                    if (changed) {
+                        s.currentMemo = Object.entries(memoBlocks)
+                            .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
+                            .join('\n\n');
+                        updateUIMemo(s.currentMemo);
+                    }
+
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    refreshOrderList();
+                    syncMemoView();
+                    toastr['success']('All custom modules deleted.', 'RPG Tracker');
+                }
+            });
 
             $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
                 settings.systemPromptTemplate = $(this).val();
