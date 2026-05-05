@@ -17,6 +17,24 @@
     const MODULE_NAME = "rpg_tracker";
     let _stateModelRunning = false;
 
+    const EXAMPLES = `((BAR)) Health: 45/100
+((XPBAR)) Level 3: 1,200/2,700 XP
+((PILLS)) Skills: Stealth (Expert), Deception (Proficient)
+((BADGE)) Status: Inspired
+((HIGHLIGHT)) Emphasis: (Special Item)
+((TEXT)) Note: Simple text row.`;
+
+    const COLOR_EXAMPLES = `<font color=#ff5555>Red Text</font>
+<font color=#55ff55>Green Text</font>
+<font color=#5555ff>Blue Text</font>
+<font color=#ffff55>Yellow Text</font>
+
+[Uncommon] Green Item
+[Rare] Blue Item
+[Epic] Purple Item
+[Legendary] Orange Item
+[Artifact] Artifact Item`;
+
     const DEFAULT_STOCK_PROMPTS = {
         character: `Main character's core stats. Use this format:
 [CHARACTER]
@@ -3085,7 +3103,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
-                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.4.0</b> (Tool Call + Queue)</button>
+                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.7.5</b> (Tool Call + Queue)</button>
                             <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
                         </div>
                         <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
@@ -3798,28 +3816,21 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         <input type="text" id="rt_cfe_label" class="text_pole" style="flex:1;min-width:80px;" placeholder="Display label">
                     </div>
 
-                    <!-- Template Definition -->
-                    <div style="margin-top:12px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                             <b style="font-size:13px;">Module Template & Examples <i class="fa-solid fa-circle-question" style="opacity:0.5; cursor:help; font-size:11px;" title="This box is ONLY for testing how the UI renders your formatting. Nothing from this box is sent to the AI. You must manually include any formatting examples in the 'AI Instructions' box below."></i></b>
-                             <div style="display:flex; gap:4px;">
-                                <button id="rt_cfe_color_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load color and rarity examples"><i class="fa-solid fa-palette"></i> Color Guide</button>
-                                <button id="rt_cfe_guide" class="menu_button interactable" style="font-size:10px; padding:2px 6px; opacity:0.8;" title="Load formatting examples"><i class="fa-solid fa-lightbulb"></i> Formatting Guide</button>
-                             </div>
-                        </div>
-                        <textarea id="rt_cfe_template" class="text_pole" rows="8" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
-                        <div style="font-size:11px; opacity:0.5; margin-top:4px;">
-                            Markers: <code>((PILLS))</code>, <code>((BAR))</code>, <code>((XPBAR))</code>, <code>((BADGE))</code>, <code>((HIGHLIGHT))</code>
-                        </div>
-                    </div>
-
                     <!-- AI Instructions -->
-                    <div style="margin-top:15px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                    <div style="margin-top:12px; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
                         <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
                             <i class="fa-solid fa-robot" style="opacity:0.7;"></i>
                             <b style="font-size:12px;">AI Instructions</b>
                         </div>
-                        <textarea id="rt_cfe_prompt" class="text_pole" rows="10" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box above with the live preview (desktop only for now!) to create and paste a formatting instructions template here.&#10;&#10;Example: Track the Limit Break charge level of the protagonist. Increment Times Used on use; increase level by 1 on each use.&#10;&#10;Format:&#10;[LIMIT BREAK]&#10;((XPBAR)) Limit Break: 10/100 Level 4&#10;Times Used: 3&#10;[/LIMIT BREAK]"></textarea>
+                        <textarea id="rt_cfe_prompt" class="text_pole" rows="10" style="resize:vertical; width:100%;" placeholder="What should the AI track and in what format? Define the instructions. You can use the box below with the live preview (desktop only for now!) to create and paste a formatting instructions template here.&#10;&#10;Example: Track the Limit Break charge level of the protagonist. Increment Times Used on use; increase level by 1 on each use.&#10;&#10;Format:&#10;[LIMIT BREAK]&#10;((XPBAR)) Limit Break: 10/100 Level 4&#10;Times Used: 3&#10;[/LIMIT BREAK]"></textarea>
+                    </div>
+
+                    <!-- Testing Sandbox -->
+                    <div style="margin-top:15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                             <b style="font-size:13px;">Testing Sandbox (desktop only) <i class="fa-solid fa-circle-question" style="opacity:0.5; cursor:help; font-size:11px;" title="This box is ONLY for testing how the UI renders your formatting. Nothing from this box is sent to the AI. You must manually include any formatting examples in the 'AI Instructions' box above."></i></b>
+                        </div>
+                        <textarea id="rt_cfe_template" class="text_pole" rows="8" style="resize:vertical; width:100%; font-family:monospace; font-size:12px;" placeholder="Example:\n((PILLS)) Skills: Stealth, Deception\nHP: 10/100"></textarea>
                     </div>
                 </div>
                 <!-- Footer -->
@@ -3870,7 +3881,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
             if (!renderView) return;
 
-            const testContent = templateEl.value || 'No template defined.';
+            const testContent = templateEl.value || 'Nothing in testing sandbox';
             const previewTag = '__PREVIEW__';
             const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
 
@@ -3893,29 +3904,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         };
 
         const updatePreview = () => renderPreviewInto(null);
-
-        const EXAMPLES = `((BAR)) Health: 45/100
-((XPBAR)) Level 3: 1,200/2,700 XP
-((PILLS)) Skills: Stealth (Expert), Deception (Proficient)
-((BADGE)) Status: Inspired
-((HIGHLIGHT)) Emphasis: (Special Item)
-((TEXT)) Note: Simple text row.`;
-
-        const COLOR_EXAMPLES = `<font color=#b07a4f>LEGENDARY BATTLE AXE</font>\n[Legendary] A Winning Lottery Ticket\n[Common] Buggy Software`;
-
-        document.getElementById('rt_cfe_guide').onclick = () => {
-            if (!templateEl.value || confirm("This will replace your current template with examples. Continue?")) {
-                templateEl.value = EXAMPLES;
-                schedulePreview();
-            }
-        };
-
-        document.getElementById('rt_cfe_color_guide').onclick = () => {
-            if (!templateEl.value || confirm("This will replace your current template with color examples. Continue?")) {
-                templateEl.value = COLOR_EXAMPLES;
-                schedulePreview();
-            }
-        };
 
         iconEl.addEventListener('input', schedulePreview);
         tagEl.addEventListener('input', schedulePreview);
@@ -4571,7 +4559,8 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 settings.customFields.push({
                     tag: newTag, label: 'New Field', icon: '📝',
                     prompt: '',
-                    rows: [], enabled: true
+                    template: EXAMPLES + '\n\n' + COLOR_EXAMPLES,
+                    enabled: true
                 });
                 refreshOrderList();
                 ctx.saveSettingsDebounced();
