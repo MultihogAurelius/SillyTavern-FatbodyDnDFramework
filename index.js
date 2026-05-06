@@ -3804,8 +3804,8 @@ Rules:
                     <button id="rt-rng-toggle-overlay" class="rt-rng-toggle-overlay" title="Toggle RNG Queue Injection">
                         <i class="fa-solid fa-dice"></i> <span class="rt-rng-label-text">RNG Queue: </span><span id="rt-rng-status-text" class="rt-rng-status-text">OFF</span>
                     </button>
-                    <button id="rt-dice-tool-toggle" class="rt-rng-toggle-overlay" title="Toggle Function Call RNG">
-                        <i class="fa-solid fa-robot"></i> <span class="rt-rng-label-text">Function Call RNG: </span><span id="rt-dice-tool-status-text" class="rt-rng-status-text">OFF</span>
+                    <button id="rt-dice-tool-toggle" class="rt-rng-toggle-overlay" title="Toggle Tool Call RNG">
+                        <i class="fa-solid fa-robot"></i> <span class="rt-rng-label-text">Tool Call RNG: </span><span id="rt-dice-tool-status-text" class="rt-rng-status-text">OFF</span>
                     </button>
                 </div>
                 <div class="flex-container gap-1 alignitemscenter rt-utility-footer-group">
@@ -3813,7 +3813,7 @@ Rules:
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
-                             <button class="rt-sysprompt-opt" data-file="sysprompt.txt">Function Call + Queue (recommended)</button>
+                             <button class="rt-sysprompt-opt" data-file="sysprompt.txt">Tool Call + Queue (recommended)</button>
                              <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt">Queue Only</button>
                              <hr style="margin: 2px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">
                              <button class="rt-sysprompt-opt" id="rt-sysprompt-help-btn">What are these?</button>
@@ -4009,7 +4009,7 @@ Rules:
                 SillyTavern.getContext().saveSettingsDebounced();
                 syncFooterToggles();
                 registerDiceFunctionTool();
-                toastr['info'](`Function Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
+                toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
             });
         }
 
@@ -4251,17 +4251,17 @@ Rules:
                             <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
                             <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
 
-                            <h4 style="color: var(--rt-accent);">Function Call RNG (Narrative)</h4>
-                            <p>A reactive function call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
+                            <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
+                            <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
                             <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
-                                <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for function calls to work.
+                                <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
                             </p>
 
                             <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
                             <p>Choose the system prompt that matches your selected RNG method:</p>
                             <ul style="padding-left: 20px;">
-                                <li style="margin-bottom: 8px;"><b>Function Call + Queue</b>: The modern hybrid system (recommended). Mandatory for the Function Call RNG toggle to function.</li>
-                                <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support function calling or if you prefer the classic "always-in-context" RNG.</li>
+                                <li style="margin-bottom: 8px;"><b>Tool Call + Queue</b>: The modern hybrid system (recommended). Mandatory for the Tool Call RNG toggle to function.</li>
+                                <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
                             </ul>
                         </div>
                     `;
@@ -4302,7 +4302,7 @@ Rules:
                     document.execCommand('copy');
                     const isLegacy = fileName === 'sysprompt_legacy.txt';
                     const msg = isLegacy 
-                        ? `${fileName} copied to clipboard! Make sure to disable function call RNG from the bottom of the UI.`
+                        ? `${fileName} copied to clipboard! Make sure to disable tool call RNG from the bottom of the UI.`
                         : `${fileName} copied to clipboard! Make sure to enable function calls in the completion preset!`;
                     toastr['success'](msg, "Fatbody Framework");
                     syspromptMenu.style.display = 'none';
