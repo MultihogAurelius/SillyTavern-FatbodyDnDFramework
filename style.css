@@ -108,6 +108,26 @@
     --rt-card-header: rgba(0, 180, 216, 0.1);
 }
 
+/* ── AI Wizard Custom Theme ── */
+/* Variables are injected dynamically by the Theme Wizard into #rt-custom-theme-style */
+.rpg-tracker-panel.rt-theme-custom {
+    --rt-bg: var(--rt-custom-bg, rgba(20, 20, 30, 0.92));
+    --rt-blur: var(--rt-custom-blur, blur(12px));
+    --rt-border: var(--rt-custom-border, 1px solid rgba(255,255,255,0.2));
+    --rt-text: var(--rt-custom-text, #eeeeee);
+    --rt-text-muted: var(--rt-custom-text-muted, #999999);
+    --rt-font: var(--rt-custom-font, system-ui, sans-serif);
+    --rt-font-mono: var(--rt-custom-font-mono, 'Consolas', monospace);
+    --rt-accent: var(--rt-custom-accent, #00ffaa);
+    --rt-accent-dim: var(--rt-custom-accent-dim, rgba(0,255,170,0.4));
+    --rt-accent-bg: var(--rt-custom-accent-bg, rgba(0,255,170,0.1));
+    --rt-card-border: var(--rt-custom-card-border, 1px solid rgba(255,255,255,0.1));
+    --rt-shadow: var(--rt-custom-shadow, 0 8px 32px rgba(0,0,0,0.5));
+    --rt-header-bg: var(--rt-custom-header-bg, rgba(255,255,255,0.05));
+    --rt-card-bg: var(--rt-custom-card-bg, rgba(255,255,255,0.03));
+    --rt-card-header: var(--rt-custom-card-header, rgba(255,255,255,0.04));
+}
+
 /* Azure Atoll Scrollbar */
 .rt-theme-azure *::-webkit-scrollbar {
     width: 10px;
@@ -1581,4 +1601,22 @@
 #rpg_tracker_openai_test:hover {
     border-color: var(--rt-accent);
     background: rgba(0, 255, 170, 0.15);
+}
+
+/* ── Bar Recoloring ── */
+.rt-hp-bar-wrap[data-recolor-id], 
+.rt-xp-bar-wrap[data-recolor-id] {
+    position: relative;
+    cursor: pointer;
+    transition: filter 0.2s, transform 0.1s;
+}
+
+.rt-hp-bar-wrap[data-recolor-id]:hover,
+.rt-xp-bar-wrap[data-recolor-id]:hover {
+    filter: brightness(1.2);
+}
+
+.rt-hp-bar-wrap[data-recolor-id]:active,
+.rt-xp-bar-wrap[data-recolor-id]:active {
+    transform: scale(0.98);
 }

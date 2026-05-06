@@ -18,11 +18,11 @@
     let _stateModelRunning = false;
     let _currentChatId = null;
 
-    const EXAMPLES = `((BAR)) Health: 45/100
-((XPBAR)) Level 3: 1,200/2,700 XP
-((PILLS)) Skills: Stealth (Expert), Deception (Proficient)
-((BADGE)) Status: Inspired
-((HIGHLIGHT)) Emphasis: (Special Item)
+    const EXAMPLES = `((B)) Health: 45/100
+((XB)) Level 3: 1,200/2,700 XP
+((PLS)) Skills: Stealth (Expert), Deception (Proficient)
+((BDG)) Status: Inspired
+((HGT)) Emphasis: (Special Item)
 ((TEXT)) Note: Simple text row.`;
 
     const COLOR_EXAMPLES = `<font color=#ff5555>Red Text</font>
@@ -302,6 +302,11 @@ Declare their COMBAT PROFILE immediately:
 - Short Rest interruption: also active, but the DC should be easier, generally lower than DC 8 unless the area is extremely hostile and dangerous.
 </resting>
 
+<state_memo>
+- ## TRACKER STATE 0 (Current) is passed on every turn; its mechanical data is absolute law.
+- Ignore any formatting data such as ((PLS)).
+</state_memo>
+
 <constraints>
 - NEVER reveal the RNG queue contents or explain the mechanic.
 - NEVER skip or reinterpret a roll result.
@@ -311,6 +316,8 @@ Declare their COMBAT PROFILE immediately:
 - [RNG_QUEUE v6.0_PROPER] is ONLY used in active combat.
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
 - If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
+- The maximum [PARTY] size is 5 + {{user}}. Do not add more members into the party.
+- If {{user}} lacks some item, never accommodate them by magically spawning it out of nowhere conveniently; instead narrate that they don't have it.
 </constraints>
 `,
         'sysprompt_legacy.txt': `<role>
@@ -508,6 +515,11 @@ Declare their COMBAT PROFILE immediately:
 - Short Rest interruption: also active, but the DC should be easier, generally lower than DC 8 unless the area is extremely hostile and dangerous.
 </resting>
 
+<state_memo>
+- ## TRACKER STATE 0 (Current) is passed on every turn; its mechanical data is absolute law.
+- Ignore any formatting data such as ((PLS)).
+</state_memo>
+
 <constraints>
 - NEVER reveal the RNG queue contents or explain the mechanic.
 - NEVER skip or reinterpret a roll result.
@@ -554,6 +566,9 @@ Declare their COMBAT PROFILE immediately:
             fontSize: 14,
             rngEnabled: true,
             diceFunctionTool: true,
+            barColors: {},
+            customTheme: null,   // Current custom theme vars
+            savedThemes: {},     // { name: vars }
             systemPromptTemplate:
                 `You are the State Extractor Model. Your task is to maintain a structured State Memo based on the roleplay narrative.
 <core_directives>
@@ -601,7 +616,7 @@ Update abilities/attributes/HP/etc accordingly, such as an ability's 1d6 bonus i
 </progression_logic>
 
 <custom_formatting>
-You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIGHLIGHT)). These are for graphical rendering options; use them if instructed but only if instructed in a specific [MODULE].
+You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These are for graphical rendering options; use them if instructed but only if instructed in a specific [MODULE].
 </custom_formatting>`,
             modules: {
                 character: true,
@@ -634,7 +649,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             openaiMaxTokens: 0,
             chatLinkEnabled: true,
             chatStates: {},
-
+            /*
+            syspromptModules: {
+                loot: true,
+                random_events: true,
+                resting: true,
+            },
+            */
         };
 
         if (!extensionSettings[MODULE_NAME]) {
@@ -656,6 +677,387 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         }
         return extensionSettings[MODULE_NAME];
     }
+
+    function getBarBackground(barId, defaultBackground, pct = null) {
+        if (!barId) return defaultBackground;
+        const s = getSettings();
+        const cfg = s.barColors?.[barId];
+        if (!cfg) {
+            // HP bars default to dynamic behavior (Green/Yellow/Red)
+            const isHP = barId.endsWith(':HP') || barId.includes(':HPBAR');
+            if (isHP && pct !== null) {
+                return pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
+            }
+            return defaultBackground;
+        }
+
+        if (typeof cfg === 'string') return cfg; // Legacy support
+
+        switch (cfg.mode) {
+            case 'gradient':
+                return `linear-gradient(90deg, ${cfg.color}, ${cfg.color2 || cfg.color})`;
+            case 'dynamic': {
+                const p = pct !== null ? pct : 100;
+                // Default HP logic: Green -> Yellow -> Red
+                return p > 60 ? '#00ffaa' : p > 30 ? '#ffaa00' : '#ff5555';
+            }
+            case 'solid':
+            default:
+                return cfg.color;
+        }
+    }
+
+    /**
+     * Injects/updates the <style id="rt-custom-theme-style"> tag in <head>
+     * to set the --rt-custom-* variables on :root.
+     * @param {Record<string,string>|null} vars
+     */
+    function applyCustomTheme(vars) {
+        let tag = document.getElementById('rt-custom-theme-style');
+        if (!tag) {
+            tag = document.createElement('style');
+            tag.id = 'rt-custom-theme-style';
+            document.head.appendChild(tag);
+        }
+        if (!vars) {
+            tag.textContent = '';
+            return;
+        }
+        const lines = Object.entries(vars).map(([k, v]) => `  ${k}: ${v};`).join('\n');
+        tag.textContent = `:root {\n${lines}\n}`;
+    }
+
+    /**
+     * Opens the AI Theme Wizard popup in the panel area.
+     * Uses the same connection routing as the state model.
+     * @param {boolean} isIteration - If true, passes the current theme as context.
+     */
+    async function openThemeWizard(isIteration = false) {
+        const settings = getSettings();
+
+        const systemPrompt = `You are a CSS theme designer for a dark-UI RPG tracker panel.
+The user will describe a visual theme in plain language. You must output ONLY a valid JSON object with these exact keys and CSS values:
+
+{
+  "--rt-custom-bg": "<CSS background value, usually rgba()>",
+  "--rt-custom-blur": "<blur() value, e.g. blur(12px)>",
+  "--rt-custom-border": "<full CSS border, e.g. 1px solid #rrggbb>",
+  "--rt-custom-text": "<primary text color, hex or rgba>",
+  "--rt-custom-text-muted": "<secondary/dimmed text color>",
+  "--rt-custom-font": "<font-family stack>",
+  "--rt-custom-font-mono": "<monospace font-family stack>",
+  "--rt-custom-accent": "<main accent/highlight color>",
+  "--rt-custom-accent-dim": "<accent color at ~40% opacity, rgba()>",
+  "--rt-custom-accent-bg": "<accent color at ~10-15% opacity, rgba()>",
+  "--rt-custom-card-border": "<full CSS border for inner cards>",
+  "--rt-custom-shadow": "<box-shadow value>",
+  "--rt-custom-header-bg": "<header background, usually semi-transparent>",
+  "--rt-custom-card-bg": "<card body background, semi-transparent>",
+  "--rt-custom-card-header": "<card header background, semi-transparent>"
+}
+
+Rules:
+- Output ONLY the JSON object. No markdown, no code fences, no explanation.
+- All colors must be valid CSS. Prefer rgba() for backgrounds (allow transparency).
+- Make the theme visually coherent and beautiful. Lean into the user's description creatively.
+- Ensure text colors have sufficient contrast against the background for readability.`;
+
+        const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+        const generateBtn = document.getElementById('rpg_tracker_theme_generate');
+        const iterateBtn = document.getElementById('rpg_tracker_theme_iterate');
+
+        const setStatus = (msg, isError = false) => {
+            if (!statusEl) return;
+            statusEl.style.display = 'block';
+            statusEl.style.color = isError ? '#ff7777' : 'inherit';
+            statusEl.textContent = msg;
+        };
+
+        const promptText = /** @type {HTMLTextAreaElement} */ (document.getElementById('rpg_tracker_theme_prompt'))?.value?.trim();
+        if (!promptText) {
+            setStatus(isIteration ? '⚠ Please describe the changes you want.' : '⚠ Please describe a theme first.', true);
+            return;
+        }
+
+        const iterationContext = (isIteration && settings.customTheme) ? `\n\nCURRENT THEME STATE (JSON):\n${JSON.stringify(settings.customTheme, null, 2)}\n\nUser wants to CHANGE this theme as follows: ${promptText}` : `\n\nUser description: ${promptText}`;
+
+        if (generateBtn) generateBtn.disabled = true;
+        if (iterateBtn) iterateBtn.disabled = true;
+        
+        setStatus(isIteration ? '✨ Refining theme…' : '✨ Generating theme…');
+
+        let raw = '';
+        try {
+            raw = await sendStateRequest(settings, systemPrompt, iterationContext);
+        } catch (err) {
+            setStatus(`❌ Request failed: ${err.message}`, true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        // Extract JSON — strip markdown fences if present
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            setStatus('❌ AI did not return valid JSON. Try a different prompt or model.', true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        let vars;
+        try {
+            vars = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            setStatus('❌ Failed to parse AI response as JSON.', true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        // Validate all expected keys exist
+        const expected = [
+            '--rt-custom-bg', '--rt-custom-blur', '--rt-custom-border',
+            '--rt-custom-text', '--rt-custom-text-muted', '--rt-custom-font',
+            '--rt-custom-font-mono', '--rt-custom-accent', '--rt-custom-accent-dim',
+            '--rt-custom-accent-bg', '--rt-custom-card-border', '--rt-custom-shadow',
+            '--rt-custom-header-bg', '--rt-custom-card-bg', '--rt-custom-card-header',
+        ];
+        const missing = expected.filter(k => !vars[k]);
+        if (missing.length > 3) {
+            setStatus(`❌ AI response is missing too many theme keys: ${missing.join(', ')}`, true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        // Save and apply
+        settings.customTheme = vars;
+        // Ensure custom theme is selected
+        settings.trackerTheme = 'rt-theme-custom';
+        SillyTavern.getContext().saveSettingsDebounced();
+
+        applyCustomTheme(vars);
+
+        // Switch theme class on all panels
+        document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+            p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+        });
+
+        // Reflect in the settings dropdown
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+        if (sel) sel.value = 'rt-theme-custom';
+
+        setStatus(isIteration ? '✅ Theme refined!' : '✅ Theme generated!');
+        if (generateBtn) generateBtn.disabled = false;
+        if (iterateBtn) iterateBtn.disabled = false;
+        toastr['success'](isIteration ? 'Theme refined successfully!' : 'New theme generated and applied!', 'Theme Wizard');
+        refreshSavedThemesList();
+    }
+
+    function refreshSavedThemesList() {
+        const settings = getSettings();
+        const container = document.getElementById('rpg_tracker_saved_themes_container');
+        const list = document.getElementById('rpg_tracker_saved_themes_list');
+        if (!container || !list) return;
+
+        const entries = Object.entries(settings.savedThemes || {});
+        if (entries.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        list.innerHTML = '';
+
+        entries.forEach(([name, vars]) => {
+            const row = document.createElement('div');
+            row.className = 'flex-container alignitemscenter gap-1';
+            row.style.background = 'rgba(255,255,255,0.05)';
+            row.style.padding = '4px 8px';
+            row.style.borderRadius = '4px';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            nameSpan.style.flex = '1';
+            nameSpan.style.fontSize = '0.85em';
+            nameSpan.style.cursor = 'pointer';
+            nameSpan.className = 'interactable';
+            nameSpan.title = 'Click to load this theme';
+            nameSpan.addEventListener('click', () => {
+                settings.customTheme = JSON.parse(JSON.stringify(vars));
+                settings.trackerTheme = 'rt-theme-custom';
+                SillyTavern.getContext().saveSettingsDebounced();
+                applyCustomTheme(settings.customTheme);
+                
+                // Update UI
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+                if (sel) sel.value = 'rt-theme-custom';
+                document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+                    p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+                });
+                
+                const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = 'inherit';
+                    statusEl.textContent = `✅ Loaded library theme: ${name}`;
+                }
+            });
+
+            const delBtn = document.createElement('i');
+            delBtn.className = 'fa-solid fa-trash-can interactable';
+            delBtn.style.fontSize = '0.8em';
+            delBtn.style.opacity = '0.5';
+            delBtn.title = 'Delete theme';
+            delBtn.addEventListener('click', () => {
+                if (confirm(`Are you sure you want to delete the theme "${name}"?`)) {
+                    delete settings.savedThemes[name];
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    refreshSavedThemesList();
+                    toastr['info'](`Deleted theme: ${name}`, 'Theme Library');
+                }
+            });
+
+            row.appendChild(nameSpan);
+            row.appendChild(delBtn);
+            list.appendChild(row);
+        });
+    }
+
+    function handleRecolor(barId, currentBg, targetEl) {
+        if (!barId) return;
+
+        document.getElementById('rt-recolor-popup')?.remove();
+
+        const s = getSettings();
+        // Deep copy of initial state for cancel functionality
+        const initialCfg = s.barColors?.[barId] ? JSON.parse(JSON.stringify(s.barColors[barId])) : null;
+        
+        let cfg = s.barColors?.[barId];
+        if (!cfg) {
+            // HP bars should default to 'dynamic' behavior (Green/Yellow/Red)
+            const isHP = barId.endsWith(':HP') || barId.includes(':HPBAR') || barId.endsWith(':HP');
+            let color = "#ff0000";
+            const hexMatch = currentBg.match(/#[0-9a-fA-F]{3,8}/);
+            if (hexMatch) color = hexMatch[0];
+            
+            if (isHP) {
+                cfg = { mode: 'dynamic', color: '#00ffaa', color2: '#ff5555' };
+            } else {
+                cfg = { mode: 'solid', color: color };
+            }
+        } else if (typeof cfg === 'string') {
+            cfg = { mode: 'solid', color: cfg };
+        }
+
+        const applyLive = () => {
+            const ss = getSettings();
+            if (!ss.barColors) ss.barColors = {};
+            ss.barColors[barId] = { ...cfg };
+            SillyTavern.getContext().saveSettingsDebounced();
+            refreshRenderedView();
+        };
+
+        const popup = document.createElement('div');
+        popup.id = 'rt-recolor-popup';
+        popup.style.cssText = `
+            position: fixed; z-index: 999999; background: #252535; border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.75);
+            backdrop-filter: blur(16px); color: #ffffff !important; font-family: sans-serif; width: 240px;
+        `;
+
+        const renderContent = () => {
+            popup.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="font-size:0.85em; font-weight:bold; opacity:0.8; letter-spacing:0.05em; text-transform:uppercase;">Recolor Bar</div>
+                    
+                    <div style="display:flex; background:rgba(0,0,0,0.3); border-radius:6px; padding:2px;">
+                        <button class="mode-btn" data-mode="solid" style="flex:1; border:none; background:${cfg.mode==='solid'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Solid</button>
+                        <button class="mode-btn" data-mode="gradient" style="flex:1; border:none; background:${cfg.mode==='gradient'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Gradient</button>
+                        <button class="mode-btn" data-mode="dynamic" style="flex:1; border:none; background:${cfg.mode==='dynamic'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Dynamic</button>
+                    </div>
+
+                    <div id="recolor-controls" style="display:flex; align-items:center; gap:10px; min-height:40px;">
+                        ${cfg.mode === 'dynamic' ? `
+                            <span style="font-size:0.8em; opacity:0.7;">HP-based coloring active</span>
+                        ` : `
+                            <input id="color1" type="color" value="${cfg.color}" style="width:40px; height:30px; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer; background:rgba(255,255,255,0.1);" />
+                            ${cfg.mode === 'gradient' ? `
+                                <span style="font-size:1.2em; opacity:0.5;">&rarr;</span>
+                                <input id="color2" type="color" value="${cfg.color2 || cfg.color}" style="width:40px; height:30px; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer; background:rgba(255,255,255,0.1);" />
+                            ` : ''}
+                        `}
+                    </div>
+
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button id="recolor-ok" style="flex:1.5; padding:6px; border-radius:6px; border:none; background:var(--rt-accent-bg, #00ffaa); color:#000; font-weight:bold; cursor:pointer; font-size:0.85em;">OK</button>
+                        <button id="recolor-cancel" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white; cursor:pointer; font-size:0.85em;">Cancel</button>
+                        <button id="recolor-reset" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white; cursor:pointer; font-size:0.85em;" title="Reset to defaults">Reset</button>
+                    </div>
+                </div>
+            `;
+
+            popup.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    cfg.mode = btn.dataset.mode;
+                    if (cfg.mode === 'gradient' && !cfg.color2) cfg.color2 = cfg.color;
+                    applyLive();
+                    renderContent();
+                });
+            });
+
+            const c1 = popup.querySelector('#color1');
+            const c2 = popup.querySelector('#color2');
+            if (c1) c1.addEventListener('input', (e) => { cfg.color = e.target.value; applyLive(); });
+            if (c2) c2.addEventListener('input', (e) => { cfg.color2 = e.target.value; applyLive(); });
+
+            popup.querySelector('#recolor-ok').addEventListener('click', () => {
+                applyLive();
+                popup.remove();
+            });
+
+            popup.querySelector('#recolor-cancel').addEventListener('click', () => {
+                const ss = getSettings();
+                if (initialCfg) ss.barColors[barId] = initialCfg;
+                else delete ss.barColors[barId];
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
+                popup.remove();
+            });
+
+            popup.querySelector('#recolor-reset').addEventListener('click', () => {
+                const ss = getSettings();
+                if (ss.barColors) delete ss.barColors[barId];
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
+                popup.remove();
+            });
+        };
+
+        renderContent();
+        document.body.appendChild(popup);
+        
+        const rect = targetEl.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - 120;
+        let top = rect.top - popup.offsetHeight - 12;
+        left = Math.max(8, Math.min(left, window.innerWidth - 248));
+        if (top < 8) top = rect.bottom + 12;
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+
+        const onOutside = (e) => {
+            if (!popup.contains(e.target)) {
+                // If they click outside, we treat it like OK (keep changes)
+                // or like Cancel? Usually outside click is like OK in these simple cases.
+                // Let's go with OK.
+                popup.remove();
+                document.removeEventListener('mousedown', onOutside);
+            }
+        };
+        setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+    }
+
 
     /**
      * One-time migration: custom fields with an old monolithic `renderType` get
@@ -2244,7 +2646,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
      * Renders a line according to a row rule (label → renderType → color).
      * Flexible "salad bar" renderers — hp_bar and xp_bar accept any X/Y value.
      */
-    function renderSubFieldByRule(rule, line) {
+    function renderSubFieldByRule(rule, line, barId = null) {
         const colonIdx = line.indexOf(':');
         // If there's no colon, the whole line is the value (no label)
         const hasLabel = colonIdx !== -1;
@@ -2271,12 +2673,16 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
                     const extra = value.replace(m[0], '').trim();
                     // Use custom color if set, else fall back to red gradient
-                    const barBg = rule.color
+                    let barBg = rule.color
                         ? rule.color
                         : 'linear-gradient(90deg,#e74c3c,#c0392b)';
+                    if (barId) barBg = getBarBackground(barId, barBg, pct);
+
+                    const recolorData = barId ? ` data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}" title="Click to recolor"` : '';
+
                     return `<div class="rt-entity-sub-line" style="gap:6px;">
                         ${labelHtml}
-                        <div class="rt-hp-bar-wrap" style="flex:1; position:relative; height:14px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
+                        <div class="rt-hp-bar-wrap"${recolorData} style="flex:1; position:relative; height:14px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
                             <div class="rt-hp-bar" style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:${barBg}; transition:width 0.3s;"></div>
                         </div>
                         <span style="font-size:0.82em; opacity:0.85; white-space:nowrap;">${cur}/${max}${extra ? ' ' + escapeHtml(extra) : ''}</span>
@@ -2295,12 +2701,16 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
                     const levelStr = lm ? `<span style="font-size:0.8em; opacity:0.75;">Lv ${lm[1]}</span> ` : '';
                     // Use custom color if set, else fall back to orange gradient
-                    const barBg = rule.color
+                    let barBg = rule.color
                         ? rule.color
                         : 'linear-gradient(90deg,#f39c12,#e67e22)';
+                    if (barId) barBg = getBarBackground(barId, barBg, pct);
+
+                    const recolorData = barId ? ` data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}" title="Click to recolor"` : '';
+
                     return `<div class="rt-entity-sub-line" style="gap:6px; flex-wrap:wrap;">
                         ${labelHtml} ${levelStr}
-                        <div class="rt-hp-bar-wrap" style="flex:1; min-width:60px; position:relative; height:10px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
+                        <div class="rt-hp-bar-wrap"${recolorData} style="flex:1; min-width:60px; position:relative; height:10px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
                             <div style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:${barBg}; transition:width 0.3s;"></div>
                         </div>
                         <span style="font-size:0.78em; opacity:0.8; white-space:nowrap;">${xm[1]}/${xm[2]}</span>
@@ -2321,19 +2731,37 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
      * Returns null if no marker is present, so callers can fall through to
      * their own renderer. This makes markers work in ALL stock blocks.
      */
-    function tryRenderMarker(line) {
-        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT)\)\)\s*(.*)$/i);
+    function tryRenderMarker(line, tag = '', entityName = '') {
+        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT|PLS|B|HPB|XB|HGT|BDG)\)\)\s*(.*)$/i);
         if (!m) return null;
-        const typeMap = { PILLS:'pills', BAR:'hp_bar', HPBAR:'hp_bar', XPBAR:'xp_bar', TEXT:'text', BADGE:'badge', HIGHLIGHT:'highlight' };
-        const renderType = typeMap[m[1].toUpperCase()] || 'text';
-        return renderSubFieldByRule({ renderType }, m[2].trim());
+        const typeMap = {
+            PILLS:'pills', PLS:'pills',
+            BAR:'hp_bar', B:'hp_bar',
+            HPBAR:'hp_bar', HPB:'hp_bar',
+            XPBAR:'xp_bar', XB:'xp_bar',
+            TEXT:'text',
+            BADGE:'badge', BDG:'badge',
+            HIGHLIGHT:'highlight', HGT:'highlight'
+        };
+        const markerType = m[1].toUpperCase();
+        const renderType = typeMap[markerType] || 'text';
+        const content = m[2].trim();
+
+        let barId = null;
+        if (renderType === 'hp_bar' || renderType === 'xp_bar') {
+            const colonIdx = content.indexOf(':');
+            const labelText = colonIdx !== -1 ? content.substring(0, colonIdx).trim() : 'Bar';
+            barId = `${tag}:${entityName}:${labelText}`;
+        }
+
+        return renderSubFieldByRule({ renderType }, content, barId);
     }
 
     /**
      * Renders a single line from a custom block (non-built-in tag).
      */
     function renderCustomBlockLine(tag, line, lineIdx = 0) {
-        const asMarker = tryRenderMarker(line);
+        const asMarker = tryRenderMarker(line, tag);
         if (asMarker !== null) return asMarker;
 
         // Plain kv fallback
@@ -2519,11 +2947,17 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             case 'CHARACTER': {
                 const results = [];
                 let lastEntityIdx = -1;
+                let currentEntity = '';
 
-                const MARKER_RX = /^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR)\)\)\s*(.*)/i;
+                const MARKER_RX = /^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR|PLS|B|XB|HGT|HPB|BDG)\)\)\s*(.*)/i;
                 const MARKER_TYPE_MAP = {
-                    'PILLS': 'pills', 'BAR': 'hp_bar', 'HPBAR': 'hp_bar',
-                    'XPBAR': 'xp_bar', 'TEXT': 'text', 'BADGE': 'badge', 'HIGHLIGHT': 'highlight'
+                    'PILLS': 'pills', 'PLS': 'pills',
+                    'BAR': 'hp_bar', 'B': 'hp_bar',
+                    'HPBAR': 'hp_bar', 'HPB': 'hp_bar',
+                    'XPBAR': 'xp_bar', 'XB': 'xp_bar',
+                    'TEXT': 'text',
+                    'BADGE': 'badge', 'BDG': 'badge',
+                    'HIGHLIGHT': 'highlight', 'HGT': 'highlight'
                 };
 
                 const renderSpellGroup = (groupStr) => {
@@ -2573,8 +3007,12 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         const status = rest.trim().replace(/^\|\s*/, '');
                         const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
 
+                        currentEntity = name.trim();
+                        const barId = `${tag}:${currentEntity}:HP`;
+                        const barBg = getBarBackground(barId, hpColor, pct);
+
                         lastEntityIdx = results.length;
-                        results.push(`<div class="rt-entity-row"><div class="rt-entity-name">${escapeHtmlWithColor(name.trim())}</div><div class="rt-hp-bar-wrap" title="${label} HP"><div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${hpColor};"></div></div><span class="rt-hp-label">${label}</span></div>`);
+                        results.push(`<div class="rt-entity-row"><div class="rt-entity-name">${escapeHtmlWithColor(currentEntity)}</div><div class="rt-hp-bar-wrap" title="Click to recolor HP" data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}"><div class="rt-hp-bar" style="width:${pct.toFixed(1)}%;background:${barBg};"></div></div><span class="rt-hp-label">${label}</span></div>`);
 
                         if (status) {
                             const parts = status.split('|').map(p => p.trim()).filter(Boolean);
@@ -2601,7 +3039,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
 
                     // 3. Explicit ((TYPE)) marker — attach to entity or push standalone
                     if (explicitType) {
-                        const rendered = renderSubFieldByRule({ renderType: explicitType }, line);
+                        const rendered = tryRenderMarker(rawLine, tag, currentEntity);
                         if (lastEntityIdx !== -1) { results[lastEntityIdx] += rendered; }
                         else { results.push(rendered); }
                         continue;
@@ -2729,14 +3167,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                             }
                             return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
                         }
-                        const asMarker = tryRenderMarker(line);
+                        const asMarker = tryRenderMarker(line, tag);
                         if (asMarker !== null) return asMarker;
                         return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
                     });
             }
             case 'XP':
                 return lines.map(line => {
-                    const asMarker = tryRenderMarker(line);
+                    const asMarker = tryRenderMarker(line, tag);
                     if (asMarker !== null) return asMarker;
 
                     // New format: Total: 1,200 / 2,700 XP (Level 3)
@@ -2746,10 +3184,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         const cur = Number(curRaw.replace(/,/g, ''));
                         const max = Number(maxRaw.replace(/,/g, ''));
                         const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+                        const barId = 'XP::XP';
+                        const barBg = getBarBackground(barId, 'linear-gradient(90deg, #f39c12, #e67e22)', pct);
+
                         return `<div class="rt-xp-row">
                             <div class="rt-xp-label"><span>Level ${level}</span><span>XP: ${curRaw} / ${maxRaw}</span></div>
-                            <div class="rt-xp-bar-wrap">
-                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
+                            <div class="rt-xp-bar-wrap" title="Click to recolor XP" data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}">
+                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%; background:${barBg};"></div>
                             </div>
                         </div>`;
                     }
@@ -2762,10 +3203,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                         const max = Number(maxRaw.replace(/,/g, ''));
                         const pct = Math.max(0, Math.min(100, (cur / max) * 100));
                         const levelHtml = level ? `<span>Level ${level}</span>` : '';
+                        const barId = 'XP::XP';
+                        const barBg = getBarBackground(barId, 'linear-gradient(90deg, #f39c12, #e67e22)', pct);
+
                         return `<div class="rt-xp-row">
                             <div class="rt-xp-label">${levelHtml}<span>XP: ${curRaw} / ${maxRaw}</span></div>
-                            <div class="rt-xp-bar-wrap">
-                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%;"></div>
+                            <div class="rt-xp-bar-wrap" title="Click to recolor XP" data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}">
+                                <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%; background:${barBg};"></div>
                             </div>
                         </div>`;
                     }
@@ -2775,7 +3219,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
                 return lines.map(line => {
-                    const asMarker = tryRenderMarker(line);
+                    const asMarker = tryRenderMarker(line, tag);
                     if (asMarker !== null) return asMarker;
 
                     const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
@@ -2816,7 +3260,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 };
 
                 for (const line of lines) {
-                    const asMarker = tryRenderMarker(line);
+                    const asMarker = tryRenderMarker(line, tag);
                     if (asMarker !== null) {
                         flushBullets();
                         inventoryResults.push(asMarker);
@@ -2836,7 +3280,7 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             case 'ABILITIES': {
                 const abilityResults = [];
                 for (const line of lines) {
-                    const asMarker = tryRenderMarker(line);
+                    const asMarker = tryRenderMarker(line, tag);
                     if (asMarker !== null) { abilityResults.push(asMarker); continue; }
                     const l = line.trim();
                     const items = l.match(/^[-*]\s+/) ? [l.replace(/^[-*]\s*/, '')] : splitSmart(l);
@@ -2993,7 +3437,14 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 await sendDirectPrompt(prompts[archetype]);
             });
         });
-        
+
+        el.querySelectorAll('.rt-hp-bar-wrap[data-recolor-id], .rt-xp-bar-wrap[data-recolor-id]').forEach(wrap => {
+            wrap.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleRecolor(wrap.dataset.recolorId, wrap.dataset.recolorCurrent, wrap);
+            });
+        });
+
         const onboardingResetLink = el.querySelector('#rt-onboarding-auto-apply');
         if (onboardingResetLink) {
             onboardingResetLink.addEventListener('click', async (e) => {
@@ -3357,17 +3808,16 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                     <div style="position: relative; display: flex; align-items: center;">
                         <div id="rt-sysprompt-menu" class="rt-sysprompt-menu" style="display: none;">
-                            <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.27</b> (Tool Call + Queue)</button>
-                            <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
-                        </div>
-                        <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
-                    </div>
-                    <button id="rt-rng-help-btn" class="rt-rng-toggle-overlay" style="min-width: 20px; justify-content: center; padding: 2px 4px; margin-left: auto;" title="RNG Help">
-                        <i class="fa-solid fa-question-circle"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+                             <button class="rt-sysprompt-opt" data-file="sysprompt.txt"><b>v1.8.27</b> (Tool Call + Queue)</button>
+                             <button class="rt-sysprompt-opt" data-file="sysprompt_legacy.txt"><b>v1.3.x</b> (Queue Only)</button>
+                             <hr style="margin: 2px 0; border: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                             <button class="rt-sysprompt-opt" id="rt-sysprompt-help-btn">What are these?</button>
+                         </div>
+                         <button class="rpg-tracker-nav-btn" id="rt-copy-sysprompt" style="padding: 1px 5px; font-size: 9px; opacity: 0.8; margin-left: 5px;" title="Copy Narrator System Prompt">SYSPROMPT</button>
+                     </div>
+                 </div>
+             </div>
+         `;
 
         document.body.appendChild(panel);
 
@@ -3555,34 +4005,6 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 syncFooterToggles();
                 registerDiceFunctionTool();
                 toastr['info'](`Tool Call RNG ${s.diceFunctionTool ? 'Enabled' : 'Disabled'}.`, 'Fatbody Framework');
-            });
-        }
-
-        const helpBtn = panel.querySelector('#rt-rng-help-btn');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', () => {
-                const { Popup } = SillyTavern.getContext();
-                const content = `
-                    <div style="text-align: left; line-height: 1.4; max-height: 70vh; overflow-y: auto; padding-right: 5px;">
-                        <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
-                        <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
-                        <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
-
-                        <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
-                        <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
-                        <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
-                            <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
-                        </p>
-
-                        <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
-                        <p>Click the <b>SYSPROMPT</b> button in the bottom right of the UI to copy the appropriate system prompt for your chosen RNG/dice rolling method:</p>
-                        <ul style="padding-left: 20px;">
-                            <li style="margin-bottom: 8px;"><b>Tool Call + Queue</b>: The modern hybrid system. Mandatory for the Tool Call RNG toggle to function.</li>
-                            <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
-                        </ul>
-                    </div>
-                `;
-                Popup.show.confirm('RNG Systems Explained', content, { okButton: 'OK', cancelButton: false });
             });
         }
 
@@ -3814,6 +4236,35 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         panel.querySelectorAll('.rt-sysprompt-opt').forEach(opt => {
             opt.addEventListener('click', async (e) => {
                 const fileName = /** @type {HTMLElement} */ (e.currentTarget).getAttribute('data-file');
+                
+                if (!fileName) {
+                    // This is the "What are these?" button
+                    const { Popup } = SillyTavern.getContext();
+                    const helpContent = `
+                        <div style="text-align: left; line-height: 1.4; max-height: 70vh; overflow-y: auto; padding-right: 5px;">
+                            <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
+                            <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
+                            <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
+
+                            <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
+                            <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
+                            <p style="background: rgba(255, 165, 0, 0.1); border-left: 3px solid orange; padding: 10px; font-size: 11px; color: #eee; border-radius: 0 4px 4px 0;">
+                                <b>NOTE:</b> "Enable function calling" <b>must</b> be enabled in SillyTavern's <b>AI Response Configuration</b> for tool calls to work.
+                            </p>
+
+                            <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
+                            <p>Choose the system prompt that matches your selected RNG method:</p>
+                            <ul style="padding-left: 20px;">
+                                <li style="margin-bottom: 8px;"><b>Tool Call + Queue</b>: The modern hybrid system. Mandatory for the Tool Call RNG toggle to function.</li>
+                                <li><b>Queue Only</b>: The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
+                            </ul>
+                        </div>
+                    `;
+                    Popup.show.confirm('RNG Systems Explained', helpContent, { okButton: 'OK', cancelButton: false });
+                    syspromptMenu.style.display = 'none';
+                    return;
+                }
+
                 let content;
 
                 // Attempt to fetch the live file from disk first
@@ -4747,6 +5198,28 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
         });
     }
 
+    /*
+    /**
+     * Assembles the sysprompt from rawText, stripping XML sections that are
+     * disabled in settings.syspromptModules.
+     * Only sections explicitly set to false are removed.
+     * @param {string} rawText
+     * @returns {string}
+     * /
+    function buildSysprompt(rawText) {
+        if (!rawText) return "";
+        const mods = getSettings().syspromptModules || {};
+        return rawText
+            .replace(/<(\w[\w_-]*)>([\s\S]*?)<\/\1>/g, (match, tag) => {
+                // Only remove if the toggle is explicitly set to false
+                if (mods[tag] === false) return "";
+                return match;
+            })
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+    }
+    */
+
     /**
      * Initialization
      */
@@ -5063,24 +5536,75 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                 await refreshLorebookList();
             });
 
-            // Theme Select
+            // Theme Select + Wizard
             const themeSelect = $('#rpg_tracker_theme_select');
             themeSelect.val(settings.trackerTheme || 'rt-theme-native');
+
+            const wizardBlock = document.getElementById('rpg_tracker_theme_wizard_block');
+            const showHideWizard = (theme) => {
+                if (wizardBlock) wizardBlock.style.display = theme === 'rt-theme-custom' ? 'block' : 'none';
+            };
+            showHideWizard(settings.trackerTheme || 'rt-theme-native');
+
+            // Theme Wizard buttons
+            document.getElementById('rpg_tracker_theme_generate')?.addEventListener('click', () => {
+                openThemeWizard(false);
+            });
+            document.getElementById('rpg_tracker_theme_iterate')?.addEventListener('click', () => {
+                if (!settings.customTheme) {
+                    toastr['info']('No custom theme to iterate on. Generating a new one instead.', 'Theme Wizard');
+                    openThemeWizard(false);
+                } else {
+                    openThemeWizard(true);
+                }
+            });
+
+            // Restore saved custom theme on settings load
+            if (settings.customTheme) applyCustomTheme(settings.customTheme);
+
             themeSelect.on('change', function () {
                 const newTheme = String($(this).val());
                 settings.trackerTheme = newTheme;
                 ctx.saveSettingsDebounced();
-                // Apply immediately
+                showHideWizard(newTheme);
                 const panel = document.getElementById('rpg-tracker-panel');
                 if (panel) {
                     panel.className = `rpg-tracker-panel ${newTheme}`;
                     if (!settings.enabled) panel.classList.add('is-paused');
                 }
-                // Apply to detached panels
                 document.querySelectorAll('.rpg-tracker-detached-panel').forEach(dp => {
                     dp.className = `rpg-tracker-panel rpg-tracker-detached-panel ${newTheme}`;
                 });
             });
+
+            document.getElementById('rpg_tracker_theme_save')?.addEventListener('click', () => {
+                if (!settings.customTheme) {
+                    toastr['warning']('No custom theme to save. Generate one first!', 'Theme Wizard');
+                    return;
+                }
+                const name = prompt('Enter a name for this theme:', 'My Custom Theme');
+                if (name && name.trim()) {
+                    const trimmedName = name.trim();
+                    if (settings.savedThemes && settings.savedThemes[trimmedName]) {
+                        if (!confirm(`A theme named "${trimmedName}" already exists. Overwrite?`)) return;
+                    }
+                    if (!settings.savedThemes) settings.savedThemes = {};
+                    settings.savedThemes[trimmedName] = JSON.parse(JSON.stringify(settings.customTheme));
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    refreshSavedThemesList();
+                    toastr['success'](`Saved "${name}" to library.`, 'Theme Library');
+                }
+            });
+            document.getElementById('rpg_tracker_theme_wizard_reset')?.addEventListener('click', () => {
+                settings.customTheme = null;
+                ctx.saveSettingsDebounced();
+                applyCustomTheme(null);
+                const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+                if (statusEl) { statusEl.style.display = 'block'; statusEl.style.color = 'inherit'; statusEl.textContent = 'Custom theme cleared.'; }
+                refreshSavedThemesList();
+            });
+
+            refreshSavedThemesList();
 
             const fontSizeInput = $('#rpg_tracker_font_size');
             fontSizeInput.val(settings.fontSize || 13).on('input', function() {
@@ -5341,12 +5865,13 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
                     mainTextarea.value = content;
                     // Fire blur to trigger ST's handleQuickEditSave listener
                     mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
-                    toastr['success']('All prompts reset & Main sysprompt applied! ✅', 'RPG Tracker');
+                    toastr['success']('All prompts reset & Main sysprompt applied! \u2705', 'RPG Tracker');
                 } else {
                     // Fallback: ST might not be in OpenAI mode, so the quick-edit textarea may not exist.
                     // Copy to clipboard as a graceful fallback.
                     const ta = document.createElement('textarea');
                     ta.value = content;
+                    // content = typeof buildSysprompt === 'function' ? buildSysprompt(content) : content;
                     ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
                     document.body.appendChild(ta);
                     ta.focus();
@@ -5365,6 +5890,62 @@ You may be asked to use Markers: ((PILLS)), ((BAR)), ((XPBAR)), ((BADGE)), ((HIG
             $('#rpg_tracker_btn_update').on('click', async function () {
                 const { chat } = SillyTavern.getContext();
                 if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
+
+                /*
+                // ── Sysprompt Section Toggles ──
+                const _syspromptModDefs = [
+                    { key: 'loot',          id: 'rpg_sysprompt_mod_loot' },
+                    { key: 'random_events', id: 'rpg_sysprompt_mod_random_events' },
+                    { key: 'resting',       id: 'rpg_sysprompt_mod_resting' },
+                ];
+                _syspromptModDefs.forEach(({ key, id }) => {
+                    const s = getSettings();
+                    const val = s.syspromptModules?.[key] ?? true;
+                    $(`#${id}`).prop('checked', val).on('change', function () {
+                        const fresh = getSettings();
+                        if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                        fresh.syspromptModules[key] = !!$(this).prop('checked');
+                        ctx.saveSettingsDebounced();
+                    });
+                });
+
+                $('#rpg_tracker_btn_apply_sysprompt').on('click', async function () {
+                    const fileName = 'sysprompt.txt';
+                    let content;
+                    try {
+                        const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                        if (response.ok) {
+                            content = await response.text();
+                        } else {
+                            throw new Error(`Server returned ${response.status}`);
+                        }
+                    } catch (err) {
+                        console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                        content = RT_PROMPTS[fileName];
+                    }
+
+                    if (!content) {
+                        toastr['error']('Could not load sysprompt.txt.', 'RPG Tracker');
+                        return;
+                    }
+
+                    if (typeof buildSysprompt === 'function') content = buildSysprompt(content);
+
+                    const mainTextarea = (document.getElementById('main_prompt_quick_edit_textarea'));
+                    if (mainTextarea) {
+                        mainTextarea.value = content;
+                        mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                        toastr['success']('Main sysprompt applied! \u2705', 'RPG Tracker');
+                    } else {
+                        try {
+                            await navigator.clipboard.writeText(content);
+                            toastr['warning']('Quick Prompt "Main" textarea not found. Sysprompt copied to clipboard \u2705', 'RPG Tracker');
+                        } catch (e) {
+                            toastr['warning']('Quick Prompt "Main" textarea not found and clipboard copy failed.', 'RPG Tracker');
+                        }
+                    }
+                });
+                */
 
                 let lastAssistantMsg = "";
                 for (let i = chat.length - 1; i >= 0; i--) {
