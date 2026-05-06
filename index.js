@@ -4300,7 +4300,11 @@ Rules:
                 ta.select();
                 try {
                     document.execCommand('copy');
-                    toastr['success'](`${fileName} copied to clipboard! Make sure to enable tool calls in the completion preset!`, "Fatbody Framework");
+                    const isLegacy = fileName === 'sysprompt_legacy.txt';
+                    const msg = isLegacy 
+                        ? `${fileName} copied to clipboard! Make sure to disable tool call RNG from the bottom of the UI.`
+                        : `${fileName} copied to clipboard! Make sure to enable tool calls in the completion preset!`;
+                    toastr['success'](msg, "Fatbody Framework");
                     syspromptMenu.style.display = 'none';
                 } catch (err) {
                     console.error("[Fatbody Framework] execCommand copy failed:", err);
