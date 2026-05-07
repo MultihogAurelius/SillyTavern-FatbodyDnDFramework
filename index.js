@@ -95,6 +95,32 @@ import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll,
     }
 
     /**
+     * Injects/updates the <style id="rt-custom-theme-style"> tag in <head>
+     * to set the --rt-custom-* variables on :root.
+     * @param {Record<string,string>|null} vars
+     */
+    function applyCustomTheme(vars) {
+        let tag = document.getElementById('rt-custom-theme-style');
+        if (!tag) {
+            tag = document.createElement('style');
+            tag.id = 'rt-custom-theme-style';
+            document.head.appendChild(tag);
+        }
+
+        if (!vars) {
+            tag.textContent = '';
+            return;
+        }
+
+        let css = ':root {\n';
+        for (const [key, val] of Object.entries(vars)) {
+            if (val) css += `  --rt-custom-${key}: ${val} !important;\n`;
+        }
+        css += '}';
+        tag.textContent = css;
+    }
+
+    /**
      * Syncs the 🔗/🔓 icon in the panel header and the settings checkbox
      * to reflect the current chatLinkEnabled state.
      */
