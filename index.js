@@ -1853,9 +1853,7 @@ Rules:
         return isNaN(v) ? 120 : Math.max(40, v);
     }
 
-    /**
-     * Profile system
-
+    /** Profile system — load a named profile into live settings. */
     function loadProfile(name) {
         const s = getSettings();
         const p = s.profiles?.[name];
@@ -1876,8 +1874,6 @@ Rules:
         const dp = document.getElementById('rpg-tracker-delta-content');
         if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
         syncMemoView();
-    }
-
     }
 
     function refreshProfileDropdown() {
