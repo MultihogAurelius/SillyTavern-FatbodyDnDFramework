@@ -94,6 +94,127 @@ import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll,
         updateChatLinkUI();
     }
 
+    async function openThemeWizard(isIteration = false) {
+        const settings = getSettings();
+
+        const systemPrompt = `You are a CSS theme designer for a dark-UI RPG tracker panel.
+The user will describe a visual theme in plain language. You must output ONLY a valid JSON object with these exact keys and CSS values:
+
+{
+  "--rt-custom-bg": "<CSS background value, usually rgba()>",
+  "--rt-custom-blur": "<blur() value, e.g. blur(12px)>",
+  "--rt-custom-border": "<full CSS border, e.g. 1px solid #rrggbb>",
+  "--rt-custom-text": "<primary text color, hex or rgba>",
+  "--rt-custom-text-muted": "<secondary/dimmed text color>",
+  "--rt-custom-font": "<font-family stack>",
+  "--rt-custom-font-mono": "<monospace font-family stack>",
+  "--rt-custom-accent": "<main accent/highlight color>",
+  "--rt-custom-accent-dim": "<accent color at ~40% opacity, rgba()>",
+  "--rt-custom-accent-bg": "<accent color at ~10-15% opacity, rgba()>",
+  "--rt-custom-card-border": "<full CSS border for inner cards>",
+  "--rt-custom-shadow": "<box-shadow value>",
+  "--rt-custom-header-bg": "<header background, usually semi-transparent>",
+  "--rt-custom-card-bg": "<card body background, semi-transparent>",
+  "--rt-custom-card-header": "<card header background, semi-transparent>"
+}
+
+Rules:
+- Output ONLY the JSON object. No markdown, no code fences, no explanation.
+- All colors must be valid CSS. Prefer rgba() for backgrounds (allow transparency).
+- Make the theme visually coherent and beautiful. Lean into the user's description creatively.
+- Ensure text colors have sufficient contrast against the background for readability.`;
+
+        const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+        const generateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_generate'));
+        const iterateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_iterate'));
+
+        const setStatus = (msg, isError = false) => {
+            if (!statusEl) return;
+            statusEl.style.display = 'block';
+            statusEl.style.color = isError ? '#ff7777' : 'inherit';
+            statusEl.textContent = msg;
+        };
+
+        const promptText = /** @type {HTMLTextAreaElement} */ (document.getElementById('rpg_tracker_theme_prompt'))?.value?.trim();
+        if (!promptText) {
+            setStatus(isIteration ? '⚠ Please describe the changes you want.' : '⚠ Please describe a theme first.', true);
+            return;
+        }
+
+        const iterationContext = (isIteration && settings.customTheme)
+            ? `\n\nCURRENT THEME STATE (JSON):\n${JSON.stringify(settings.customTheme, null, 2)}\n\nUser wants to CHANGE this theme as follows: ${promptText}`
+            : `\n\nUser description: ${promptText}`;
+
+        if (generateBtn) generateBtn.disabled = true;
+        if (iterateBtn) iterateBtn.disabled = true;
+        setStatus(isIteration ? '⚡ Refining theme.' : '⚡ Generating theme.');
+
+        let raw = '';
+        try {
+            raw = await sendStateRequest(settings, systemPrompt, iterationContext);
+        } catch (err) {
+            setStatus(`❌ Request failed: ${err.message}`, true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+            setStatus('❌ AI did not return valid JSON. Try a different prompt or model.', true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        let vars;
+        try {
+            vars = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            setStatus('❌ Failed to parse AI response as JSON.', true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        const expected = [
+            '--rt-custom-bg', '--rt-custom-blur', '--rt-custom-border',
+            '--rt-custom-text', '--rt-custom-text-muted', '--rt-custom-font',
+            '--rt-custom-font-mono', '--rt-custom-accent', '--rt-custom-accent-dim',
+            '--rt-custom-accent-bg', '--rt-custom-card-border', '--rt-custom-shadow',
+            '--rt-custom-header-bg', '--rt-custom-card-bg', '--rt-custom-card-header',
+        ];
+        const missing = expected.filter(k => !vars[k]);
+        if (missing.length > 3) {
+            setStatus(`❌ AI response is missing too many theme keys: ${missing.join(', ')}`, true);
+            if (generateBtn) generateBtn.disabled = false;
+            if (iterateBtn) iterateBtn.disabled = false;
+            return;
+        }
+
+        if (settings.customTheme) {
+            themeUndoStack.push(JSON.parse(JSON.stringify(settings.customTheme)));
+            if (themeUndoStack.length > 20) themeUndoStack.shift();
+        }
+        settings.customTheme = vars;
+        settings.trackerTheme = 'rt-theme-custom';
+        SillyTavern.getContext().saveSettingsDebounced();
+        applyCustomTheme(vars);
+
+        document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+            p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+        });
+
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+        if (sel) sel.value = 'rt-theme-custom';
+
+        setStatus(isIteration ? '✅ Theme refined!' : '✅ Theme generated!');
+        if (generateBtn) generateBtn.disabled = false;
+        if (iterateBtn) iterateBtn.disabled = false;
+        toastr['success'](isIteration ? 'Theme refined successfully!' : 'New theme generated and applied!', 'Theme Wizard');
+        refreshSavedThemesList();
+    }
+
     function refreshSavedThemesList() {
         const settings = getSettings();
         const container = document.getElementById('rpg_tracker_saved_themes_container');
