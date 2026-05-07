@@ -94,6 +94,205 @@ import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll,
         updateChatLinkUI();
     }
 
+    function refreshSavedThemesList() {
+        const settings = getSettings();
+        const container = document.getElementById('rpg_tracker_saved_themes_container');
+        const list = document.getElementById('rpg_tracker_saved_themes_list');
+        if (!container || !list) return;
+
+        const entries = Object.entries(settings.savedThemes || {});
+        if (entries.length === 0) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        list.innerHTML = '';
+
+        entries.forEach(([name, vars]) => {
+            const row = document.createElement('div');
+            row.className = 'flex-container alignitemscenter gap-1';
+            row.style.background = 'rgba(255,255,255,0.05)';
+            row.style.padding = '4px 8px';
+            row.style.borderRadius = '4px';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            nameSpan.style.flex = '1';
+            nameSpan.style.fontSize = '0.85em';
+            nameSpan.style.cursor = 'pointer';
+            nameSpan.className = 'interactable';
+            nameSpan.title = 'Click to load this theme';
+            nameSpan.addEventListener('click', () => {
+                settings.customTheme = JSON.parse(JSON.stringify(vars));
+                settings.trackerTheme = 'rt-theme-custom';
+                SillyTavern.getContext().saveSettingsDebounced();
+                applyCustomTheme(settings.customTheme);
+                
+                // Update UI
+                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+                if (sel) sel.value = 'rt-theme-custom';
+                document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+                    p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+                });
+                
+                const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.style.color = 'inherit';
+                    statusEl.textContent = `⚡ Loaded library theme: ${name}`;
+                }
+            });
+
+            const delBtn = document.createElement('i');
+            delBtn.className = 'fa-solid fa-trash-can interactable';
+            delBtn.style.fontSize = '0.8em';
+            delBtn.style.opacity = '0.5';
+            delBtn.title = 'Delete theme';
+            delBtn.addEventListener('click', () => {
+                if (confirm(`Are you sure you want to delete the theme "${name}"?`)) {
+                    delete settings.savedThemes[name];
+                    SillyTavern.getContext().saveSettingsDebounced();
+                    refreshSavedThemesList();
+                    toastr['info'](`Deleted theme: ${name}`, 'Theme Library');
+                }
+            });
+
+            row.appendChild(nameSpan);
+            row.appendChild(delBtn);
+            list.appendChild(row);
+        });
+    }
+
+    function handleRecolor(barId, currentBg, targetEl) {
+        if (!barId) return;
+
+        document.getElementById('rt-recolor-popup')?.remove();
+
+        const s = getSettings();
+        const initialCfg = s.barColors?.[barId] ? JSON.parse(JSON.stringify(s.barColors[barId])) : null;
+        
+        let cfg = s.barColors?.[barId];
+        if (!cfg) {
+            const isHP = barId.endsWith(':HP') || barId.includes(':HPBAR') || barId.endsWith(':HP');
+            let color = "#ff0000";
+            const hexMatch = currentBg.match(/#[0-9a-fA-F]{3,8}/);
+            if (hexMatch) color = hexMatch[0];
+            
+            if (isHP) {
+                cfg = { mode: 'dynamic', color: '#00ffaa', color2: '#ff5555' };
+            } else {
+                cfg = { mode: 'solid', color: color };
+            }
+        } else if (typeof cfg === 'string') {
+            cfg = { mode: 'solid', color: cfg };
+        }
+
+        const applyLive = () => {
+            const ss = getSettings();
+            if (!ss.barColors) ss.barColors = {};
+            ss.barColors[barId] = { ...cfg };
+            SillyTavern.getContext().saveSettingsDebounced();
+            refreshRenderedView();
+        };
+
+        const popup = document.createElement('div');
+        popup.id = 'rt-recolor-popup';
+        popup.style.cssText = `
+            position: fixed; z-index: 999999; background: #252535; border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.75);
+            backdrop-filter: blur(16px); color: #ffffff !important; font-family: sans-serif; width: 240px;
+        `;
+
+        const renderContent = () => {
+            popup.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="font-size:0.85em; font-weight:bold; opacity:0.8; letter-spacing:0.05em; text-transform:uppercase;">Recolor Bar</div>
+                    
+                    <div style="display:flex; background:rgba(0,0,0,0.3); border-radius:6px; padding:2px;">
+                        <button class="mode-btn" data-mode="solid" style="flex:1; border:none; background:${cfg.mode==='solid'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Solid</button>
+                        <button class="mode-btn" data-mode="gradient" style="flex:1; border:none; background:${cfg.mode==='gradient'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Gradient</button>
+                        <button class="mode-btn" data-mode="dynamic" style="flex:1; border:none; background:${cfg.mode==='dynamic'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Dynamic</button>
+                    </div>
+
+                    <div id="recolor-controls" style="display:flex; align-items:center; gap:10px; min-height:40px;">
+                        ${cfg.mode === 'dynamic' ? `
+                            <span style="font-size:0.8em; opacity:0.7;">HP-based coloring active</span>
+                        ` : `
+                            <input id="color1" type="color" value="${cfg.color}" style="width:40px; height:30px; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer; background:rgba(255,255,255,0.1);" />
+                            ${cfg.mode === 'gradient' ? `
+                                <span style="font-size:1.2em; opacity:0.5;">&rarr;</span>
+                                <input id="color2" type="color" value="${cfg.color2 || cfg.color}" style="width:40px; height:30px; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer; background:rgba(255,255,255,0.1);" />
+                            ` : ''}
+                        `}
+                    </div>
+
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button id="recolor-ok" style="flex:1.5; padding:6px; border-radius:6px; border:none; background:var(--rt-accent-bg, #00ffaa); color:#000; font-weight:bold; cursor:pointer; font-size:0.85em;">OK</button>
+                        <button id="recolor-cancel" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white; cursor:pointer; font-size:0.85em;">Cancel</button>
+                        <button id="recolor-reset" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white; cursor:pointer; font-size:0.85em;" title="Reset to defaults">Reset</button>
+                    </div>
+                </div>
+            `;
+
+            popup.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    cfg.mode = /** @type {HTMLElement} */ (btn).dataset.mode;
+                    if (cfg.mode === 'gradient' && !cfg.color2) cfg.color2 = cfg.color;
+                    applyLive();
+                    renderContent();
+                });
+            });
+
+            const c1 = popup.querySelector('#color1');
+            const c2 = popup.querySelector('#color2');
+            if (c1) c1.addEventListener('input', (e) => { cfg.color = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
+            if (c2) c2.addEventListener('input', (e) => { cfg.color2 = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
+
+            popup.querySelector('#recolor-ok').addEventListener('click', () => {
+                applyLive();
+                popup.remove();
+            });
+
+            popup.querySelector('#recolor-cancel').addEventListener('click', () => {
+                const ss = getSettings();
+                if (initialCfg) ss.barColors[barId] = initialCfg;
+                else delete ss.barColors[barId];
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
+                popup.remove();
+            });
+
+            popup.querySelector('#recolor-reset').addEventListener('click', () => {
+                const ss = getSettings();
+                if (ss.barColors) delete ss.barColors[barId];
+                SillyTavern.getContext().saveSettingsDebounced();
+                refreshRenderedView();
+                popup.remove();
+            });
+        };
+
+        renderContent();
+        document.body.appendChild(popup);
+        
+        const rect = targetEl.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - 120;
+        let top = rect.top - popup.offsetHeight - 12;
+        left = Math.max(8, Math.min(left, window.innerWidth - 248));
+        if (top < 8) top = rect.bottom + 12;
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+
+        const onOutside = (e) => {
+            if (!popup.contains(e.target)) {
+                popup.remove();
+                document.removeEventListener('mousedown', onOutside);
+            }
+        };
+
+        setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+    }
+
     /**
      * Injects/updates the <style id="rt-custom-theme-style"> tag in <head>
      * to set the --rt-custom-* variables on :root.
