@@ -2695,6 +2695,15 @@ Rules:
 
             const settings = getSettings();
 
+            // One-time legacy mode prompt synchronization for existing sessions
+            if (settings.questLegacyMode && settings.stockPrompts?.quests) {
+                if (settings.stockPrompts.quests.includes('JSON object with an "updates" array')) {
+                    settings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests_legacy;
+                    console.log('[RPG Tracker] Legacy Mode detected: Synchronized quest stock prompt to legacy version.');
+                    ctx.saveSettingsDebounced();
+                }
+            }
+
             $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
                 settings.enabled = !!$(this).prop('checked');
                 ctx.saveSettingsDebounced();
@@ -3305,6 +3314,15 @@ Rules:
                 delete extensionSettings[MODULE_NAME].stockPrompts;
                 delete extensionSettings[MODULE_NAME].blockOrder;
                 delete extensionSettings[MODULE_NAME].modules;
+                
+                // Re-merge defaults
+                const finalSettings = getSettings();
+                
+                // If legacy mode is on, we MUST apply the legacy quest prompt after reset
+                if (finalSettings.questLegacyMode) {
+                    finalSettings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests_legacy;
+                }
+                
                 refreshOrderList();
                 ctx.saveSettingsDebounced();
 
@@ -3393,20 +3411,13 @@ Rules:
                         if (!fresh.stockPrompts) fresh.stockPrompts = {};
                         // Store tool prompt if we haven't yet, then load legacy
                         if (!fresh._questToolPromptBackup) fresh._questToolPromptBackup = fresh.stockPrompts.quests;
-                        const { DEFAULT_STOCK_PROMPTS: DSP } = /** @type {any} */ ({ DEFAULT_STOCK_PROMPTS: window.__rpgDefaultStockPrompts || {} });
-                        import('./constants.js').then(({ DEFAULT_STOCK_PROMPTS }) => {
-                            fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests_legacy;
-                            ctx.saveSettingsDebounced();
-                        });
+                        fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests_legacy;
                     } else {
                         // Restore tool-mode prompt
-                        import('./constants.js').then(({ DEFAULT_STOCK_PROMPTS }) => {
-                            const fresh2 = getSettings();
-                            fresh2.stockPrompts.quests = fresh2._questToolPromptBackup ?? DEFAULT_STOCK_PROMPTS.quests;
-                            delete fresh2._questToolPromptBackup;
-                            ctx.saveSettingsDebounced();
-                        });
+                        fresh.stockPrompts.quests = fresh._questToolPromptBackup ?? DEFAULT_STOCK_PROMPTS.quests;
+                        delete fresh._questToolPromptBackup;
                     }
+                    refreshOrderList();
                     registerLogQuestTool();
                     ctx.saveSettingsDebounced();
                 });
