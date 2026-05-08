@@ -888,6 +888,29 @@ Rules:
             names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
     }
 
+    async function showRngExplanation() {
+        const { Popup } = SillyTavern.getContext();
+        const body = `
+            <div style="font-size: 0.95em; line-height: 1.4;">
+                <h4 style="margin-top: 0; color: var(--rt-accent);">RNG Queue (Combat)</h4>
+                <p>Generates a list of pre-rolled dice and injects them into the story context. This keeps combat fast and fluid because the AI doesn't need to stop for a tool call on every attack—it just uses the next roll in the queue.</p>
+                <p>Functions perfectly in combat because combat works on a "grid" determined by initiative, taking any opportunity of mechanical sycophancy away from the AI.</p>
+
+                <h4 style="color: var(--rt-accent);">Tool Call RNG (Narrative)</h4>
+                <p>A reactive tool call where the AI proactively asks to roll specific dice for a specific action (e.g., picking a lock). This prevents "cheating" by forcing the AI to commit to a difficulty (DC) before seeing the roll result.</p>
+                <p><small><b>NOTE:</b> "Enable function calling" must be enabled in SillyTavern's AI Response Configuration for tool calls to work.</small></p>
+
+                <h4 style="color: var(--rt-accent);">System Prompt Selection</h4>
+                <p>Choose the system prompt that matches your selected RNG method:</p>
+                <ul>
+                    <li><b>Tool Call + Queue:</b> The modern hybrid system (recommended). Mandatory for the Tool Call RNG toggle to function.</li>
+                    <li><b>Queue Only:</b> The legacy behavior. Ideal if your model doesn't support tool calling or if you prefer the classic "always-in-context" RNG.</li>
+                </ul>
+            </div>
+        `;
+        await Popup.show.confirm('🎲 RNG Systems Explained', body, { okButton: 'Got it', cancelButton: false });
+    }
+
     function bindRenderedCardEvents(el, memo, isDetachedContext = false, onRefresh = null) {
         const refresh = onRefresh || refreshRenderedView;
         el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
@@ -911,6 +934,14 @@ Rules:
             wrap.addEventListener('click', (e) => {
                 e.stopPropagation();
                 handleRecolor(wrap.dataset.recolorId, wrap.dataset.recolorCurrent, wrap);
+            });
+        });
+
+        // RNG Help Popup Trigger
+        el.querySelectorAll('.rt-rng-help-icon').forEach(icon => {
+            icon.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showRngExplanation();
             });
         });
 
@@ -2666,6 +2697,12 @@ Rules:
             $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
                 settings.debugMode = !!$(this).prop('checked');
                 saveSettings();
+            });
+
+            // RNG Help Popup Trigger (Settings)
+            $('.rt-rng-help-icon').on('click', (e) => {
+                e.stopPropagation();
+                showRngExplanation();
             });
 
             $('#rpg_tracker_legacy_dice').prop('checked', settings.legacyDiceNaming).on('change', function () {
