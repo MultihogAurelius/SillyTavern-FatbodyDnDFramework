@@ -905,11 +905,7 @@ Rules:
                     `A reactive system where the AI proactively calls a dice tool for a specific narrative action (e.g., picking a lock, persuading a guard). The AI must declare a <b>Difficulty Class (DC)</b> before seeing the result. This ensures it can't "game the system" by lowering the DC to fit a roll or skipping the roll entirely. While I haven't personally observed this "gaming" behavior with the Queue-only method, Tool Calls ensure that it remains technically impossible.`
                 )}
                 <div style="background: rgba(255,200,50,0.08); border: 1px solid rgba(255,200,50,0.25); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.88em; text-align: left;">
-                    <b style="color: #ffcc33;">⚠ Requirements for Tool Call RNG:</b><br>
-                    <ul style="margin: 6px 0 0 0; padding-left: 20px; opacity: 0.9; text-align: left; list-style-position: outside;">
-                        <li style="margin-bottom: 2px;">Select <b>Hybrid RNG</b> (this menu).</li>
-                        <li style="margin-bottom: 2px;">Enable <b>Function Calling</b> in SillyTavern's AI Response Configuration.</li>
-                    </ul>
+                    <b style="color: #ffcc33;">⚠ Important:</b> Tool Call RNG requires <b>"Enable function calling"</b> to be enabled in SillyTavern's AI Response Configuration.
                 </div>
                 ${card('📋', 'Which prompt should I use?',
                     `<ul style="margin: 4px 0 0 0; padding-left: 20px; text-align: left; list-style-position: outside;">
