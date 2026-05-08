@@ -3329,6 +3329,8 @@ Rules:
                     return;
                 }
 
+                content = typeof buildSysprompt === 'function' ? buildSysprompt(content) : content;
+
                 const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
                 if (mainTextarea) {
                     mainTextarea.value = content;
@@ -3340,7 +3342,6 @@ Rules:
                     // Copy to clipboard as a graceful fallback.
                     const ta = document.createElement('textarea');
                     ta.value = content;
-                    content = typeof buildSysprompt === 'function' ? buildSysprompt(content) : content;
                     ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
                     document.body.appendChild(ta);
                     ta.focus();
