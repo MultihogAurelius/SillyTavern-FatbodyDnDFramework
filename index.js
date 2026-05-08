@@ -35,6 +35,54 @@ import { registerLogQuestTool } from './quests.js';
         if (s.chatLinkEnabled && _currentChatId) {
             saveChatState(_currentChatId);
         }
+        syncOnboardingUI();
+    }
+
+    /**
+     * Synchronizes the onboarding UI elements with the current settings state.
+     * This is called whenever a setting is saved to ensure both the main sidebar
+     * and the tracker's onboarding screen stay perfectly in sync.
+     */
+    function syncOnboardingUI() {
+        const s = getSettings();
+        const onboarding = document.querySelector('.rt-empty');
+        if (!onboarding) return;
+
+        // RNG Mode Sync
+        const rngHybrid = onboarding.querySelector('#rt_onboarding_rng_hybrid');
+        const rngLegacy = onboarding.querySelector('#rt_onboarding_rng_legacy');
+        if (rngHybrid && rngLegacy) {
+            rngHybrid.checked = !!s.diceFunctionTool;
+            rngLegacy.checked = !s.diceFunctionTool;
+        }
+
+        // Quests Enabled Sync
+        const questsEnabled = onboarding.querySelector('#rt_onboarding_quests_enabled');
+        if (questsEnabled) {
+            const isEnabled = s.syspromptModules?.quests !== false;
+            questsEnabled.checked = isEnabled;
+            const optionsDiv = onboarding.querySelector('#rt_onboarding_quest_options');
+            if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
+        }
+
+        // Hardcore Quests Sync
+        const hardcore = onboarding.querySelector('#rt_onboarding_quests_hardcore');
+        if (hardcore) hardcore.checked = !!s.questsHardcore;
+
+        // Quest Processing Mode Sync
+        const qmStandard = onboarding.querySelector('#rt_onboarding_quest_standard');
+        const qmLegacy = onboarding.querySelector('#rt_onboarding_quest_legacy');
+        if (qmStandard && qmLegacy) {
+            qmStandard.checked = !s.questLegacyMode;
+            qmLegacy.checked = !!s.questLegacyMode;
+        }
+
+        // Optional Components Sync
+        const mods = { 'loot': '#rt_onboarding_mod_loot', 'random_events': '#rt_onboarding_mod_random_events', 'resting': '#rt_onboarding_mod_resting' };
+        for (const [key, id] of Object.entries(mods)) {
+            const cb = onboarding.querySelector(id);
+            if (cb) cb.checked = !!s.syspromptModules?.[key];
+        }
     }
     // ── Renderer / navigation state ──
     let _historyViewIndex = -1;    // -1 = live, 0 = most recent snapshot, higher = older
@@ -982,7 +1030,10 @@ Rules:
         if (onboardingHardcoreCb) {
             onboardingHardcoreCb.checked = !!s.questsHardcore;
             onboardingHardcoreCb.addEventListener('change', () => {
-                $('#rpg_quests_hardcore').prop('checked', onboardingHardcoreCb.checked).trigger('change');
+                const mainCb = document.getElementById('rpg_quests_hardcore');
+                if (mainCb) {
+                    $(mainCb).prop('checked', onboardingHardcoreCb.checked).trigger('change');
+                }
             });
         }
 
