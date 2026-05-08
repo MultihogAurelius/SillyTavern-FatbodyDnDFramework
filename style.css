@@ -1,7 +1,7 @@
 /* Theme Scopes */
 .rpg-tracker-panel {
     /* Hacker (Default fallback) */
-    --rt-bg: rgba(20, 20, 20, 0.88);
+    --rt-bg: rgba(20, 20, 20, 0.94);
     --rt-blur: blur(12px);
     --rt-border: var(--rt-border);
     --rt-text: #eee;
@@ -20,7 +20,7 @@
 }
 
 .rpg-tracker-panel.rt-theme-native {
-    --rt-bg: var(--SmartThemeBlurTrans, rgba(30, 30, 30, 0.85));
+    --rt-bg: var(--SmartThemeBlurTrans, rgba(30, 30, 30, 0.93));
     --rt-blur: var(--smartThemeBlur, blur(10px));
     --rt-border: var(--smartThemeBorder, 1px solid rgba(255,255,255,0.1));
     --rt-text: var(--SmartThemeBodyColorText, #eee);
@@ -38,7 +38,7 @@
 }
 
 .rpg-tracker-panel.rt-theme-hacker {
-    --rt-bg: rgba(10, 15, 10, 0.95);
+    --rt-bg: rgba(10, 15, 10, 0.98);
     --rt-blur: blur(0px);
     --rt-border: 1px solid #00ffaa;
     --rt-text: #00dd88;
@@ -56,7 +56,7 @@
 }
 
 .rpg-tracker-panel.rt-theme-fantasy {
-    --rt-bg: rgba(45, 35, 25, 0.9);
+    --rt-bg: rgba(45, 35, 25, 0.95);
     --rt-blur: blur(4px);
     --rt-border: 1px solid #8b6b4a;
     --rt-text: #e6dac3;
@@ -73,7 +73,7 @@
 }
 
 .rpg-tracker-panel.rt-theme-hologram {
-    --rt-bg: rgba(10, 20, 30, 0.6);
+    --rt-bg: rgba(10, 20, 30, 0.8);
     --rt-blur: blur(16px);
     --rt-border: 1px solid rgba(0, 255, 255, 0.3);
     --rt-text: #e0ffff;
@@ -91,7 +91,7 @@
 }
 
 .rpg-tracker-panel.rt-theme-azure {
-    --rt-bg: rgba(180, 220, 240, 0.8);
+    --rt-bg: rgba(180, 220, 240, 0.9);
     --rt-blur: blur(12px);
     --rt-border: 1.5px solid #00b4d8;
     --rt-text: #142d41;
@@ -111,7 +111,7 @@
 /* ── AI Wizard Custom Theme ── */
 /* Variables are injected dynamically by the Theme Wizard into #rt-custom-theme-style */
 .rpg-tracker-panel.rt-theme-custom {
-    --rt-bg: var(--rt-custom-bg, rgba(20, 20, 30, 0.92));
+    --rt-bg: var(--rt-custom-bg, rgba(20, 20, 30, 0.96));
     --rt-blur: var(--rt-custom-blur, blur(12px));
     --rt-border: var(--rt-custom-border, 1px solid rgba(255,255,255,0.2));
     --rt-text: var(--rt-custom-text, #eeeeee);
@@ -213,7 +213,7 @@
 
 /* Disabled via the settings checkbox — full transparency */
 .rpg-tracker-panel.is-disabled {
-    opacity: 0.35;
+    opacity: 0.68;
     filter: grayscale(0.6) brightness(0.8);
     pointer-events: none;
 }
@@ -221,7 +221,7 @@
 /* Paused via the pause button — visible but indicating pause */
 .rpg-tracker-panel.is-paused .rpg-tracker-memo-area,
 .rpg-tracker-panel.is-paused .rpg-tracker-render-view {
-    opacity: 0.85;
+    opacity: 0.93;
 }
 
 /* Header center for pause banner */
