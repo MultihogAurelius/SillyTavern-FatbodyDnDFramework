@@ -1,8 +1,8 @@
 import { EXAMPLES, COLOR_EXAMPLES, DEFAULT_STOCK_PROMPTS, RT_PROMPTS, BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js';
-import { MODULE_NAME, getSettings, getBarBackground, migrateCustomFields, saveChatState, saveProfile, deleteProfile } from './settings.js';
-import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './api.js';
-import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded } from './rng.js';
-import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, syncQuestsFromMemo, syncQuestsToMemo } from './state-engine.js';
+import { MODULE_NAME, getSettings, getBarBackground, migrateCustomFields, saveChatState, saveProfile, deleteProfile } from './state-manager.js';
+import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
+import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded } from './narrative-hooks.js';
+import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, syncQuestsFromMemo, syncQuestsToMemo } from './memo-processor.js';
 import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog } from './renderer.js';
 import { registerLogQuestTool } from './quests.js';
 
@@ -95,7 +95,7 @@ import { registerLogQuestTool } from './quests.js';
 
 
 
-    // ── Chat-Linked State (deferred from settings.js — touches DOM + _historyViewIndex) ──
+    // ── Chat-Linked State (deferred from state-manager.js — touches DOM + _historyViewIndex) ──
 
     /**
      * Restore a previously saved chat state into the live settings.
@@ -725,8 +725,8 @@ Rules:
         }
     }
 
-    // ── Phase-5 bridge: exposes runStateModelPass for rng.js/onGenerationEnded ──
-    // Removed when state-engine.js is created in Phase 5.
+    // ── Phase-5 bridge: exposes runStateModelPass for narrative-hooks.js/onGenerationEnded ──
+    // Removed when memo-processor.js is created in Phase 5.
     globalThis._rpgRunStateModelPass = runStateModelPass;
 
     function handleLevelUp() {

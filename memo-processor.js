@@ -1,13 +1,15 @@
 /**
- * state-engine.js — Fatbody D&D Framework
+ * memo-processor.js — Fatbody D&D Framework
  * Pure text/logic utilities for memo management and state model context assembly.
+ * Handles [TAG]...[/TAG] block merging, deduplication, delta computation,
+ * lorebook assembly, and quest text serialization.
  * No DOM access. No module-level side effects.
  *
- * Imports: settings.js, constants.js
- * Imported by: index.js (runStateModelPass, sendDirectPrompt)
+ * Imports: state-manager.js, constants.js
+ * Imported by: index.js, renderer.js, quests.js
  */
 
-import { getSettings } from './settings.js';
+import { getSettings } from './state-manager.js';
 import { DEFAULT_STOCK_PROMPTS } from './constants.js';
 
 // ── String utilities ──────────────────────────────────────────────────────────

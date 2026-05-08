@@ -1,7 +1,9 @@
 /**
- * settings.js — Fatbody D&D Framework
- * Pure settings access, persistence, and migration.
- * No DOM. No shared mutable state. No circular deps.
+ * state-manager.js — Fatbody D&D Framework
+ * Game state schema, defaults, persistence, migration, and profile I/O.
+ * Owns the single source of truth for all runtime state (currentMemo, quests,
+ * modules, chat-linked snapshots, connection settings, etc.).
+ * No DOM. No circular deps.
  *
  * Imports: constants.js
  * Imported by: virtually everything — the root dependency.

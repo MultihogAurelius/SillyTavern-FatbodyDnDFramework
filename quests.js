@@ -3,8 +3,8 @@
  * Quest management, deadline tracking, and tool registration.
  */
 
-import { getSettings } from './settings.js';
-import { syncQuestsToMemo } from './state-engine.js';
+import { getSettings } from './state-manager.js';
+import { syncQuestsToMemo } from './memo-processor.js';
 
 export function getQuestToolName() {
     return 'LogQuest';

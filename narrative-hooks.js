@@ -1,15 +1,18 @@
 /**
- * rng.js — Fatbody D&D Framework
- * RNG engine, dice tools, chat interceptor, narrative collector.
+ * narrative-hooks.js — Fatbody D&D Framework
+ * RNG engine, dice tools, chat interceptor, and narrative collector.
+ * This file is the primary hook into the SillyTavern chat pipeline:
+ * it intercepts outgoing messages to inject context (RNG queue, state memo,
+ * quests) and collects incoming AI narrative for the state model pass.
  *
- * Imports: settings.js, api.js (none — runStateModelPass imported at call time to avoid circular)
- * Imported by: index.js (registration), settings-ui.js (toggle)
+ * Imports: state-manager.js
+ * Imported by: index.js (registration)
  *
  * NOTE: runStateModelPass is resolved at call-time via globalThis to avoid a
- * circular import with state-engine.js. This will be cleaned up in Phase 5.
+ * circular import. This will be cleaned up when index.js is split.
  */
 
-import { getSettings } from './settings.js';
+import { getSettings } from './state-manager.js';
 
 // ── Dice naming helpers ────────────────────────────────────────────────────────
 
@@ -291,7 +294,7 @@ export function getNarrativeBlocks(chat, limit = -1) {
 /**
  * Fires on GENERATION_ENDED. Triggers the state model pass.
  * runStateModelPass is resolved via the module import below to avoid
- * a hard circular dep — it will be a direct import once state-engine.js exists.
+ * a hard circular dep — it will be a direct import once memo-processor.js exists.
  */
 export async function onGenerationEnded() {
     const settings = getSettings();

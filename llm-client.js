@@ -1,12 +1,13 @@
 /**
- * api.js — Fatbody D&D Framework
- * All external LLM networking. Stateless — reads settings via parameter, no DOM.
+ * llm-client.js — Fatbody D&D Framework
+ * All external LLM networking. Stateless — reads state via parameter, no DOM.
+ * Handles Ollama, OpenAI-compatible, and SillyTavern Profile/generateRaw modes.
  *
- * Imports: settings.js
- * Imported by: state-engine.js, theme-wizard.js, settings-ui.js
+ * Imports: state-manager.js
+ * Imported by: index.js, memo-processor.js
  */
 
-import { getSettings } from './settings.js';
+import { getSettings } from './state-manager.js';
 
 // ── Connection Profile Helpers ─────────────────────────────────────────────────
 
@@ -295,7 +296,7 @@ export async function testOpenAIConnection(url, apiKey, model) {
 /**
  * Routes a state request to the correct backend based on settings.connectionSource.
  * Handles: 'profile', 'ollama', 'openai', 'default' (generateRaw).
- * @param {ReturnType<import('./settings.js').getSettings>} settings
+ * @param {ReturnType<import('./state-manager.js').getSettings>} settings
  * @param {string} systemPrompt
  * @param {string} userPrompt
  * @returns {Promise<string>}

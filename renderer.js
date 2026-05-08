@@ -1,5 +1,5 @@
-import { getSettings, getBarBackground } from './settings.js';
-import { escapeHtml, highlightParens } from './state-engine.js';
+import { getSettings, getBarBackground } from './state-manager.js';
+import { escapeHtml, highlightParens } from './memo-processor.js';
 import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js';
 
 // ── Renderer module: pure HTML string producers, localStorage helpers ──
