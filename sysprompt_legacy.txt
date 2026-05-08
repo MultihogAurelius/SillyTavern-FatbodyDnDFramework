@@ -120,7 +120,7 @@ Track XP as a running total across outputs.
 </xp_system>
 
 <quests>
-When the player formally accepts a quest from an NPC, describe it clearly in the narrative. State who gave the quest, where they are located, what the task entails, any time pressure, and what rewards were promised. Do NOT do this for rumors, casual requests, or tasks the player has not yet agreed to.
+When the player formally accepts a quest from an NPC, describe it clearly in the narrative and conclude with the tag [QUEST ACCEPTED]. State who gave the quest, where they are located, what the task entails, any time pressure, and what rewards were promised. Do NOT do this for rumors, casual requests, or tasks the player has not yet agreed to.
 
 When an objective is completed, mention it naturally in the narrative. When a quest concludes (success or failure), narrate the outcome. The state tracking system will update the quest log accordingly.
 </quests>

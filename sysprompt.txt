@@ -125,7 +125,7 @@ When the player formally accepts a quest or task from an NPC, you MUST call the 
   · 3.0 = Volatile. Anxious and irritable even if you are ahead of schedule.
 - The NPC Mood evolves continuously on a scale from "Very Pleased" (early) to "Furious" (long overdue). Let this affect how the NPC speaks and acts when the player encounters them — a patient NPC barely mentions the quest until the deadline, while a volatile NPC may send messages or act with hostility long before it expires.
 - Set auto_fail to true ONLY for quests with hard, non-negotiable deadlines (e.g., the market closes at dawn, the prisoner is executed at noon). For all other quests, do NOT set auto_fail — frustration escalating naturally is preferred over a hard cutoff.
-- Use the LogQuest tool exactly once for each new quest accepted. Do NOT use it for rumors, casual requests, or tasks the player has not yet agreed to.
+- Describe the quest formalization in the narrative, conclude with the tag [QUEST ACCEPTED], and use the LogQuest tool exactly once. Do NOT do this for rumors, casual requests, or tasks the player has not yet agreed to.
 </quests>
 
 <level_up_protocol>
