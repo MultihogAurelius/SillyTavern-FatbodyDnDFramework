@@ -241,7 +241,7 @@ export function saveChatState(chatId) {
         blockOrder:   JSON.parse(JSON.stringify(s.blockOrder  || BLOCK_ORDER)),
         stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
         customFields: JSON.parse(JSON.stringify(s.customFields || [])),
-        quests:       JSON.parse(JSON.stringify(s.quests || [])),
+        quests:       [],  // quests are derived from currentMemo on load — not persisted separately
         historyIndex: s.historyIndex ?? -1,
     };
     SillyTavern.getContext().saveSettingsDebounced();
@@ -264,7 +264,7 @@ export function saveProfile(name) {
         blockOrder: JSON.parse(JSON.stringify(s.blockOrder || BLOCK_ORDER)),
         stockPrompts: JSON.parse(JSON.stringify(s.stockPrompts || DEFAULT_STOCK_PROMPTS)),
         customFields: JSON.parse(JSON.stringify(s.customFields || [])),
-        quests: JSON.parse(JSON.stringify(s.quests || [])),
+        // quests are derived from currentMemo on load — not persisted separately
         lastDelta: s.lastDelta || '',
         historyIndex: s.historyIndex ?? -1
     };

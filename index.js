@@ -932,13 +932,13 @@ Rules:
         s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
         s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
         s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
-        s.quests = p.quests ? JSON.parse(JSON.stringify(p.quests)) : [];
+        // quests are always derived from currentMemo — never from the profile snapshot
+        s.quests = [];
+        syncQuestsFromMemo(s.currentMemo);
         s.lastDelta = p.lastDelta ?? '';
         s.activeProfile = name;
         _historyViewIndex = -1;
         
-        // Sync quests to memo for Raw View
-        syncQuestsToMemo();
         saveSettings();
         // Refresh UI
         refreshOrderList();
