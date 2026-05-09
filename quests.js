@@ -4,7 +4,7 @@
  */
 
 import { getSettings } from './state-manager.js';
-import { syncQuestsToMemo } from './memo-processor.js';
+import { syncQuestsToMemo, parseInWorldTime } from './memo-processor.js';
 
 export function getQuestToolName() {
     return 'LogQuest';
@@ -12,24 +12,9 @@ export function getQuestToolName() {
 
 // ── Time & Math ──────────────────────────────────────────────────────────────
 
-/**
- * Converts in-world time strings to a comparable numeric value (minutes since Day 1, 00:00).
- * Expected format: "08:00 AM, Day 1"
- * @param {string} str 
- * @returns {number}
- */
-export function parseInWorldTime(str) {
-    if (!str) return 0;
-    const match = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM),\s*Day\s*(\d+)/i);
-    if (!match) return 0;
-    let hours   = parseInt(match[1]);
-    const mins  = parseInt(match[2]);
-    const mer   = match[3].toUpperCase();
-    const day   = parseInt(match[4]);
-    if (mer === 'AM' && hours === 12) hours = 0;
-    if (mer === 'PM' && hours !== 12) hours += 12;
-    return (day - 1) * 1440 + hours * 60 + mins;
-}
+// ── Time & Math ──────────────────────────────────────────────────────────────
+
+// parseInWorldTime moved to memo-processor.js
 
 /**
  * Computes NPC mood from -1.0 (very pleased) to 1.0+ (very frustrated).

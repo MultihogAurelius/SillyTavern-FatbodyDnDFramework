@@ -1,5 +1,5 @@
 import { getSettings, getBarBackground } from './state-manager.js';
-import { escapeHtml, highlightParens } from './memo-processor.js';
+import { escapeHtml, highlightParens, parseInWorldTime, formatTimeDiff } from './memo-processor.js';
 import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js';
 
 // ── Renderer module: pure HTML string producers, localStorage helpers ──
@@ -461,30 +461,14 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
                 let currentTotalMins = 0;
                 let parsedCurrent = false;
 
-                const parseTimeStr = (str) => {
-                    let d = 0, h = 0, m = 0;
-                    const dayMatch = str.match(/(?:Day|D)\s*(\d+)/i);
-                    if (dayMatch) d = parseInt(dayMatch[1], 10);
-                    const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-                    if (timeMatch) {
-                        let tmph = parseInt(timeMatch[1], 10);
-                        m = parseInt(timeMatch[2], 10);
-                        if (timeMatch[3]) {
-                            const ampm = timeMatch[3].toUpperCase();
-                            if (ampm === 'PM' && tmph < 12) tmph += 12;
-                            if (ampm === 'AM' && tmph === 12) tmph = 0;
-                        }
-                        h = tmph;
-                    }
-                    if (!dayMatch && !timeMatch) return null;
-                    return (d * 24 * 60) + (h * 60) + m;
-                };
+                // parseTimeStr removed, using shared parseInWorldTime from memo-processor.js
+
 
                 for (let line of lines) {
                     if (line.toLowerCase().startsWith('last rest:')) continue;
                     if (!parsedCurrent) {
-                        const t = parseTimeStr(line);
-                        if (t !== null) {
+                        const t = parseInWorldTime(line);
+                        if (t !== 0) {
                             currentTotalMins = t;
                             parsedCurrent = true;
                         }
@@ -496,19 +480,11 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
                             const restVal = line.substring(line.indexOf(':') + 1).trim();
                             let append = "";
                             if (parsedCurrent) {
-                                const restMins = parseTimeStr(restVal);
+                                const restMins = parseInWorldTime(restVal);
                                 if (restMins !== null) {
                                     const diff = currentTotalMins - restMins;
                                     if (diff >= 0) {
-                                        const dH = Math.floor(diff / 60);
-                                        const dM = diff % 60;
-                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dH > 0 ? dH + ' hours ' : ''}${dM > 0 ? dM + ' minutes ' : ''}ago)</i>`;
-                                        if (diff === 0) append = ` <i style="opacity: 0.7; font-size: 0.9em;">(just now)</i>`;
-                                        if (dH >= 24) {
-                                            const dDays = Math.floor(dH / 24);
-                                            const dRemH = dH % 24;
-                                            append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${dDays} days ${dRemH > 0 ? dRemH + ' hours ' : ''}ago)</i>`;
-                                        }
+                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${formatTimeDiff(diff, false)})</i>`;
                                     }
                                 }
                             }
@@ -946,14 +922,32 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
             : '';
         const moodBarFinalHtml = showFrustration ? moodBarHtml : '';
 
+        const currentTotalMins = parseInWorldTime(currentTime);
+        const deadlineMins = parseInWorldTime(quest.deadline_time);
+        let timeLeftHtml = '';
+        if (currentTotalMins > 0 && deadlineMins > 0) {
+            const diff = deadlineMins - currentTotalMins;
+            timeLeftHtml = ` <i style="opacity: 0.7; font-size: 0.9em;">(${formatTimeDiff(diff, diff > 0)})</i>`;
+        }
+
         const deadlineRow = (quest.deadline_time && settings.isDeadlines) ? `
             <div class="rt-quest-deadline">
                 <div class="rt-quest-deadline-header">
-                    <span class="rt-entity-sub-label">Deadline:</span> ${escapeHtml(quest.deadline_time)}
+                    <span class="rt-entity-sub-label">Deadline:</span> ${escapeHtml(quest.deadline_time)}${timeLeftHtml}
                     ${moodLabelHtml}
                 </div>
                 ${moodBarFinalHtml}
             </div>` : '';
+
+        const acceptedMins = parseInWorldTime(quest.accepted_time);
+        let acceptedRow = '';
+        if (currentTotalMins > 0 && acceptedMins > 0) {
+            const diff = currentTotalMins - acceptedMins;
+            acceptedRow = `
+                <div class="rt-quest-accepted">
+                    <span class="rt-entity-sub-label">Accepted:</span> ${escapeHtml(quest.accepted_time)} <i style="opacity: 0.7; font-size: 0.9em;">(${formatTimeDiff(diff, false)})</i>
+                </div>`;
+        }
 
         return `<div class="rt-quest-card${quest.status !== 'active' ? ' rt-quest-inactive' : ''}">
             <div class="rt-quest-header">
@@ -963,6 +957,7 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
             <div class="rt-quest-giver">${escapeHtml(quest.giver_name)} · <em>${escapeHtml(quest.giver_location)}</em></div>
             <div class="rt-quest-objectives">${objectives}</div>
             ${rewards ? `<div class="rt-quest-rewards">${rewards}</div>` : ''}
+            ${acceptedRow}
             ${deadlineRow}
         </div>`;
     }).join('');

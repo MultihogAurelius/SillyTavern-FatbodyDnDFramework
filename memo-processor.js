@@ -27,6 +27,58 @@ export function highlightParens(text) {
     return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
 }
 
+/**
+ * Converts in-world time strings to a comparable numeric value (minutes since Day 1, 00:00).
+ * Expected formats: "08:00 AM, Day 1", "Day 4", "10:00 PM"
+ * @param {string} str 
+ * @returns {number}
+ */
+export function parseInWorldTime(str) {
+    if (!str) return 0;
+    const dayMatch = str.match(/(?:Day|D)\s*(\d+)/i);
+    const timeMatch = str.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    
+    let d = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+    let h = 0, m = 0;
+    
+    if (timeMatch) {
+        h = parseInt(timeMatch[1], 10);
+        m = parseInt(timeMatch[2], 10);
+        if (timeMatch[3]) {
+            const mer = timeMatch[3].toUpperCase();
+            if (mer === 'AM' && h === 12) h = 0;
+            if (mer === 'PM' && h !== 12) h += 12;
+        }
+    }
+    
+    if (!dayMatch && !timeMatch) return 0;
+    return (d - 1) * 1440 + h * 60 + m;
+}
+
+/**
+ * Formats a minute difference into a human-readable "X days Y hours Z minutes" string.
+ * @param {number} diffMinutes 
+ * @param {boolean} isFuture - If true, returns "X left", else "X ago"
+ * @returns {string}
+ */
+export function formatTimeDiff(diffMinutes, isFuture = false) {
+    if (diffMinutes === 0) return isFuture ? "due now" : "just now";
+    const absDiff = Math.abs(diffMinutes);
+    const dDays = Math.floor(absDiff / 1440);
+    const dH = Math.floor((absDiff % 1440) / 60);
+    const dM = absDiff % 60;
+    
+    let parts = [];
+    if (dDays > 0) parts.push(`${dDays} day${dDays > 1 ? 's' : ''}`);
+    if (dH > 0) parts.push(`${dH} hour${dH > 1 ? 's' : ''}`);
+    if (dM > 0) parts.push(`${dM} minute${dM > 1 ? 's' : ''}`);
+    
+    if (parts.length === 0) return isFuture ? "due now" : "just now";
+    
+    const timeStr = parts.join(' ');
+    return isFuture ? `${timeStr} left` : `${timeStr} ago`;
+}
+
 // ── Memo deduplication ────────────────────────────────────────────────────────
 
 /**
