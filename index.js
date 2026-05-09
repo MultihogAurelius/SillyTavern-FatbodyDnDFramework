@@ -49,33 +49,33 @@ import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
         if (!onboarding) return;
 
         // RNG Mode Sync
-        const rngHybrid = onboarding.querySelector('#rt_onboarding_rng_hybrid');
-        const rngLegacy = onboarding.querySelector('#rt_onboarding_rng_legacy');
+        const rngHybrid = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_hybrid'));
+        const rngLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_legacy'));
         if (rngHybrid && rngLegacy) {
             rngHybrid.checked = !!s.diceFunctionTool;
             rngLegacy.checked = !s.diceFunctionTool;
         }
 
         // Quests Enabled Sync
-        const questsEnabled = onboarding.querySelector('#rt_onboarding_quests_enabled');
+        const questsEnabled = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_enabled'));
         if (questsEnabled) {
             const isEnabled = s.syspromptModules?.quests !== false;
             questsEnabled.checked = isEnabled;
-            const optionsDiv = onboarding.querySelector('#rt_onboarding_quest_options');
+            const optionsDiv = /** @type {HTMLElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_options'));
             if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
         }
 
         // Deadlines Sync
-        const deadlines = onboarding.querySelector('#rt_onboarding_quests_deadlines');
+        const deadlines = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_deadlines'));
         if (deadlines) deadlines.checked = !!s.syspromptModules?.questsDeadlines;
 
         // Frustration levels Sync
-        const frustration = onboarding.querySelector('#rt_onboarding_quests_frustration');
+        const frustration = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_frustration'));
         if (frustration) frustration.checked = !!s.syspromptModules?.questsFrustration;
 
         // Quest Processing Mode Sync
-        const qmStandard = onboarding.querySelector('#rt_onboarding_quest_standard');
-        const qmLegacy = onboarding.querySelector('#rt_onboarding_quest_legacy');
+        const qmStandard = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_standard'));
+        const qmLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_legacy'));
         if (qmStandard && qmLegacy) {
             qmStandard.checked = !s.questLegacyMode;
             qmLegacy.checked = !!s.questLegacyMode;
@@ -84,7 +84,7 @@ import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
         // Optional Components Sync
         const mods = { 'loot': '#rt_onboarding_mod_loot', 'random_events': '#rt_onboarding_mod_random_events', 'resting': '#rt_onboarding_mod_resting' };
         for (const [key, id] of Object.entries(mods)) {
-            const cb = onboarding.querySelector(id);
+            const cb = /** @type {HTMLInputElement|null} */ (onboarding.querySelector(id));
             if (cb) cb.checked = !!s.syspromptModules?.[key];
         }
     }

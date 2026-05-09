@@ -267,6 +267,7 @@ export function registerLogQuestTool() {
         unregisterFunctionTool('LogQuest');
         registerFunctionTool({
             name: 'LogQuest',
+            displayName: 'LogQuest',
             description: toolDescription,
             parameters: {
                 type: 'object',
