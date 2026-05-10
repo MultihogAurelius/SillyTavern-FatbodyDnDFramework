@@ -2,6 +2,15 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.8.20] - 2026-05-10
+
+**Enhancement: Robust Difficulty Parsing**
+Improved the difficulty system to allow for non-standard ratings and ensured UI stability.
+
+### Changed
+- **Flexible Difficulty**: Removed the strict enum requirement for quest difficulty, allowing the AI to use custom ratings if appropriate.
+- **Rendering Fallback**: Added a robust rendering fallback in the quest log. Non-standard difficulty levels now use a neutral theme that remains legible across different visual themes.
+
 ## [1.8.19] - 2026-05-10
 
 **Fix: Tool Registration Bug**

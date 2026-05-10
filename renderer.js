@@ -979,12 +979,14 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
             'Hard': '#f97316',      // Orange
             'Very Hard': '#ef4444'  // Red
         };
-        const diffBadge = quest.difficulty ? `<span class="rt-quest-badge" style="background: ${diffColors[quest.difficulty] || 'rgba(255,255,255,0.1)'}; color: #000; font-weight: 800; border: none;">${quest.difficulty.toUpperCase()}</span>` : '';
+        const badgeBg = diffColors[quest.difficulty] || 'rgba(120, 120, 120, 0.2)';
+        const badgeColor = diffColors[quest.difficulty] ? '#000' : 'rgba(255,255,255,0.9)';
+        const diffBadge = quest.difficulty ? `<span class="rt-quest-badge" style="background: ${badgeBg}; color: ${badgeColor}; font-weight: 800; border: none;">${escapeHtml(String(quest.difficulty)).toUpperCase()}</span>` : '';
 
         return `<div class="${cardClass}">
             <div class="rt-quest-header">
                 <span class="rt-quest-title">${escapeHtml(quest.title)}</span>
-                <div style="display: flex; gap: 4px;">
+                <div class="rt-quest-badges">
                     ${diffBadge}
                     <span class="rt-quest-badge ${statusBadgeClass}">${statusLabel}</span>
                 </div>

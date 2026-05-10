@@ -279,8 +279,7 @@ export function registerLogQuestTool() {
         if (isDifficulty) {
             properties.difficulty = {
                 type: 'string',
-                enum: ['Very Easy', 'Easy', 'Medium', 'Hard', 'Very Hard'],
-                description: 'The estimated difficulty of the quest as established in the narrative.'
+                description: 'The estimated difficulty of the quest (e.g. "Very Easy", "Easy", "Medium", "Hard", "Very Hard", or a custom rating).'
             };
             required.push('difficulty');
         }
