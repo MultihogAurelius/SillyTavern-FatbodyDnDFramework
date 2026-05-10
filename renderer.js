@@ -132,13 +132,13 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
             }
             let spellsHtml = '';
             if (spellList) {
-                spellsHtml = `<div class="rt-spell-list">${spellList.split(',').map(s => {
+                spellsHtml = spellList.split(',').map(s => {
                     const name = s.trim();
                     const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
                     return `<a href="https://dnd5e.wikidot.com/spell:${slug}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
-                }).join('')}</div>`;
+                }).join('');
             }
-            html += `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div></div>`;
+            html += `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group"><div class="rt-spell-list">${pipsHtml}${spellsHtml}</div></div></div>`;
         }
         return html || `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(val))}</div>`;
     }
@@ -211,7 +211,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
         // Plain kv fallback
         const kv = line.match(/^([^:]+):\s*(.+)$/);
         if (kv) return `<div class="rt-card-kv"><span class="rt-card-key">${escapeHtmlWithColor(kv[1].trim())}:</span><span class="rt-card-val">${escapeHtmlWithColor(kv[2].trim())}</span></div>`;
-        return `<div class="rt-card-line">${escapeHtmlWithColor(line.trim())}</div>`;
+        return `<div class="rt-card-item">${escapeHtmlWithColor(line.trim())}</div>`;
     }
 
     /**
@@ -466,7 +466,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                         results[lastEntityIdx] += renderLineInEntityContext(tag, line, currentEntity, rawLine);
                     } else {
                         // No active entity: render as a standalone card line
-                        results.push(`<div class="rt-card-line">${escapeHtmlWithColor(rawLine)}</div>`);
+                        results.push(`<div class="rt-card-item">${escapeHtmlWithColor(rawLine)}</div>`);
                     }
                 }
                 return results;
@@ -499,15 +499,15 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                                 if (restMins !== null) {
                                     const diff = currentTotalMins - restMins;
                                     if (diff >= 0) {
-                                        append = ` <i style="opacity: 0.7; font-size: 0.9em;">(${formatTimeDiff(diff, false)})</i>`;
+                                        append = `&nbsp;<span style="opacity: 0.7; font-size: 1em;">(${formatTimeDiff(diff, false)})</span>`;
                                     }
                                 }
                             }
-                            return `<div class="rt-card-line"><b>Last Rest:</b> ${escapeHtmlWithColor(restVal)}${append}</div>`;
+                            return `<div class="rt-card-item"><b>Last Rest:</b>&nbsp;${escapeHtmlWithColor(restVal)}${append}</div>`;
                         }
                         const asMarker = tryRenderMarker(line, tag);
                         if (asMarker !== null) return asMarker;
-                        return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
+                        return `<div class="rt-card-item">${escapeHtmlWithColor(line)}</div>`;
                     });
             }
             case 'XP':
@@ -552,7 +552,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                         </div>`;
                     }
 
-                    return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
+                    return `<div class="rt-card-item">${escapeHtmlWithColor(line)}</div>`;
                 });
             case 'SPELLS': {
                 // Lines: "Level N (avail/max): Spell1, Spell2" or "Cantrips: Spell1, Spell2"
@@ -561,7 +561,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                     if (asMarker !== null) return asMarker;
 
                     const m = line.match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*:\s*(.+)$/i);
-                    if (!m) return `<div class="rt-card-line">${escapeHtmlWithColor(line)}</div>`;
+                    if (!m) return `<div class="rt-card-item">${escapeHtmlWithColor(line)}</div>`;
                     const [, label, availStr, maxStr, spellList] = m;
                     const isCantrip = /cantrip/i.test(label);
                     let pipsHtml = '';
@@ -582,7 +582,9 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                     }).join('');
                     return `<div class="rt-spell-row">
                         <span class="rt-spell-level">${escapeHtmlWithColor(label.trim())}</span>
-                        <div class="rt-spell-inline-group">${pipsHtml}<div class="rt-spell-list">${spells}</div></div>
+                        <div class="rt-spell-inline-group">
+                            <div class="rt-spell-list">${pipsHtml}${spells}</div>
+                        </div>
                     </div>`;
                 });
             }
@@ -593,7 +595,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
 
                 const flushBullets = () => {
                     if (!pendingBullets.length) return;
-                    pendingBullets.forEach(i => inventoryResults.push(`<div class="rt-card-item">• ${escapeHtmlWithColor(i)}</div>`));
+                    pendingBullets.forEach(i => inventoryResults.push(`<div class="rt-card-item">${escapeHtmlWithColor(i)}</div>`));
                     pendingBullets.length = 0;
                 };
 
@@ -827,17 +829,32 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                 </button>
             `;
 
+            const renderOptions = getSettings().categoryRenderOptions?.[tag] || {};
+            const catStyles = [];
+            if (renderOptions.fontSize) catStyles.push(`--rt-cat-font-size: ${renderOptions.fontSize}px`);
+            if (renderOptions.italic) catStyles.push(`--rt-cat-font-style: italic`);
+            if (renderOptions.bold) catStyles.push(`--rt-cat-font-weight: bold`);
+            if (renderOptions.bullets === false) catStyles.push(`--rt-cat-bullet-display: none`);
+            if (renderOptions.bulletColor) catStyles.push(`--rt-cat-bullet-color: ${renderOptions.bulletColor}`);
+            if (renderOptions.bulletStyle) catStyles.push(`--rt-cat-bullet-style: "${renderOptions.bulletStyle}"`);
+            if (renderOptions.fontFamily) catStyles.push(`--rt-cat-font-family: ${renderOptions.fontFamily}`);
+            if (renderOptions.textColor && renderOptions.textColor !== 'inherit') catStyles.push(`--rt-cat-text-color: ${renderOptions.textColor}`);
+            const catStyleAttr = catStyles.length ? ` style='${catStyles.join('; ')}'` : '';
+
             return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${tag}">
                 <div class="rt-section-header" data-tag="${tag}">
                     <span>${icon} ${displayName}</span>
                     <div class="rt-section-header-right">
                         ${detachBtn}
                         ${fullViewBtn}
+                        <button class="rt-category-settings-btn" data-tag="${tag}" title="Category Rendering Options">
+                            <i class="fa-solid fa-cog"></i>
+                        </button>
                         <span class="rt-item-count">${items.length} ${items.length === 1 ? 'entry' : 'entries'}</span>
                         <span class="rt-collapse-icon">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
                     </div>
                 </div>
-                <div class="${bodyClass}">${pageItems.join('')}${pagination}</div>
+                <div class="${bodyClass}"${catStyleAttr}>${pageItems.join('')}${pagination}</div>
             </div>`;
         }).join('');
     }
@@ -1032,16 +1049,31 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
         </div>`;
     }
 
+    const renderOptions = getSettings().categoryRenderOptions?.[TAG] || {};
+    const catStyles = [];
+    if (renderOptions.fontSize) catStyles.push(`--rt-cat-font-size: ${renderOptions.fontSize}px`);
+    if (renderOptions.italic) catStyles.push(`--rt-cat-font-style: italic`);
+    if (renderOptions.bold) catStyles.push(`--rt-cat-font-weight: bold`);
+    if (renderOptions.bullets === false) catStyles.push(`--rt-cat-bullet-display: none`);
+    if (renderOptions.bulletColor) catStyles.push(`--rt-cat-bullet-color: ${renderOptions.bulletColor}`);
+    if (renderOptions.bulletStyle) catStyles.push(`--rt-cat-bullet-style: "${renderOptions.bulletStyle}"`);
+    if (renderOptions.fontFamily) catStyles.push(`--rt-cat-font-family: ${renderOptions.fontFamily}`);
+    if (renderOptions.textColor && renderOptions.textColor !== 'inherit') catStyles.push(`--rt-cat-text-color: ${renderOptions.textColor}`);
+    const catStyleAttr = catStyles.length ? ` style='${catStyles.join('; ')}'` : '';
+
     return `<div class="rt-section-card${isCollapsed ? ' rt-collapsed' : ''}" data-tag="${TAG}">
         <div class="rt-section-header" data-tag="${TAG}">
             <span>📋 QUESTS</span>
             <div class="rt-section-header-right">
                 ${detachBtn}
+                <button class="rt-category-settings-btn" data-tag="${TAG}" title="Category Rendering Options">
+                    <i class="fa-solid fa-cog"></i>
+                </button>
                 <span class="rt-item-count">${activeQuests.length} active</span>
                 <span class="rt-collapse-icon">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
             </div>
         </div>
-        <div class="rt-section-body" style="padding-bottom: 5px;">${bodyHtml}</div>
+        <div class="rt-section-body"${catStyleAttr} style="padding-bottom: 5px;">${bodyHtml}</div>
     </div>`;
 }
     /**

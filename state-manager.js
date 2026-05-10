@@ -178,6 +178,7 @@ When you log a quest, describe the location and the quest giver in a single para
 <updating_entities>
 When an entity (location, NPC, etc) changes in a meaningful way, change the associated lorebook entry to keep everything up to date.
 </updating_entities>`,
+        categoryRenderOptions: {},
     };
 
     if (!extensionSettings[MODULE_NAME]) {

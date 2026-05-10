@@ -84,9 +84,12 @@
                             <option value="rt-theme-azure">Azure Atoll</option>
                             <option value="rt-theme-custom">✨ Custom (AI Wizard)</option>
                         </select>
-                        <div class="flex-container alignitemscenter gap-1">
-                            <span>Font Size</span>
-                            <input id="rpg_tracker_font_size" type="number" class="text_pole" style="width: 60px; margin-left: auto;" min="8" max="32" />
+                        <div class="flex-container flexFlowColumn gap-1" style="margin-top: 5px;">
+                            <div class="flex-container alignitemscenter" style="width: 100%;">
+                                <span>Global Font Size</span>
+                                <span id="rpg_tracker_font_size_val" style="margin-left: auto; font-weight: bold; opacity: 0.8;">13px</span>
+                            </div>
+                            <input id="rpg_tracker_font_size" type="range" class="text_pole" style="width: 100%; cursor: pointer;" min="8" max="32" />
                         </div>
 
                         <div id="rpg_tracker_theme_wizard_block" style="display:none; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; padding: 10px; background: rgba(255,255,255,0.03);">

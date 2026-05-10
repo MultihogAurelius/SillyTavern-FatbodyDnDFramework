@@ -498,7 +498,7 @@
     gap: 6px;
 }
 
-.rt-fullview-btn {
+.rt-fullview-btn, .rt-category-settings-btn {
     background: none;
     border: none;
     padding: 0;
@@ -514,7 +514,7 @@
     justify-content: center;
 }
 
-.rt-fullview-btn:hover {
+.rt-fullview-btn:hover, .rt-category-settings-btn:hover {
     opacity: 1;
     color: var(--rt-text);
 }
@@ -615,7 +615,7 @@
 .rt-spell-inline-group {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-start;
     gap: 4px;
     min-width: 0;
 }
@@ -624,7 +624,8 @@
 
 .rt-spell-level {
     font-size: 0.88em;
-    color: var(--rt-text-muted);
+    color: inherit;
+    opacity: 0.7;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -645,11 +646,13 @@
 }
 
 .rt-slot-pips {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding-top: 3px;
+    gap: 4px;
+    margin-right: 6px;
     flex-shrink: 0;
+    height: 1.4em; /* Match typical line height */
+    vertical-align: middle;
 }
 
 .rt-slot-pip {
@@ -705,7 +708,7 @@
 
 .rt-spell-name {
     font-size: 0.92em;
-    color: var(--rt-text);
+    color: inherit;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 4px;
@@ -723,7 +726,11 @@
 
 .rt-section-body {
     padding: 7px 10px;
-    font-size: 0.95em;
+    font-size: var(--rt-cat-font-size, 0.95em);
+    font-style: var(--rt-cat-font-style, normal);
+    font-weight: var(--rt-cat-font-weight, normal);
+    font-family: var(--rt-cat-font-family, inherit);
+    color: var(--rt-cat-text-color, inherit);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -813,7 +820,7 @@
 
 .rt-unit-name {
     font-weight: 600;
-    color: var(--rt-text);
+    color: inherit;
 }
 
 .rt-unit-icon {
@@ -931,7 +938,8 @@
 }
 
 .rt-entity-sub-label {
-    color: var(--rt-text-muted);
+    color: inherit;
+    opacity: 0.7;
 }
 
 .rt-entity-attributes {
@@ -958,9 +966,23 @@
 
 /* Inventory */
 .rt-card-item {
-    color: var(--rt-text);
+    color: inherit;
     padding: 1px 0;
-    font-size: 0.95em;
+    font-size: inherit;
+    display: flex;
+    align-items: flex-start;
+}
+
+.rt-card-item::before {
+    content: var(--rt-cat-bullet-style, "\2022");
+    color: var(--rt-cat-bullet-color, inherit);
+    display: var(--rt-cat-bullet-display, inline-block);
+    margin-right: 8px;
+    flex-shrink: 0;
+    font-weight: bold;
+    font-family: var(--rt-font);
+    font-size: 1.1em;
+    line-height: 1;
 }
 
 /* Abilities */
@@ -973,7 +995,7 @@
 .rt-ability-pill {
     background: var(--rt-accent-bg);
     border: 1px solid var(--rt-accent-dim);
-    color: var(--rt-accent);
+    color: inherit;
     border-radius: 12px;
     padding: 2px 9px;
     font-size: 0.92em;
@@ -986,7 +1008,8 @@
 
 .rt-xp-label {
     font-size: 0.88em;
-    color: var(--rt-text-muted);
+    color: inherit;
+    opacity: 0.7;
     margin-bottom: 3px;
     display: flex;
     justify-content: space-between;
@@ -1026,12 +1049,12 @@
 }
 
 .rt-card-val {
-    color: var(--rt-text);
+    color: inherit;
     font-size: 0.95em;
 }
 
 .rt-card-line {
-    color: var(--rt-text);
+    color: inherit;
     font-size: 0.95em;
     padding: 1px 0;
 }
@@ -1668,7 +1691,7 @@
 .rt-quest-title {
     font-weight: 700;
     font-size: 0.97em;
-    color: var(--rt-text);
+    color: inherit;
     line-height: 1.3;
 }
 
@@ -1709,7 +1732,7 @@
     align-items: flex-start;
     gap: 6px;
     font-size: 0.88em;
-    color: var(--rt-text);
+    color: inherit;
     line-height: 1.3;
 }
 
@@ -1732,7 +1755,7 @@
 .rt-quest-check {
     flex-shrink: 0;
     font-size: 0.9em;
-    color: var(--rt-accent);
+    color: var(--rt-cat-bullet-color, var(--rt-accent));
     margin-top: 1px;
 }
 

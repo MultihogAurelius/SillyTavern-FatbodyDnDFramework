@@ -25,6 +25,7 @@ import { runRouterPass } from './router.js';
     let _stateController = null;   // To abort ongoing state updates
     let _currentChatId = null;
     let themeUndoStack = [];
+    let _pillDeselectHandler = null;
 
     /**
      * Centralized save helper that handles both global settings and
@@ -625,6 +626,226 @@ Rules:
         };
 
         setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+    }
+
+    function handleCategorySettings(tag, targetEl) {
+        const existing = document.getElementById('rt-cat-settings-popup');
+        if (existing) {
+            const oldTag = existing.getAttribute('data-tag');
+            existing.remove();
+            if (oldTag === tag) return;
+        }
+        const s = getSettings();
+        if (!s.categoryRenderOptions) s.categoryRenderOptions = {};
+        if (!s.categoryRenderOptions[tag]) {
+            const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
+            s.categoryRenderOptions[tag] = {
+                fontSize: (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13,
+                italic: false,
+                bold: false,
+                bullets: !noBullets,
+                bulletStyle: tag === 'INVENTORY' ? '▪' : '•',
+                bulletColor: 'inherit',
+                fontFamily: 'inherit',
+                textColor: 'inherit'
+            };
+        } else if (s.categoryRenderOptions[tag].bullets === undefined) {
+            // Migration for existing settings: default specific categories to no bullets
+            if (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES') {
+                s.categoryRenderOptions[tag].bullets = false;
+            } else {
+                s.categoryRenderOptions[tag].bullets = true;
+            }
+        }
+        const cfg = s.categoryRenderOptions[tag];
+        const initialCfg = JSON.stringify(cfg);
+
+        let applyTimeout = null;
+        const applyLive = () => {
+            if (applyTimeout) clearTimeout(applyTimeout);
+            applyTimeout = setTimeout(() => {
+                saveSettings();
+                refreshRenderedView();
+            }, 50);
+        };
+
+        const popup = document.createElement('div');
+        popup.id = 'rt-cat-settings-popup';
+        popup.setAttribute('data-tag', tag);
+        popup.style.cssText = `
+            position: fixed; z-index: 999999; background: #252535; border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.75);
+            backdrop-filter: blur(16px); color: #ffffff !important; font-family: sans-serif; width: 280px;
+        `;
+
+        const renderContent = () => {
+            const symbols = ['•', '○', '●', '▪', '▫', '▶', '➤', '—', '*', '>', '✓', '⚡'];
+            popup.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="font-size:0.85em; font-weight:bold; opacity:0.8; letter-spacing:0.05em; text-transform:uppercase;">${tag} Settings</div>
+                    
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <span style="font-size:0.85em; opacity:0.8;">Font Size</span>
+                            <span id="rt-cat-fs-val" style="font-size:0.85em; font-weight:bold; color:var(--rt-accent, #00ffaa);">${cfg.fontSize || '13'}</span>
+                        </div>
+                        <input id="rt-cat-fs" type="range" value="${cfg.fontSize || 13}" min="8" max="24" step="1" style="width:100%; cursor:pointer; accent-color:var(--rt-accent, #00ffaa);">
+                    </div>
+
+                    <div style="display:flex; gap:6px;">
+                        <button id="rt-cat-bold" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:${cfg.bold ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; cursor:pointer; font-weight:bold;">B</button>
+                        <button id="rt-cat-italic" style="flex:1; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:${cfg.italic ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; cursor:pointer; font-style:italic;">I</button>
+                        ${(tag !== 'QUESTS' && tag !== 'SPELLS' && tag !== 'CHARACTER' && tag !== 'PARTY' && tag !== 'COMBAT' && tag !== 'ABILITIES') ? `<button id="rt-cat-bullets" style="flex:2; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:${cfg.bullets ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; cursor:pointer; font-size:0.85em;">${cfg.bullets ? 'Bullets: ON' : 'Bullets: OFF'}</button>` : ''}
+                    </div>
+
+                    <div style="display:${(cfg.bullets && tag !== 'QUESTS' && tag !== 'SPELLS' && tag !== 'CHARACTER' && tag !== 'PARTY' && tag !== 'COMBAT' && tag !== 'ABILITIES') ? 'flex' : 'none'}; flex-direction:column; gap:8px;">
+                        <div style="font-size:0.75em; opacity:0.6; font-weight:bold; text-transform:uppercase;">Bullet Style</div>
+                        <div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:4px;">
+                            ${symbols.map(s => `
+                                <button class="symbol-btn" data-symbol="${s}" style="aspect-ratio:1; border:1px solid ${cfg.bulletStyle === s ? 'var(--rt-accent, #00ffaa)' : 'rgba(255,255,255,0.1)'}; background:${cfg.bulletStyle === s ? 'rgba(0,255,170,0.1)' : 'rgba(0,0,0,0.2)'}; color:white; border-radius:4px; cursor:pointer; font-size:1em;">${s}</button>
+                            `).join('')}
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+                            <span style="font-size:0.85em; opacity:0.8;">Bullet Color</span>
+                            <input id="rt-cat-bullet-color" type="color" value="${cfg.bulletColor === 'inherit' ? '#ffffff' : cfg.bulletColor}" style="width:40px; height:24px; border:none; border-radius:4px; cursor:pointer; background:none;">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <span style="font-size:0.85em; opacity:0.8;">Font Family</span>
+                            <select id="rt-cat-family" style="background:#151525; color:white; border:1px solid rgba(255,255,255,0.2); border-radius:4px; font-size:0.85em; padding:2px 4px;">
+                                <option value="inherit" ${cfg.fontFamily === 'inherit' ? 'selected' : ''}>Inherit</option>
+                                <option value="sans-serif" ${cfg.fontFamily === 'sans-serif' ? 'selected' : ''}>Sans</option>
+                                <option value="serif" ${cfg.fontFamily === 'serif' ? 'selected' : ''}>Serif</option>
+                                <option value="monospace" ${cfg.fontFamily === 'monospace' ? 'selected' : ''}>Mono</option>
+                            </select>
+                        </div>
+                        <div style="display:flex; align-items:center; justify-content:space-between;">
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span style="font-size:0.85em; opacity:0.8;">Text Color</span>
+                                <button id="rt-cat-color-reset" style="font-size:0.7em; background:rgba(255,255,255,0.1); border:none; color:#aaa; border-radius:3px; padding:1px 4px; cursor:pointer;">Reset</button>
+                            </div>
+                            <input id="rt-cat-text-color" type="color" value="${cfg.textColor === 'inherit' ? '#ffffff' : cfg.textColor}" style="width:40px; height:24px; border:none; border-radius:4px; cursor:pointer; background:none;">
+                        </div>
+                    </div>
+
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button id="rt-cat-ok" style="flex:1.5; padding:8px; border-radius:6px; border:none; background:var(--rt-accent-bg, #00ffaa); color:#000; font-weight:bold; cursor:pointer; font-size:0.85em;">DONE</button>
+                        <button id="rt-cat-reset" style="flex:1; padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white; cursor:pointer; font-size:0.85em;">RESET</button>
+                    </div>
+                </div>
+            `;
+
+            popup.querySelector('#rt-cat-fs').addEventListener('mousedown', (e) => e.stopPropagation());
+            popup.querySelector('#rt-cat-fs').addEventListener('input', (e) => {
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                const val = parseInt(target.value);
+                cfg.fontSize = val;
+                const display = popup.querySelector('#rt-cat-fs-val');
+                if (display) display.textContent = val.toString() + 'px';
+                applyLive();
+            });
+
+            popup.querySelector('#rt-cat-bold').addEventListener('click', () => {
+                cfg.bold = !cfg.bold;
+                applyLive();
+                renderContent();
+            });
+
+            popup.querySelector('#rt-cat-italic').addEventListener('click', () => {
+                cfg.italic = !cfg.italic;
+                applyLive();
+                renderContent();
+            });
+
+            const bulletsBtn = popup.querySelector('#rt-cat-bullets');
+            if (bulletsBtn) {
+                bulletsBtn.addEventListener('click', () => {
+                    cfg.bullets = !cfg.bullets;
+                    applyLive();
+                    renderContent();
+                });
+            }
+
+            popup.querySelectorAll('.symbol-btn').forEach(btn => {
+                const el = /** @type {HTMLElement} */ (btn);
+                el.addEventListener('click', () => {
+                    cfg.bulletStyle = el.dataset.symbol;
+                    applyLive();
+                    renderContent();
+                });
+            });
+
+            const colorInp = popup.querySelector('#rt-cat-bullet-color');
+            if (colorInp) {
+                colorInp.addEventListener('mousedown', (e) => e.stopPropagation());
+                colorInp.addEventListener('input', (e) => {
+                    const target = /** @type {HTMLInputElement} */ (e.target);
+                    cfg.bulletColor = target.value;
+                    applyLive();
+                });
+            }
+
+            popup.querySelector('#rt-cat-family').addEventListener('change', (e) => {
+                const target = /** @type {HTMLSelectElement} */ (e.target);
+                cfg.fontFamily = target.value;
+                applyLive();
+            });
+
+            const textColorInp = popup.querySelector('#rt-cat-text-color');
+            if (textColorInp) {
+                textColorInp.addEventListener('mousedown', (e) => e.stopPropagation());
+                textColorInp.addEventListener('input', (e) => {
+                    const target = /** @type {HTMLInputElement} */ (e.target);
+                    cfg.textColor = target.value;
+                    applyLive();
+                });
+            }
+
+            popup.querySelector('#rt-cat-color-reset').addEventListener('click', () => {
+                cfg.textColor = 'inherit';
+                applyLive();
+                renderContent();
+            });
+
+            popup.querySelector('#rt-cat-ok').addEventListener('click', () => {
+                popup.remove();
+            });
+
+            popup.querySelector('#rt-cat-reset').addEventListener('click', () => {
+                const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
+                cfg.fontSize = (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13;
+                cfg.italic = false;
+                cfg.bold = false;
+                cfg.bullets = !noBullets;
+                cfg.bulletStyle = tag === 'INVENTORY' ? '▪' : '•';
+                cfg.bulletColor = 'inherit';
+                cfg.fontFamily = 'inherit';
+                cfg.textColor = 'inherit';
+                applyLive();
+                renderContent();
+            });
+        };
+
+        renderContent();
+        document.body.appendChild(popup);
+
+        const rect = targetEl.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - 140;
+        let top = rect.bottom + 10;
+        left = Math.max(8, Math.min(left, window.innerWidth - 288));
+        if (top + 300 > window.innerHeight) top = rect.top - 300;
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+
+        const onOutside = (e) => {
+            if (!popup.contains(e.target) && !targetEl.contains(e.target)) {
+                popup.remove();
+                document.removeEventListener('mouseup', onOutside);
+            }
+        };
+        setTimeout(() => document.addEventListener('mouseup', onOutside), 50);
     }
 
     /**
@@ -1543,6 +1764,13 @@ Rules:
             });
         }
 
+        el.querySelectorAll('.rt-category-settings-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleCategorySettings(btn.dataset.tag, btn);
+            });
+        });
+
         // Add toggle behavior for Unit Pills (Traits/Abilities)
         el.querySelectorAll('.rt-unit-pill').forEach(unit => {
             unit.addEventListener('click', (e) => {
@@ -1556,16 +1784,14 @@ Rules:
         });
 
         // Global deselect when clicking anything else
-        const deselectHandler = (e) => {
-            if (!e.target.closest('.rt-unit-pill')) {
-                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
-            }
-        };
-        // Use capture phase or just a standard listener on the panel/document
-        // Adding it to document is most reliable for "any empty space"
-        document.addEventListener('click', deselectHandler);
-        // Note: We might want to clean this up later in an unmount/cleanup phase if ST supports it,
-        // but for now this is standard ST extension behavior.
+        if (!_pillDeselectHandler) {
+            _pillDeselectHandler = (e) => {
+                if (!e.target.closest('.rt-unit-pill')) {
+                    document.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+                }
+            };
+            document.addEventListener('click', _pillDeselectHandler);
+        }
     }
 
     function refreshRenderedView() {
@@ -1574,15 +1800,16 @@ Rules:
         const memo = _historyViewIndex === -1
             ? s.currentMemo
             : (s.memoHistory[_historyViewIndex] ?? '');
+            
+        const collapsed = loadCollapsed();
+        const detached  = loadDetached();
+
+        // Extract world time from THIS snapshot for frustration computation
+        const timeMatch = (memo || '').match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
+        const currentTime = timeMatch ? timeMatch[1].split('\n').filter(Boolean)[0]?.trim() || '' : '';
+
         const el = document.getElementById('rpg-tracker-render');
         if (el) {
-            const collapsed = loadCollapsed();
-            const detached  = loadDetached();
-
-            // Extract world time from THIS snapshot for frustration computation
-            const timeMatch = (memo || '').match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
-            const currentTime = timeMatch ? timeMatch[1].split('\n').filter(Boolean)[0]?.trim() || '' : '';
-
             let html = renderMemoAsCards(memo, null, _sectionPages);
 
             // Append quest log section if module is enabled
@@ -1598,13 +1825,17 @@ Rules:
         }
 
         // Update any detached panels
-        const detached = loadDetached();
         detached.forEach(tag => {
             const panel = document.getElementById(`rt-detached-panel-${tag}`);
             if (panel) {
                 const body = panel.querySelector('.rpg-tracker-detached-body');
                 if (body) {
-                    body.innerHTML = renderMemoAsCards(memo, tag, _sectionPages);
+                    if (tag === 'QUESTS') {
+                        const snapshotQuests = parseQuestsFromMemo(memo);
+                        body.innerHTML = renderQuestLog(snapshotQuests, currentTime, collapsed, detached, 'QUESTS');
+                    } else {
+                        body.innerHTML = renderMemoAsCards(memo, tag, _sectionPages);
+                    }
                     bindRenderedCardEvents(body, memo, true);
                 }
             } else {
@@ -4223,9 +4454,14 @@ Rules:
             refreshSavedThemesList();
 
             const fontSizeInput = $('#rpg_tracker_font_size');
-            fontSizeInput.val(settings.fontSize || 13).on('input', function() {
+            const fontSizeVal = $('#rpg_tracker_font_size_val');
+            fontSizeInput.val(settings.fontSize || 13);
+            if (fontSizeVal.length) fontSizeVal.text((settings.fontSize || 13) + 'px');
+            
+            fontSizeInput.on('input', function() {
                 const val = parseInt(String($(this).val()));
                 if (isNaN(val) || val < 8 || val > 32) return;
+                if (fontSizeVal.length) fontSizeVal.text(val + 'px');
                 settings.fontSize = val;
                 saveSettings();
                 updateTrackerFontSize(val);
