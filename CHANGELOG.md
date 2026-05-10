@@ -2,6 +2,14 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.8.29] - 2026-05-11
+### Added
+- **Direct Prompt & Adjustable Lookback**: Added the ability to send direct commands to the Lorebook Agent and adjust the number of recent chat messages (lookback) it analyzes.
+- **UI Syncing**: Integrated lookback controls into both the agent panel and the main settings drawer with real-time value synchronization.
+
+### Fixed
+- **Lint Fixes**: Resolved HTMLElement property access errors in the agent panel's detachment logic by implementing proper type casting.
+
 ## [1.8.28] - 2026-05-10
 ### Fixed
 - **Renderer Stabilization**: Ported the definitive rendering engine from the `main` branch to resolve fragility in character card generation. This introduces "sticky entity" logic where unrecognized lines are gracefully attached to the current card instead of resetting the context, preventing UI disintegration during template modifications.
