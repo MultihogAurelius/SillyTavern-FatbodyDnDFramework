@@ -1941,6 +1941,10 @@ Rules:
      */
     function createPanel() {
         const settings = getSettings();
+        
+        // Cleanup any existing detached panels from the body to prevent duplicates on re-init
+        document.querySelectorAll('body > .rpg-tracker-detached-panel').forEach(el => el.remove());
+        document.querySelector('body > #rpg-tracker-agent')?.remove();
 
         const panel = document.createElement('div');
         panel.id = 'rpg-tracker-panel';
