@@ -3960,6 +3960,26 @@ Rules:
                 });
             }
 
+            // Difficulty Toggle
+            const difficultyCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_difficulty'));
+            if (difficultyCb) {
+                difficultyCb.checked = !!getSettings().syspromptModules?.questsDifficulty;
+                difficultyCb.addEventListener('change', function () {
+                    const fresh = getSettings();
+                    if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                    fresh.syspromptModules.questsDifficulty = !!this.checked;
+                    
+                    // Legacy prompt update
+                    if (fresh.questLegacyMode) {
+                        refreshQuestLegacyPrompt(fresh);
+                        refreshOrderList();
+                    } else {
+                        registerLogQuestTool();
+                    }
+                    saveSettings();
+                });
+            }
+
             // Quests Help Trigger
             $('#rt_quests_hardcore_help').on('click', (e) => {
                 e.stopPropagation();

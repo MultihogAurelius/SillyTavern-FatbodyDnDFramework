@@ -2,6 +2,14 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.8.18] - 2026-05-10
+
+**Enhancement: UI Consistency**
+Added the "Difficulty" toggle to the main extension settings panel.
+
+### Added
+- **Settings Integration**: The Quest Difficulty toggle is now available in both the startup onboarding wizard and the permanent extension settings panel.
+
 ## [1.8.17] - 2026-05-10
 
 **Feature: Quest Difficulty Tracking**
