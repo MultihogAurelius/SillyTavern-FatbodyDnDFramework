@@ -7,7 +7,7 @@ let _routerRunning = false;
  * Broadcasts an agent step to the UI for the Terminal view.
  */
 function broadcastStep(type, content, metadata = {}) {
-    document.dispatchEvent(new CustomEvent('rt_router_step', {
+    document.dispatchEvent(new CustomEvent('rt_lore_agent_step', {
         detail: { type, content, metadata, timestamp: Date.now() }
     }));
 }
@@ -43,7 +43,7 @@ export async function runRouterPass(narrativeOutput) {
 
     try {
         _routerRunning = true;
-        broadcastStep('start', 'Initializing Researcher Agent...');
+        broadcastStep('start', 'Initializing Lorebook Agent...');
 
         const startTime = Date.now();
         const prefix = settings.routerCampaignPrefix || '';
@@ -88,8 +88,9 @@ export async function runRouterPass(narrativeOutput) {
         let loopHistory = [];
         let finalAction = null;
 
-        const basePrompt = (settings.routerSystemPromptTemplate || "You are the Researcher Agent.")
-            .replace(/\{\{campaignRoot\}\}/g, prefix || 'World Chronicle');
+        const basePrompt = (settings.routerSystemPromptTemplate || "You are the Lorebook Agent. Maintain narrative consistency and manage lorebooks.")
+            .replace(/\{\{campaignRoot\}\}/g, prefix || 'World Chronicle')
+            .replace(/\{\{user\}\}/g, ctx.name1 || 'User');
 
         const systemPrompt = `${basePrompt}
 
@@ -205,7 +206,7 @@ Campaign Root: "${prefix || 'None'}" (All records go here. NPCs/Locations may be
         broadcastStep('finish', `Finished in ${totalTime}s`, { time: totalTime, turns });
         return true;
     } catch (e) {
-        console.error("[Router Agent] Run failed:", e);
+        console.error("[Lorebook Agent] Run failed:", e);
         broadcastStep('error', e.message);
         return false;
     } finally {
@@ -276,7 +277,7 @@ async function applyAction(action) {
         });
         if (settings.routerLog.length > 50) settings.routerLog.length = 50;
         ctx.saveSettingsDebounced();
-        document.dispatchEvent(new CustomEvent('rt_router_updated'));
+        document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
     }
 }
 
@@ -300,7 +301,7 @@ async function addLorebookEntry(lorebookName, entryData) {
         uid: nextUid,
         key: entryData.keys || [entryData.id],
         keysecondary: [],
-        comment: entryData.comment || 'ROUTER_GEN',
+        comment: entryData.comment || 'LORE_GEN',
         content: entryData.content,
         constant: false,
         selective: false,
@@ -337,7 +338,7 @@ export async function saveSceneToLorebook(hint = "") {
     if (!ctx.generateRaw) return;
 
     try {
-        (/** @type {any} */ (toastr)).info("Saving scene...", "Router Agent");
+        (/** @type {any} */ (toastr)).info("Saving scene...", "Lorebook Agent");
         
         const { chat } = ctx;
         const recentChat = chat.slice(-5).map(m => `${(/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator')}: ${((/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '').replace(/<[^>]+>/g, '')}`).join('\n\n');
@@ -370,7 +371,7 @@ Output a JSON object:
                 id: data.id,
                 keys: data.keys,
                 content: data.content,
-                comment: 'ROUTER_SCENE'
+                comment: 'LORE_SCENE'
             });
             
             const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -381,12 +382,12 @@ Output a JSON object:
             });
             settings.activeRouterKeys.push(newId);
             ctx.saveSettingsDebounced();
-            document.dispatchEvent(new CustomEvent('rt_router_updated'));
+            document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
             
-            (/** @type {any} */ (toastr)).success(`Saved scene: ${data.desc}`, 'Router Agent');
+            (/** @type {any} */ (toastr)).success(`Saved scene: ${data.desc}`, 'Lorebook Agent');
         }
     } catch (e) {
-        console.error("[Router Agent] Save scene failed:", e);
-        (/** @type {any} */ (toastr)).error('Failed to save scene.', 'Router Agent');
+        console.error("[Lorebook Agent] Save scene failed:", e);
+        (/** @type {any} */ (toastr)).error('Failed to save scene.', 'Lorebook Agent');
     }
 }

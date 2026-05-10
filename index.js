@@ -3,7 +3,7 @@ import { MODULE_NAME, getSettings, getBarBackground, migrateCustomFields, saveCh
 import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
 import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded } from './narrative-hooks.js';
 import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood } from './memo-processor.js';
-import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderRouterTerminal } from './renderer.js';
+import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderLorebookTerminal } from './renderer.js';
 import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
 import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
 import { runRouterPass } from './router.js';
@@ -193,7 +193,7 @@ import { runRouterPass } from './router.js';
 
         const s = getSettings();
         if (!s.routerEnabled || !s.activeRouterKeys?.length) {
-            setExtensionPrompt('rpg_tracker_lore', '', 0); // Clear if disabled
+            setExtensionPrompt('rpg_tracker_lore', '', 0, 0); // Clear if disabled
             return;
         }
 
@@ -216,9 +216,9 @@ import { runRouterPass } from './router.js';
             if (injectedContext) {
                 const routerBlock = `## ROUTER ACTIVE LORE\n${injectedContext.trim()}`;
                 // Set as an extension prompt at the end of the system block (Position 0, but ST handles placement)
-                setExtensionPrompt('rpg_tracker_lore', routerBlock, 0); 
+                setExtensionPrompt('rpg_tracker_lore', routerBlock, 0, 0); 
             } else {
-                setExtensionPrompt('rpg_tracker_lore', '', 0);
+                setExtensionPrompt('rpg_tracker_lore', '', 0, 0);
             }
         } catch (e) {
             console.error("[Router Agent] Failed to update extension prompt:", e);
@@ -1731,7 +1731,7 @@ Rules:
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-prompt-btn" title="Toggle direct prompt">💬</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-view-btn" title="Toggle rendered view">⊞</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-delta-btn" title="Toggle change log">δ</button>
-                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-btn" title="Agent Manager">🤖</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-btn" title="Lorebook Agent">🤖</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-debug-btn" title="Context Debugger">🛠️</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-close-btn" title="Hide panel">✕</button>
                 </div>
@@ -1750,15 +1750,16 @@ Rules:
             </div>
             <div class="rpg-tracker-agent-panel" id="rpg-tracker-agent" style="display:none; position: absolute; right: 0; top: 30px; width: 300px; max-height: calc(100% - 30px); background: rgba(20,20,20,0.95); border-left: 1px solid #444; border-bottom: 1px solid #444; z-index: 1000; flex-direction: column;">
                 <div class="rpg-tracker-delta-toolbar" style="padding: 5px; background: rgba(0,0,0,0.5); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;">
-                    <span class="rpg-tracker-delta-title">Router Agent</span>
+                    <span class="rpg-tracker-delta-title">Lorebook Agent</span>
                     <div style="display: flex; gap: 4px;">
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-manual-run" title="Run Research Now" style="color: #3498db;"><i class="fa-solid fa-play"></i></button>
+                        <button class="rpg-tracker-icon-btn" id="rt-agent-router-detach" title="Detach Lorebook Agent">⧉</button>
                         <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-close" title="Close">✕</button>
                     </div>
                 </div>
                 <div style="flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ddd;">
                     <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; font-weight: bold;">
-                        Enable Router Agent
+                        Enable Lorebook Agent
                         <input type="checkbox" id="rt-agent-router-enable" ${settings.routerEnabled ? 'checked' : ''}>
                     </label>
                     
@@ -1821,7 +1822,7 @@ Rules:
                     <hr style="border-color: #333; margin: 10px 0;">
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                        <div style="font-weight: bold; opacity: 0.8; font-size: 11px;">Router Terminal:</div>
+                        <div style="font-weight: bold; opacity: 0.8; font-size: 11px;">Lorebook Terminal:</div>
                         <button id="rt-agent-router-terminal-clear" style="background: transparent; border: none; color: #ff5555; font-size: 9px; cursor: pointer; opacity: 0.7;">Clear</button>
                     </div>
                     <div id="rt-agent-router-terminal" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; min-height: 80px; max-height: 200px; overflow-y: auto; margin-bottom: 10px;">
@@ -2136,6 +2137,57 @@ Rules:
             });
         }
 
+        // ── Lorebook Agent Detaching ──
+        const detachBtn = agentPanel.querySelector('#rt-agent-router-detach');
+        if (detachBtn) {
+            const DETACHED_AGENT_KEY = 'rpg_tracker_agent_detached';
+            const GEO_KEY = 'rpg_tracker_geometry_lorebook_agent';
+            const isDetached = () => localStorage.getItem(DETACHED_AGENT_KEY) === 'true';
+
+            const applyDetachedState = () => {
+                if (isDetached()) {
+                    agentPanel.classList.add('rt-detached-panel');
+                    document.body.appendChild(agentPanel);
+                    const header = agentPanel.querySelector('.rpg-tracker-delta-toolbar');
+                    if (header instanceof HTMLElement) {
+                        makeDraggable(agentPanel, header, GEO_KEY);
+                    }
+                    detachBtn.innerHTML = '↓';
+                    detachBtn.title = 'Re-attach Lorebook Agent';
+                    
+                    // Restore geometry
+                    try {
+                        const saved = JSON.parse(localStorage.getItem(GEO_KEY));
+                        if (saved) {
+                            if (saved.left !== undefined) {
+                                agentPanel.style.left = saved.left + 'px';
+                                agentPanel.style.top = saved.top + 'px';
+                                agentPanel.style.right = 'auto';
+                            }
+                            if (saved.width) agentPanel.style.width = saved.width + 'px';
+                            if (saved.height) agentPanel.style.height = saved.height + 'px';
+                        }
+                    } catch (e) {}
+                } else {
+                    agentPanel.classList.remove('rt-detached-panel');
+                    panel.appendChild(agentPanel);
+                    agentPanel.style.left = ''; agentPanel.style.top = ''; agentPanel.style.right = '0';
+                    agentPanel.style.width = '300px'; agentPanel.style.height = '';
+                    detachBtn.innerHTML = '⧉';
+                    detachBtn.title = 'Detach Lorebook Agent';
+                }
+            };
+
+            detachBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                localStorage.setItem(DETACHED_AGENT_KEY, isDetached() ? 'false' : 'true');
+                applyDetachedState();
+            });
+
+            // Initial apply
+            if (isDetached()) applyDetachedState();
+        }
+
         const updateRouterPanels = () => {
                 const src = sourceSel.value;
                 if (profGrp) profGrp.style.display = src === 'profile' ? 'block' : 'none';
@@ -2280,21 +2332,21 @@ Rules:
             }
         }
         
-        document.addEventListener('rt_router_updated', renderRouterUI);
+        document.addEventListener('rt_lore_agent_updated', renderRouterUI);
 
-        // ── Router Terminal Logic ──
+        // ── Lorebook Terminal Logic ──
         let _routerSteps = [];
         const terminal = panel.querySelector('#rt-agent-router-terminal');
         const terminalClear = panel.querySelector('#rt-agent-router-terminal-clear');
 
-        document.addEventListener('rt_router_step', (e) => {
+        document.addEventListener('rt_lore_agent_step', (e) => {
             if (!terminal) return;
             const step = (/** @type {CustomEvent} */ (e)).detail;
             
             if (step.type === 'start') _routerSteps = [];
             _routerSteps.push(step);
 
-            terminal.innerHTML = renderRouterTerminal(_routerSteps);
+            terminal.innerHTML = renderLorebookTerminal(_routerSteps);
             terminal.scrollTop = terminal.scrollHeight;
         });
 

@@ -1208,6 +1208,8 @@
     min-width: 250px;
     height: auto;
     max-height: 80vh;
+    resize: both;
+    overflow: hidden;
 }
 
 .rt-detached-panel .rpg-tracker-header {

@@ -5,6 +5,28 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
 // ── Renderer module: pure HTML string producers, localStorage helpers ──
 // No live DOM mutations. All functions return strings or void (localStorage).
 
+const DEFAULT_HP_COLOR = '#00ffaa';
+const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
+
+    export const STOCK_FIELD_RULES = {
+        'attr': 'text',
+        'attributes': 'text',
+        'skills': 'pills',
+        'key skills': 'pills',
+        'saves': 'highlight',
+        'status': 'pills',
+        'traits': 'pills',
+        'other': 'pills',
+        'resistances': 'pills',
+        'res': 'pills',
+        'hd': 'hd_pips',
+        'weapon': 'highlight',
+        'att/def': 'highlight',
+        'primary weapon': 'highlight',
+        'spells': 'spell_group',
+        'ac': 'text'
+    };
+
     export function renderSubFieldByRule(rule, line, barId = null) {
         const colonIdx = line.indexOf(':');
         // If there's no colon, the whole line is the value (no label)
@@ -59,20 +81,17 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
                     const max = parseInt(xm[2].replace(/,/g, ''), 10);
                     const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
                     const levelStr = lm ? `<span style="font-size:0.8em; opacity:0.75;">Lv ${lm[1]}</span> ` : '';
-                    // Use custom color if set, else fall back to orange gradient
-                    let barBg = rule.color
-                        ? rule.color
-                        : 'linear-gradient(90deg,#f39c12,#e67e22)';
+                    let barBg = rule.color ? rule.color : DEFAULT_XP_COLOR;
                     if (barId) barBg = getBarBackground(barId, barBg, pct);
 
                     const recolorData = barId ? ` data-recolor-id="${escapeHtml(barId)}" data-recolor-current="${escapeHtml(barBg)}" title="Click to recolor"` : '';
 
-                    return `<div class="rt-entity-sub-line" style="gap:6px; flex-wrap:wrap;">
-                        ${labelHtml} ${levelStr}
-                        <div class="rt-hp-bar-wrap"${recolorData} style="flex:1; min-width:60px; position:relative; height:10px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,0.1);">
-                            <div style="width:${pct.toFixed(1)}%; height:100%; border-radius:4px; background:${barBg}; transition:width 0.3s;"></div>
+                    return `<div class="rt-entity-sub-line" style="gap:6px;">
+                        ${labelHtml}
+                        <div class="rt-xp-bar-wrap"${recolorData} style="flex:1; height:12px;">
+                            <div class="rt-xp-bar" style="width:${pct.toFixed(1)}%; background:${barBg};"></div>
                         </div>
-                        <span style="font-size:0.78em; opacity:0.8; white-space:nowrap;">${xm[1]}/${xm[2]}</span>
+                        <span style="font-size:0.82em; opacity:0.85; white-space:nowrap;">${levelStr}${xm[1]}/${xm[2]}</span>
                     </div>`;
                 }
                 return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
@@ -85,18 +104,59 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
         }
     }
 
+    export function renderHDPips(val) {
+        let pipsHtml = escapeHtmlWithColor(val);
+        const hm = val.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
+        if (hm && hm[2] && hm[3]) {
+            const cur = parseInt(hm[2].replace(/,/g, ''), 10);
+            const max = parseInt(hm[3].replace(/,/g, ''), 10);
+            pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(hm[1].trim())} ]</span> <span class="rt-hd-pips">${Array.from({ length: max }, (_, i) => `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`).join('')}</span>`;
+        }
+        return `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span></div>`;
+    }
+
+    export function renderSpellGroups(val) {
+        const isCompound = /\|/.test(val) && /(?:Level\s*\d+|Cantrips?)/i.test(val);
+        const groups = isCompound ? val.split(/\s*\|\s*/) : [val];
+        let html = '';
+        for (const group of groups) {
+            const m = group.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
+            if (!m) continue;
+            const [, lbl, availStr, maxStr, spellList] = m;
+            const isCantrip = /cantrip/i.test(lbl);
+            let pipsHtml = '';
+            if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
+                const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
+                pipsHtml = `<span class="rt-slot-pips">${Array.from({ length: maxSlots }, (_, i) =>
+                    `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`).join('')}</span>`;
+            }
+            let spellsHtml = '';
+            if (spellList) {
+                spellsHtml = `<div class="rt-spell-list">${spellList.split(',').map(s => {
+                    const name = s.trim();
+                    const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
+                    return `<a href="https://dnd5e.wikidot.com/spell:${slug}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
+                }).join('')}</div>`;
+            }
+            html += `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div></div>`;
+        }
+        return html || `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(val))}</div>`;
+    }
+
+
     /**
      * If `line` begins with a ((MARKER)) prefix, renders it and returns HTML.
      * Returns null if no marker is present, so callers can fall through to
      * their own renderer. This makes markers work in ALL stock blocks.
      */
     export function tryRenderMarker(line, tag = '', entityName = '') {
-        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT|PLS|B|HPB|XB|HGT|BDG)\)\)\s*(.*)$/i);
+        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT|PLS|B|HPB|XB|HGT|BDG|HP)\)\)\s*(.*)$/i);
         if (!m) return null;
         const typeMap = {
             PILLS:'pills', PLS:'pills',
             BAR:'hp_bar', B:'hp_bar',
             HPBAR:'hp_bar', HPB:'hp_bar',
+            HP: 'hp_bar',
             XPBAR:'xp_bar', XB:'xp_bar',
             TEXT:'text',
             BADGE:'badge', BDG:'badge',
@@ -114,6 +174,31 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
         }
 
         return renderSubFieldByRule({ renderType }, content, barId);
+    }
+
+    export function renderLineInEntityContext(tag, line, entityName, rawLine) {
+        // 1. Try marker first
+        const asMarker = tryRenderMarker(rawLine, tag, entityName);
+        if (asMarker) return asMarker;
+
+        const ll = line.toLowerCase();
+        const colonIdx = line.indexOf(':');
+
+        // 2. Try known stock keywords
+        for (const [key, ruleType] of Object.entries(STOCK_FIELD_RULES)) {
+            if (ll.startsWith(key + ':') || ll === key) {
+                const val = colonIdx !== -1 ? line.substring(colonIdx + 1).trim() : '';
+                if (ruleType === 'hd_pips') return renderHDPips(val);
+                if (ruleType === 'spell_group') return renderSpellGroups(val);
+                return renderSubFieldByRule({ renderType: ruleType }, line);
+            }
+        }
+
+        // 3. Fallback: unknown KV pair or plain line (always attached to entity if we are here)
+        if (colonIdx !== -1) {
+            return renderSubFieldByRule({ renderType: 'highlight' }, line);
+        }
+        return `<div class="rt-entity-sub-line">${escapeHtmlWithColor(line)}</div>`;
     }
 
     /**
@@ -294,50 +379,30 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
         }
 
         switch (renderType) {
-                        case 'COMBAT':
+            case 'COMBAT':
             case 'PARTY':
             case 'CHARACTER': {
                 const results = [];
                 let lastEntityIdx = -1;
                 let currentEntity = '';
 
-                const MARKER_RX = /^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR|PLS|B|XB|HGT|HPB|BDG)\)\)\s*(.*)/i;
+                const MARKER_RX = /^\(\((PILLS|BAR|XPBAR|TEXT|BADGE|HIGHLIGHT|HPBAR|PLS|B|XB|HGT|HPB|BDG|HP)\)\)\s*(.*)/i;
                 const MARKER_TYPE_MAP = {
                     'PILLS': 'pills', 'PLS': 'pills',
                     'BAR': 'hp_bar', 'B': 'hp_bar',
                     'HPBAR': 'hp_bar', 'HPB': 'hp_bar',
+                    'HP': 'hp_bar',
                     'XPBAR': 'xp_bar', 'XB': 'xp_bar',
                     'TEXT': 'text',
                     'BADGE': 'badge', 'BDG': 'badge',
                     'HIGHLIGHT': 'highlight', 'HGT': 'highlight'
                 };
 
-                const renderSpellGroup = (groupStr) => {
-                    const m = groupStr.trim().match(/^(Level\s*\d+|Cantrips?)\s*(?:\((\d+)\/(\d+)[^)]*\))?\s*(?::\s*(.+))?$/i);
-                    if (!m) return null;
-                    const [, lbl, availStr, maxStr, spellList] = m;
-                    const isCantrip = /cantrip/i.test(lbl);
-                    let pipsHtml = '';
-                    if (!isCantrip && availStr !== undefined && maxStr !== undefined) {
-                        const avail = parseInt(availStr, 10), maxSlots = parseInt(maxStr, 10);
-                        pipsHtml = `<span class="rt-slot-pips">${Array.from({ length: maxSlots }, (_, i) =>
-                            `<span class="rt-slot-pip${i < avail ? ' rt-slot-available' : ' rt-slot-used'}"></span>`).join('')}</span>`;
-                    }
-                    let spellsHtml = '';
-                    if (spellList) {
-                        spellsHtml = `<div class="rt-spell-list">${spellList.split(',').map(s => {
-                            const name = s.trim();
-                            const slug = name.toLowerCase().replace(/'/g, '').replace(/[^a-z0-9]+/g, '-');
-                            return `<a href="https://dnd5e.wikidot.com/spell:${slug}" target="_blank" class="rt-spell-name" title="View spell on Wikidot">${escapeHtmlWithColor(name)}</a>`;
-                        }).join('')}</div>`;
-                    }
-                    return `<div class="rt-spell-row"><span class="rt-spell-level">${escapeHtmlWithColor(lbl.trim())}</span><div class="rt-spell-inline-group">${pipsHtml}${spellsHtml}</div></div>`;
-                };
-
                 for (let i = 0; i < lines.length; i++) {
                     const rawLine = lines[i];
                     const mm = rawLine.match(MARKER_RX);
-                    const explicitType = mm ? MARKER_TYPE_MAP[mm[1].toUpperCase()] : null;
+                    const markerCode = mm ? mm[1].toUpperCase() : null;
+                    const explicitType = mm ? MARKER_TYPE_MAP[markerCode] : null;
                     const line = mm ? mm[2].trim() : rawLine;
 
                     // 1. Combat Round header
@@ -347,16 +412,23 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
                         continue;
                     }
 
-                    // 2. Entity anchor: classic "Name: X/Y HP ..." — fires with no marker OR BAR/HPBAR
-                    const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
-                    if (hpMatch && (explicitType === null || explicitType === 'hp_bar')) {
+                    // 2. Entity anchor: classic "Name: X/Y HP ..." or explicit ((HP)) marker
+                    let hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP\s*[:|,]?\s*(.*)$/i);
+                    const isHpMarker = (markerCode === 'HP' || markerCode === 'HPB' || markerCode === 'HPBAR');
+
+                    // If marker is specifically ((HP)), try a more relaxed regex (optional HP suffix)
+                    if (!hpMatch && isHpMarker) {
+                        hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?(?:\s*HP)?\s*[:|,]?\s*(.*)$/i);
+                    }
+
+                    if (hpMatch) {
                         const [, name, curRaw, maxRaw, rest] = hpMatch;
                         const cur = Number(curRaw.replace(/,/g, ''));
                         const max = maxRaw ? Number(maxRaw.replace(/,/g, '')) : undefined;
                         const hasMax = max !== undefined;
                         const pct = hasMax ? Math.max(0, Math.min(100, (cur / max) * 100)) : 100;
-                        const hpColor = !hasMax ? '#00ffaa' : pct > 60 ? '#00ffaa' : pct > 30 ? '#ffaa00' : '#ff5555';
-                        const status = rest.trim().replace(/^\|\s*/, '');
+                        const hpColor = !hasMax ? DEFAULT_HP_COLOR : pct > 60 ? DEFAULT_HP_COLOR : pct > 30 ? '#ffaa00' : '#ff5555';
+                        const status = (rest || '').trim().replace(/^\|\s*/, '');
                         const label = hasMax ? `${curRaw}/${maxRaw}` : `${curRaw}`;
 
                         currentEntity = name.trim();
@@ -389,79 +461,17 @@ import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js
                         continue;
                     }
 
-                    // 3. Explicit ((TYPE)) marker — attach to entity or push standalone
-                    if (explicitType) {
-                        const rendered = tryRenderMarker(rawLine, tag, currentEntity);
-                        if (lastEntityIdx !== -1) { results[lastEntityIdx] += rendered; }
-                        else { results.push(rendered); }
-                        continue;
-                    }
-
-                    // 4. Keyword-based sub-lines (backward compat)
+                    // 3. Sub-field Logic (Sticky Context)
                     if (lastEntityIdx !== -1) {
-                        const ll = line.toLowerCase();
-                        if (ll.startsWith('attr:') || ll.startsWith('attributes:')) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-entity-attributes"><span class="rt-entity-sub-label">Attr:</span> ${escapeHtmlWithColor(line.substring(line.indexOf(':') + 1).trim())}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('skills:') || ll.startsWith('key skills:')) {
-                            const sm = line.match(/^(?:key\s+)?skills:\s*(.+)$/i);
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Skills:</span> ${escapeHtmlWithColor(sm ? sm[1].trim() : line.split(':')[1]?.trim() || '')}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('saves:')) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Saves:</span> ${highlightParens(escapeHtmlWithColor(line.substring(6).trim()))}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('status:')) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Status:</span> ${renderPills(line.substring(7).trim())}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('primary weapon:') || ll.startsWith('att/def:')) {
-                            const lbl = ll.startsWith('att/def:') ? 'Att/Def:' : 'Weapon:';
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">${lbl}</span> ${highlightParens(escapeHtmlWithColor(line.substring(line.indexOf(':') + 1).trim()))}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('hd:')) {
-                            let hdText = line.substring(3).trim();
-                            let pipsHtml = escapeHtmlWithColor(hdText);
-                            const hm = hdText.match(/^([^(]+?)\s*(?:\(([\d,]+)\/([\d,]+)\))?$/);
-                            if (hm && hm[2] && hm[3]) {
-                                const cur = parseInt(hm[2].replace(/,/g, ''), 10);
-                                const max = parseInt(hm[3].replace(/,/g, ''), 10);
-                                pipsHtml = `<span class="rt-hd-label">[ ${escapeHtmlWithColor(hm[1].trim())} ]</span> <span class="rt-hd-pips">${Array.from({ length: max }, (_, i) => `<span class="rt-hd-pip${i < cur ? ' rt-hd-available' : ''}"></span>`).join('')}</span>`;
-                            }
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">HD:</span> <span>${pipsHtml}</span></div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('traits:')) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Traits:</span> ${renderPills(line.substring(7).trim())}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('other:') || ll.startsWith('resistances:')) {
-                            results[lastEntityIdx] += `<div class="rt-entity-sub-line rt-units-container"><span class="rt-entity-sub-label">Other:</span> ${renderPills(line.substring(line.indexOf(':') + 1).trim())}</div>`;
-                            continue;
-                        }
-                        if (ll.startsWith('spells:')) {
-                            const spellLine = line.substring(7).trim();
-                            const isCompound = /\|/.test(spellLine) && /(?:Level\s*\d+|Cantrips?)/i.test(spellLine);
-                            const groups = isCompound ? spellLine.split(/\s*\|\s*/) : [spellLine];
-                            let renderedAny = false;
-                            for (const group of groups) {
-                                const rowHtml = renderSpellGroup(group);
-                                if (rowHtml) { results[lastEntityIdx] += rowHtml; renderedAny = true; }
-                            }
-                            if (!renderedAny) { results[lastEntityIdx] += `<div class="rt-entity-sub-line"><span class="rt-entity-sub-label">Spells:</span> ${highlightParens(escapeHtmlWithColor(spellLine))}</div>`; }
-                            continue;
-                        }
+                        results[lastEntityIdx] += renderLineInEntityContext(tag, line, currentEntity, rawLine);
+                    } else {
+                        // No active entity: render as a standalone card line
+                        results.push(`<div class="rt-card-line">${escapeHtmlWithColor(rawLine)}</div>`);
                     }
-
-                    // 5. Fallback: plain card line, resets entity context
-                    results.push(`<div class="rt-card-line">${escapeHtmlWithColor(rawLine)}</div>`);
-                    lastEntityIdx = -1;
                 }
                 return results;
             }
+
             case 'TIME': {
                 let currentTotalMins = 0;
                 let parsedCurrent = false;
@@ -1035,10 +1045,11 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
     </div>`;
 }
     /**
-     * Renders a real-time terminal view of the Router Agent's internal steps.
-     * @param {any[]} steps
+     * Renders the Lorebook Agent's thought process into a terminal-like view.
+     * @param {object[]} steps
+     * @returns {string}
      */
-    export function renderRouterTerminal(steps) {
+    export function renderLorebookTerminal(steps) {
         if (!steps || steps.length === 0) return '';
 
         return steps.map(step => {

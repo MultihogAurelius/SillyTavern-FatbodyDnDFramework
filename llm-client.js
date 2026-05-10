@@ -318,67 +318,29 @@ export async function sendStateRequest(settings, systemPrompt, userPrompt, signa
         } else {
             if (settings.debugMode) console.log(`[RPG Tracker] Sending via profile (silent): ${settings.connectionProfileId}${settings.completionPresetId ? `, preset override: ${settings.completionPresetId}` : ''}`);
 
-            let profile;
-            try {
-                profile = service.getProfile(settings.connectionProfileId);
-            } catch {
-                const profiles = context.extensionSettings?.connectionManager?.profiles || [];
-                profile = profiles.find(p => p.name === settings.connectionProfileId || p.id === settings.connectionProfileId);
-            }
-
-            if (!profile) throw new Error(`[RPG Tracker] Connection Profile not found: ${settings.connectionProfileId}`);
-
-            const selectedApiMap = service.validateProfile(profile);
             const messages = [
                 { role: 'system', content: systemPrompt },
                 { role: 'user',   content: userPrompt   },
             ];
 
             const maxTokens = settings.maxTokens && settings.maxTokens > 0 ? settings.maxTokens : undefined;
-            const presetToUse = settings.completionPresetId || profile.preset;
 
-            let raw;
-            if (selectedApiMap.selected === 'openai') {
-                const proxies = context.proxies || [];
-                const proxyPreset = proxies.find((p) => p.name === profile.proxy);
-                raw = await context.ChatCompletionService.processRequest({
+            // Use the canonical ST service path. This correctly handles secret_id
+            // lookup, prompt formatting for text-completion backends (instruct
+            // template), and preset loading for all API types.
+            const raw = await service.sendRequest(
+                settings.connectionProfileId,
+                messages,
+                maxTokens,
+                {
                     stream: false,
-                    messages,
-                    max_tokens: maxTokens,
-                    model: profile.model,
-                    chat_completion_source: selectedApiMap.source,
-                    secret_id: profile['secret-id'],
-                    custom_url: profile['api-url'],
-                    vertexai_region: profile['api-url'],
-                    zai_endpoint: profile['api-url'],
-                    siliconflow_endpoint: profile['api-url'],
-                    minimax_endpoint: profile['api-url'],
-                    reverse_proxy: proxyPreset?.url,
-                    proxy_password: proxyPreset?.password,
-                    custom_prompt_post_processing: profile['prompt-post-processing'],
-                }, {
-                    presetName: presetToUse,
+                    extractData: true,
+                    includePreset: true,
+                    includeInstruct: true,
+                    presetName: settings.completionPresetId || undefined,
                     signal,
-                }, true);
-            } else if (selectedApiMap.selected === 'textgenerationwebui') {
-                const promptString = messages.map(m => `### ${m.role}:\n${m.content}`).join('\n\n');
-                raw = await context.TextCompletionService.processRequest({
-                    stream: false,
-                    prompt: promptString,
-                    max_tokens: maxTokens,
-                    max_new_tokens: maxTokens,
-                    model: profile.model,
-                    api_type: selectedApiMap.type,
-                    api_server: profile['api-url'],
-                    secret_id: profile['secret-id'],
-                }, {
-                    instructName: profile.instruct,
-                    presetName: presetToUse,
-                    signal,
-                }, true);
-            } else {
-                throw new Error(`[RPG Tracker] Unsupported API type: ${selectedApiMap.selected}`);
-            }
+                },
+            );
 
             if (typeof raw === 'string') return raw;
             const r = /** @type {any} */ (raw);

@@ -2,6 +2,36 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.8.28] - 2026-05-10
+### Fixed
+- **Renderer Stabilization**: Ported the definitive rendering engine from the `main` branch to resolve fragility in character card generation. This introduces "sticky entity" logic where unrecognized lines are gracefully attached to the current card instead of resetting the context, preventing UI disintegration during template modifications.
+- **Stock Field Rules**: Ported `STOCK_FIELD_RULES` and specialized renderers for HD Pips and Spell Groups for parity with the stable branch.
+
+## [1.8.27] - 2026-05-10
+### Added
+- **Lorebook Agent Rebranding**: Rebranded the "Router Agent" to the **Lorebook Agent** to better reflect its role in managing campaign lore and consistency.
+- **Detachable Agent Panel**: The Lorebook Agent panel is now detachable. Click the ⧉ icon in the agent header to pop it out into a standalone, draggable window.
+- **Resizable Agent UI**: Detached agent panels are now fully resizable. Grab the corner or edges to adjust the workspace to your preference.
+- **Geometry Persistence**: The position and dimensions of the detached Lorebook Agent are automatically saved and restored across sessions.
+- **Enhanced System Prompt**: Updated the default Lorebook Agent instructions to emphasize location persistence, multi-entry turns, and entity synchronization.
+- **Dynamic Variable Support**: Added `{{user}}` as a supported variable in the agent's system prompt, which automatically resolves to the player's name.
+- **API Standardization**: Ported the critical `sendStateRequest` fix from `main`, standardizing LLM request construction to prevent API errors on certain SillyTavern builds when using connection profiles.
+
+### Changed
+- **Terminal Rebranding**: Renamed the agent's feedback loop to the **Lorebook Terminal**.
+- **Internal Event Refactor**: Updated internal event bus to use `rt_lore_agent_*` naming for improved codebase clarity and future-proofing.
+- **Agent Icons**: Updated UI icons and tool-tips to match the new Lorebook branding.
+
+## [1.8.26] - 2026-05-10
+### Added
+- **New Rendering Marker**: Added `((HP))` as a shorthand for creating a character health bar.
+- **Sticky Entity Context**: Attribute rows (Attr, Skills, Saves, etc.) now automatically attach to the last rendered character even if separated by narrative text.
+
+### Fixed
+- **API Compatibility**: Fixed a silent failure in extension initialization by updating `setExtensionPrompt` calls to support the latest SillyTavern API requirements (4-7 arguments).
+- **Rendering Stability**: Resolved syntax errors in `renderer.js` when processing complex character blocks.
+- **Sync Fixes**: Synchronized core rendering fixes from `main` into the `feature/quests` branch.
+
 ## [1.8.25] - 2026-05-10
 
 **Fix: Renderer Syntax Error**

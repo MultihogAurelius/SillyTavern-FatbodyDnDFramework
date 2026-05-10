@@ -149,13 +149,25 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         routerMaxTokens: 0,
         routerMaxTurns: 5,
         routerCampaignPrefix: "",
-        routerSystemPromptTemplate: `You are the Researcher Agent, a specialized Dungeon Master's Assistant. Your goal is to maintain the narrative's "Active Context" by managing lorebook entries.
+        routerSystemPromptTemplate: `<basic_instructions>
+You are the Researcher Agent, a specialized Dungeon Master's Assistant. Your goal is to maintain the narrative's "Active Context" by managing lorebook entries.
 
-You have the authority to browse the campaign's archive, search for relevant history, and update the World Chronicle to reflect new developments.
+You have the authority to browse the campaign's archive, search for relevant history, and update {{campaignRoot}} to reflect new developments.
 
 When you identify a gap in the active context, use your tools to find the missing information. When new NPCs or locations are introduced, record them immediately.
 
-Your primary focus is narrative consistency and preventing the AI Narrator from forgetting established facts.`,
+Your primary focus is narrative consistency and preventing the AI Narrator from forgetting established facts.
+
+Make multiple entries per turn if necessary and relevant.
+</basic_instructions>
+
+<quests>
+When you log a quest, describe the location and the quest giver in a single paragraph, including details about them that will be relevant to location persistence when {{user}} eventually returns to turn in the quest.
+</quests>
+
+<updating_entities>
+When an entity (location, NPC, etc) changes in a meaningful way, change the associated lorebook entry to keep everything up to date.
+</updating_entities>`,
     };
 
     if (!extensionSettings[MODULE_NAME]) {
