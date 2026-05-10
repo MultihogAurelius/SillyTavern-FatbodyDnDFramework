@@ -14,6 +14,8 @@
 
 import { getSettings } from './state-manager.js';
 import { parseQuestsFromMemo } from './memo-processor.js';
+import { runRouterPass, saveSceneToLorebook } from './router.js';
+import { logTransaction } from './debug-viewer.js';
 
 // ── Dice naming helpers ────────────────────────────────────────────────────────
 
@@ -196,6 +198,33 @@ export function registerDiceSlashCommand() {
             }),
         ],
     }));
+
+    SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+        name: 'router',
+        callback: async (args, value) => {
+            const val = String(value || '').trim().toLowerCase();
+            if (val.startsWith('save')) {
+                const hint = val.substring(4).trim();
+                await saveSceneToLorebook(hint);
+                return 'Scene save requested.';
+            }
+            if (val === 'run' || val === 'research') {
+                const { chat } = SillyTavern.getContext();
+                const combinedNarrative = getNarrativeBlocks(chat, -1);
+                await runRouterPass(combinedNarrative);
+                return 'Research pass started.';
+            }
+            return 'Usage: /router run | /router save [hint]';
+        },
+        helpString: 'Interact with the Router Agent (e.g. /router save)',
+        unnamedArgumentList: [
+            SlashCommandArgument.fromProps({
+                description: 'command (e.g. save)',
+                isRequired: true,
+                typeList: [ARGUMENT_TYPE.STRING],
+            }),
+        ],
+    }));
 }
 
 // ── stripMemoHtml (local copy — canonical version moves to renderer.js in Phase 6) ──
@@ -251,11 +280,18 @@ export function installInterceptor() {
             }
         }
 
+
+
         if (!injections) return;
 
+        const originalContent = msg.content || msg.mes || '';
         if (typeof msg.content === "string") msg.content = injections + msg.content;
         else if (typeof msg.mes === "string") msg.mes = injections + msg.mes;
-        if (settings.debugMode) console.log("[Fatbody Framework] Injections pushed to request.");
+
+        if (settings.debugMode) {
+            console.log("[Fatbody Framework] Injections pushed to request.");
+            logTransaction('Main Chat', [{ role: 'user', content: injections + originalContent }]);
+        }
     };
 }
 
@@ -314,6 +350,8 @@ export async function onGenerationEnded() {
 
     // runStateModelPass lives in index.js until Phase 5. Resolved at call-time.
     if (typeof globalThis._rpgRunStateModelPass === 'function') {
-        globalThis._rpgRunStateModelPass(combinedNarrative);
+        await globalThis._rpgRunStateModelPass(combinedNarrative);
     }
+    
+    await runRouterPass(combinedNarrative);
 }

@@ -134,7 +134,28 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
             questsDeadlines: false,
             questsFrustration: false,
             questsDifficulty: false
-        }
+        },
+        routerEnabled: false,
+        routerLog: [],
+        activeRouterKeys: [],
+        routerConnectionSource: "default",
+        routerOpenaiUrl: "",
+        routerOpenaiKey: "",
+        routerOpenaiModel: "",
+        routerOllamaUrl: "http://localhost:11434",
+        routerOllamaModel: "",
+        routerConnectionProfileId: "",
+        routerCompletionPresetId: "",
+        routerMaxTokens: 0,
+        routerMaxTurns: 5,
+        routerCampaignPrefix: "",
+        routerSystemPromptTemplate: `You are the Researcher Agent, a specialized Dungeon Master's Assistant. Your goal is to maintain the narrative's "Active Context" by managing lorebook entries.
+
+You have the authority to browse the campaign's archive, search for relevant history, and update the World Chronicle to reflect new developments.
+
+When you identify a gap in the active context, use your tools to find the missing information. When new NPCs or locations are introduced, record them immediately.
+
+Your primary focus is narrative consistency and preventing the AI Narrator from forgetting established facts.`,
     };
 
     if (!extensionSettings[MODULE_NAME]) {
@@ -245,6 +266,9 @@ export function saveChatState(chatId) {
         customFields: JSON.parse(JSON.stringify(s.customFields || [])),
         quests:       [],  // quests are derived from currentMemo on load — not persisted separately
         historyIndex: s.historyIndex ?? -1,
+        activeRouterKeys: JSON.parse(JSON.stringify(s.activeRouterKeys || [])),
+        routerLog:    JSON.parse(JSON.stringify(s.routerLog || [])),
+        routerCampaignPrefix: s.routerCampaignPrefix || '',
     };
     SillyTavern.getContext().saveSettingsDebounced();
 }
@@ -268,7 +292,10 @@ export function saveProfile(name) {
         customFields: JSON.parse(JSON.stringify(s.customFields || [])),
         // quests are derived from currentMemo on load — not persisted separately
         lastDelta: s.lastDelta || '',
-        historyIndex: s.historyIndex ?? -1
+        historyIndex: s.historyIndex ?? -1,
+        activeRouterKeys: JSON.parse(JSON.stringify(s.activeRouterKeys || [])),
+        routerLog:    JSON.parse(JSON.stringify(s.routerLog || [])),
+        routerCampaignPrefix: s.routerCampaignPrefix || '',
     };
     s.activeProfile = name;
     SillyTavern.getContext().saveSettingsDebounced();

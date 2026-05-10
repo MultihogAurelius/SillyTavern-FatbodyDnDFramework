@@ -8,6 +8,7 @@
  */
 
 import { getSettings } from './state-manager.js';
+import { logTransaction } from './debug-viewer.js';
 
 // ── Connection Profile Helpers ─────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTok
     const data = await response.json();
     const result = data.message.content;
     console.log(`[RPG Tracker] Response from Ollama: "${result.substring(0, 100)}..."`);
+    logTransaction('Tracker', [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], result);
     return result;
 }
 
@@ -225,6 +227,7 @@ export async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt
 
     if (!fullContent.trim()) throw new Error('OpenAI returned an empty response.');
     console.log(`[RPG Tracker] Response from OpenAI: "${fullContent.substring(0, 100)}..."`);
+    logTransaction('Tracker', [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], fullContent);
     return fullContent;
 }
 
@@ -385,7 +388,10 @@ export async function sendStateRequest(settings, systemPrompt, userPrompt, signa
                 ?? r?.choices?.[0]?.text
                 ?? null;
 
-            if (text) return text;
+            if (text) {
+                logTransaction('Tracker', [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], text);
+                return text;
+            }
             throw new Error(`[RPG Tracker] Profile request returned unexpected type: ${JSON.stringify(raw).substring(0, 200)}`);
         }
     }
@@ -445,13 +451,20 @@ export async function sendStateRequest(settings, systemPrompt, userPrompt, signa
 
         const result = await generateRaw(options);
 
-        if (typeof result === 'string') return result;
-        const r = /** @type {any} */ (result);
-        return r?.choices?.[0]?.message?.content
-            ?? r?.choices?.[0]?.text
-            ?? r?.message?.content
-            ?? r?.content
-            ?? JSON.stringify(result);
+        let text = "";
+        if (typeof result === 'string') {
+            text = result;
+        } else {
+            const r = /** @type {any} */ (result);
+            text = r?.choices?.[0]?.message?.content
+                ?? r?.choices?.[0]?.text
+                ?? r?.message?.content
+                ?? r?.content
+                ?? JSON.stringify(result);
+        }
+
+        logTransaction('Tracker', [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], text);
+        return text;
 
     } catch (err) {
         console.error('[RPG Tracker] Request failed:', err);

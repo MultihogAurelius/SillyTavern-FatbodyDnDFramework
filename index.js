@@ -3,8 +3,10 @@ import { MODULE_NAME, getSettings, getBarBackground, migrateCustomFields, saveCh
 import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
 import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded } from './narrative-hooks.js';
 import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood } from './memo-processor.js';
-import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog } from './renderer.js';
+import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderRouterTerminal } from './renderer.js';
 import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
+import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
+import { runRouterPass } from './router.js';
 
     // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
     const FOLDER_NAME = (function () {
@@ -154,6 +156,13 @@ import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
         // quests are derived from currentMemo, do not load independently
         s.quests = [];
         s.historyIndex = saved.historyIndex ?? -1;
+        
+        if (saved.activeRouterKeys) s.activeRouterKeys = JSON.parse(JSON.stringify(saved.activeRouterKeys));
+        if (saved.routerLog) s.routerLog = JSON.parse(JSON.stringify(saved.routerLog));
+        s.routerCampaignPrefix = saved.routerCampaignPrefix ?? '';
+
+        const prefixInput = /** @type {HTMLInputElement} */ (document.getElementById('rpg_tracker_router_campaign_prefix'));
+        if (prefixInput) prefixInput.value = s.routerCampaignPrefix;
 
         _historyViewIndex = -1;
         
@@ -167,6 +176,92 @@ import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
         refreshOrderList();
         syncMemoView();
         return true;
+    }
+
+    /**
+     * Installs a transient prompt interceptor to inject active lore keys
+     * into the main narrator's prompt. This is non-mutating and clean.
+     */
+    /**
+     * Updates the persistent SillyTavern extension prompt with the currently active lore.
+     * This is the preferred method for older/stable ST versions.
+     */
+    async function refreshExtensionPrompt() {
+        const ctx = SillyTavern.getContext();
+        const { setExtensionPrompt } = ctx;
+        if (typeof setExtensionPrompt !== 'function') return;
+
+        const s = getSettings();
+        if (!s.routerEnabled || !s.activeRouterKeys?.length) {
+            setExtensionPrompt('rpg_tracker_lore', '', 0); // Clear if disabled
+            return;
+        }
+
+        try {
+            let injectedContext = "";
+            const books = {};
+            for (const k of s.activeRouterKeys) {
+                const [bookName] = k.split('::');
+                if (!books[bookName]) books[bookName] = await ctx.loadWorldInfo(bookName);
+            }
+
+            for (const k of s.activeRouterKeys) {
+                const [bookName, uid] = k.split('::');
+                const entry = books[bookName]?.entries?.[uid];
+                if (entry && entry.content) {
+                    injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
+                }
+            }
+
+            if (injectedContext) {
+                const routerBlock = `## ROUTER ACTIVE LORE\n${injectedContext.trim()}`;
+                // Set as an extension prompt at the end of the system block (Position 0, but ST handles placement)
+                setExtensionPrompt('rpg_tracker_lore', routerBlock, 0); 
+            } else {
+                setExtensionPrompt('rpg_tracker_lore', '', 0);
+            }
+        } catch (e) {
+            console.error("[Router Agent] Failed to update extension prompt:", e);
+        }
+    }
+
+    function installRouterInterceptor() {
+        const ctx = SillyTavern.getContext();
+        const { addPromptManagerInterceptor, addChatInterceptor, addInterceptor } = ctx;
+
+        // Try modern interceptors first
+        if (typeof addPromptManagerInterceptor === 'function') {
+            addPromptManagerInterceptor(async (prompt) => {
+                const s = getSettings();
+                if (!s.routerEnabled || !s.activeRouterKeys?.length) return;
+                // Reuse the same logic but for the prompt object
+                let injectedContext = "";
+                const books = {};
+                for (const k of s.activeRouterKeys) {
+                    const [bookName] = k.split('::');
+                    if (!books[bookName]) books[bookName] = await ctx.loadWorldInfo(bookName);
+                }
+                for (const k of s.activeRouterKeys) {
+                    const [bookName, uid] = k.split('::');
+                    const entry = books[bookName]?.entries?.[uid];
+                    if (entry && entry.content) injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
+                }
+                if (injectedContext) {
+                    const routerBlock = `\n## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n`;
+                    const sysPart = prompt.find(p => p.role === 'system');
+                    if (sysPart) sysPart.content += routerBlock;
+                    else prompt.unshift({ role: 'system', content: routerBlock });
+                }
+            });
+        } else {
+            // Fallback to the persistent extension prompt system
+            console.log('[RPG Tracker] Interceptors not available. Using setExtensionPrompt.');
+            refreshExtensionPrompt();
+            
+            // Re-refresh on important events
+            ctx.eventSource.on(ctx.eventTypes.CHARACTER_MOUNTED, () => refreshExtensionPrompt());
+            ctx.eventSource.on(ctx.eventTypes.CHAT_CHANGED, () => refreshExtensionPrompt());
+        }
     }
 
     /**
@@ -193,6 +288,13 @@ import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
             s.currentMemo  = '';
             s.memoHistory  = [];
             s.lastDelta    = '';
+            s.activeRouterKeys = [];
+            s.routerLog    = [];
+            s.routerCampaignPrefix = '';
+            
+            const prefixInput = /** @type {HTMLInputElement} */ (document.getElementById('rpg_tracker_router_campaign_prefix'));
+            if (prefixInput) prefixInput.value = '';
+
             _historyViewIndex = -1;
 
             const dp = document.getElementById('rpg-tracker-delta-content');
@@ -1629,6 +1731,8 @@ Rules:
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-prompt-btn" title="Toggle direct prompt">💬</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-view-btn" title="Toggle rendered view">⊞</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-delta-btn" title="Toggle change log">δ</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-btn" title="Agent Manager">🤖</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-debug-btn" title="Context Debugger">🛠️</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-close-btn" title="Hide panel">✕</button>
                 </div>
             </div>
@@ -1643,6 +1747,92 @@ Rules:
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-delta-clear" title="Clear log">✕</button>
                 </div>
                 <div id="rpg-tracker-delta-content">${settings.lastDelta || '<span class="delta-empty">No changes yet.</span>'}</div>
+            </div>
+            <div class="rpg-tracker-agent-panel" id="rpg-tracker-agent" style="display:none; position: absolute; right: 0; top: 30px; width: 300px; max-height: calc(100% - 30px); background: rgba(20,20,20,0.95); border-left: 1px solid #444; border-bottom: 1px solid #444; z-index: 1000; flex-direction: column;">
+                <div class="rpg-tracker-delta-toolbar" style="padding: 5px; background: rgba(0,0,0,0.5); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;">
+                    <span class="rpg-tracker-delta-title">Router Agent</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button class="rpg-tracker-icon-btn" id="rt-agent-router-manual-run" title="Run Research Now" style="color: #3498db;"><i class="fa-solid fa-play"></i></button>
+                        <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-close" title="Close">✕</button>
+                    </div>
+                </div>
+                <div style="flex: 1; overflow-y: auto; padding: 10px; font-size: 12px; color: #ddd;">
+                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; font-weight: bold;">
+                        Enable Router Agent
+                        <input type="checkbox" id="rt-agent-router-enable" ${settings.routerEnabled ? 'checked' : ''}>
+                    </label>
+                    
+                    <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 11px;">Connection (Router Only):</div>
+                    <select id="rt-agent-router-source" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        <option value="default" ${settings.routerConnectionSource === 'default' ? 'selected' : ''}>Main API</option>
+                        <option value="profile" ${settings.routerConnectionSource === 'profile' ? 'selected' : ''}>SillyTavern Profile</option>
+                        <option value="ollama" ${settings.routerConnectionSource === 'ollama' ? 'selected' : ''}>Ollama (Local)</option>
+                        <option value="openai" ${settings.routerConnectionSource === 'openai' ? 'selected' : ''}>OpenAI Compatible</option>
+                    </select>
+
+                    <div id="rt-agent-router-profile-group" style="display: ${settings.routerConnectionSource === 'profile' ? 'block' : 'none'};">
+                        <select id="rt-agent-router-profile" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                            <option value="">-- No Profile Selected --</option>
+                        </select>
+                    </div>
+
+                    <div id="rt-agent-router-ollama-group" style="display: ${settings.routerConnectionSource === 'ollama' ? 'block' : 'none'};">
+                        <input type="text" id="rt-agent-router-ollama-url" placeholder="Ollama URL" value="${settings.routerOllamaUrl || 'http://localhost:11434'}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        <div style="display: flex; gap: 4px; margin-bottom: 5px;">
+                            <select id="rt-agent-router-ollama-model" style="flex: 1; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                                <option value="">-- Select Model --</option>
+                            </select>
+                            <button id="rt-agent-router-ollama-refresh" style="background: #333; border: 1px solid #444; color: #ddd; border-radius: 3px; padding: 0 8px; cursor: pointer;" title="Refresh Models"><i class="fa-solid fa-arrows-rotate"></i></button>
+                        </div>
+                    </div>
+
+                    <div id="rt-agent-router-openai-group" style="display: ${settings.routerConnectionSource === 'openai' ? 'block' : 'none'};">
+                        <input type="text" id="rt-agent-router-openai-url" placeholder="Endpoint URL" value="${settings.routerOpenaiUrl || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        <input type="password" id="rt-agent-router-openai-key" placeholder="API Key (Optional)" value="${settings.routerOpenaiKey || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        <div style="display: flex; gap: 4px; margin-bottom: 5px;">
+                            <select id="rt-agent-router-openai-model" style="flex: 1; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                                <option value="">-- Select Model --</option>
+                            </select>
+                            <button id="rt-agent-router-openai-refresh" style="background: #333; border: 1px solid #444; color: #ddd; border-radius: 3px; padding: 0 8px; cursor: pointer;" title="Refresh Models"><i class="fa-solid fa-arrows-rotate"></i></button>
+                        </div>
+                        <input type="text" id="rt-agent-router-openai-model-manual" placeholder="Or type model name manually" value="${settings.routerOpenaiModel || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                    </div>
+
+                    <div style="margin-bottom: 5px; opacity: 0.8; font-size: 11px;">Generation Preset:</div>
+                    <select id="rt-agent-router-preset" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        <option value="">-- Use Current Settings --</option>
+                    </select>
+
+                    <div style="display: flex; gap: 8px;">
+                        <div style="flex: 1;">
+                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 11px;">Max Tokens:</div>
+                            <input type="number" id="rt-agent-router-max-tokens" value="${settings.routerMaxTokens || 0}" style="width: 100%; margin-bottom: 10px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 11px;">Max Turns:</div>
+                            <input type="number" id="rt-agent-router-max-turns" value="${settings.routerMaxTurns || 5}" style="width: 100%; margin-bottom: 10px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
+                        </div>
+                    </div>
+                    <hr style="border-color: #333; margin: 10px 0;">
+
+                    <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 11px;">Active Lore Keys:</div>
+                    <div id="rt-agent-router-active-keys" style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px;">
+                    </div>
+                    <hr style="border-color: #333; margin: 10px 0;">
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="font-weight: bold; opacity: 0.8; font-size: 11px;">Router Terminal:</div>
+                        <button id="rt-agent-router-terminal-clear" style="background: transparent; border: none; color: #ff5555; font-size: 9px; cursor: pointer; opacity: 0.7;">Clear</button>
+                    </div>
+                    <div id="rt-agent-router-terminal" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; min-height: 80px; max-height: 200px; overflow-y: auto; margin-bottom: 10px;">
+                        <div style="opacity: 0.4; font-size: 10px; font-style: italic;">Waiting for agent activity...</div>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 10px 0;">
+                    <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 11px;">Decision Log:</div>
+                    <div id="rt-agent-router-log" style="display: flex; flex-direction: column; gap: 5px;">
+                    </div>
+                </div>
             </div>
             <div class="rpg-tracker-prompt-bar" id="rpg-tracker-prompt-bar" style="display:none;">
                 <textarea class="rpg-tracker-prompt-input" id="rpg-tracker-prompt-input" rows="2" placeholder="Instruct the tracker model… (Enter to send, Shift+Enter for newline)"></textarea>
@@ -1799,6 +1989,323 @@ Rules:
             });
         }
 
+        // ── Router Agent UI ──
+        const agentBtn = panel.querySelector('#rpg-tracker-agent-btn');
+        const agentPanel = panel.querySelector('#rpg-tracker-agent');
+        const agentCloseBtn = panel.querySelector('#rpg-tracker-agent-close');
+        
+        async function renderRouterUI() {
+            const s = getSettings();
+            const keysContainer = panel.querySelector('#rt-agent-router-active-keys');
+            const logContainer = panel.querySelector('#rt-agent-router-log');
+            if (!keysContainer || !logContainer) return;
+            
+            const ctx = SillyTavern.getContext();
+            const books = {};
+            const activeKeys = s.activeRouterKeys || [];
+            
+            // Collect needed lorebooks to minimize loads
+            const neededBooks = new Set();
+            for (const k of activeKeys) {
+                const parts = k.split('::');
+                if (parts.length > 1) neededBooks.add(parts[0]);
+            }
+            
+            for (const bookName of neededBooks) {
+                books[bookName] = await ctx.loadWorldInfo(bookName);
+            }
+
+            keysContainer.innerHTML = activeKeys.map(k => {
+                const [bookName, uid] = k.split('::');
+                const entry = books[bookName]?.entries?.[uid];
+                
+                let label = uid;
+                let title = "No entry found.";
+                if (entry) {
+                    label = entry.comment || (entry.key?.[0]) || uid;
+                    title = `[${bookName}] ${entry.key?.join(', ')}\n\n${(entry.content || '').substring(0, 500)}${entry.content?.length > 500 ? '...' : ''}`;
+                }
+
+                return `<span class="rt-router-pill" style="background: rgba(42, 42, 53, 0.8); padding: 2px 8px; border-radius: 12px; font-size: 10px; border: 1px solid rgba(255,255,255,0.1); display: inline-flex; align-items: center; gap: 6px; cursor: help; max-width: 120px;" title="${escapeHtml(title)}">
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${escapeHtml(label)}</span>
+                    <span class="rt-router-kill-key" data-key="${k}" style="cursor:pointer; color: #ff5555; font-weight: bold; padding: 0 2px;" title="Deactivate">✕</span>
+                </span>`;
+            }).join('') || '<span style="opacity:0.5; font-size:10px;">None</span>';
+            
+            logContainer.innerHTML = (s.routerLog || []).map(entry => {
+                let diffStr = '';
+                if (entry.activate?.length) diffStr += `<span style="color:#55ff55;">+${entry.activate.length}</span> `;
+                if (entry.deactivate?.length) diffStr += `<span style="color:#ff5555;">-${entry.deactivate.length}</span> `;
+                if (entry.record?.length) diffStr += `<span style="color:#55ccff;">*${entry.record.length}</span> `;
+                return `<div style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 10px; margin-bottom: 4px; border-left: 2px solid rgba(255,255,255,0.05);">
+                    <div style="display:flex; justify-content: space-between; opacity: 0.7; margin-bottom: 2px; font-weight: bold;">
+                        <span>${entry.time}</span>
+                        <span>${diffStr}</span>
+                    </div>
+                    <div style="line-height: 1.3;">${escapeHtml(entry.reason)}</div>
+                </div>`;
+            }).join('') || '<span style="opacity:0.5; font-size:10px;">No logs yet.</span>';
+            
+            // Attach kill handlers
+            keysContainer.querySelectorAll('.rt-router-kill-key').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const target = /** @type {HTMLElement} */ (e.target);
+                    const key = target.getAttribute('data-key');
+                    const st = getSettings();
+                    if (st.activeRouterKeys) {
+                        st.activeRouterKeys = st.activeRouterKeys.filter(k => k !== key);
+                        saveSettings();
+                        renderRouterUI();
+                    }
+                });
+            });
+        }
+        
+        if (agentBtn && agentPanel && agentCloseBtn) {
+            agentBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = (/** @type {HTMLElement} */ (agentPanel)).style.display === 'none';
+                (/** @type {HTMLElement} */ (agentPanel)).style.display = isHidden ? 'flex' : 'none';
+                if (isHidden) renderRouterUI();
+            });
+            agentCloseBtn.addEventListener('click', () => {
+                (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
+            });
+            const enableCheck = panel.querySelector('#rt-agent-router-enable');
+            if (enableCheck) {
+                enableCheck.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    s.routerEnabled = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                    saveSettings();
+                });
+            }
+
+            const prefixInput = /** @type {HTMLInputElement} */ (panel.querySelector('#rpg_tracker_router_campaign_prefix'));
+            if (prefixInput) {
+                prefixInput.value = settings.routerCampaignPrefix || "";
+                prefixInput.addEventListener('input', (e) => {
+                    const s = getSettings();
+                    s.routerCampaignPrefix = (/** @type {HTMLInputElement} */ (e.target)).value;
+                    saveSettings();
+                    if (s.chatLinkEnabled && _currentChatId) {
+                        saveChatState(_currentChatId);
+                    }
+                });
+            }
+            
+            const sourceSel = /** @type {HTMLSelectElement} */ (panel.querySelector('#rt-agent-router-source'));
+            const profGrp = /** @type {HTMLElement} */ (panel.querySelector('#rt-agent-router-profile-group'));
+            const profSel = /** @type {HTMLSelectElement} */ (panel.querySelector('#rt-agent-router-profile'));
+            const ollGrp = /** @type {HTMLElement} */ (panel.querySelector('#rt-agent-router-ollama-group'));
+            const ollUrl = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-ollama-url'));
+            const ollMod = /** @type {HTMLSelectElement} */ (panel.querySelector('#rt-agent-router-ollama-model'));
+            const ollRef = /** @type {HTMLElement} */ (panel.querySelector('#rt-agent-router-ollama-refresh'));
+            const oaiGrp = /** @type {HTMLElement} */ (panel.querySelector('#rt-agent-router-openai-group'));
+            const oaiUrl = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-openai-url'));
+            const oaiKey = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-openai-key'));
+            const oaiMod = /** @type {HTMLSelectElement} */ (panel.querySelector('#rt-agent-router-openai-model'));
+            const oaiRef = /** @type {HTMLElement} */ (panel.querySelector('#rt-agent-router-openai-refresh'));
+            const oaiMan = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-openai-model-manual'));
+            const preSel = /** @type {HTMLSelectElement} */ (panel.querySelector('#rt-agent-router-preset'));
+            const maxTok = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-max-tokens'));
+            if (maxTok) {
+                maxTok.addEventListener('input', (e) => {
+                    const s = getSettings();
+                    s.routerMaxTokens = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 0;
+                    $('#rpg_tracker_router_max_tokens').val(s.routerMaxTokens);
+                    saveSettings();
+                });
+            }
+            const maxTur = /** @type {HTMLInputElement} */ (panel.querySelector('#rt-agent-router-max-turns'));
+            if (maxTur) {
+                maxTur.addEventListener('input', (e) => {
+                    const s = getSettings();
+                    s.routerMaxTurns = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 5;
+                    $('#rpg_tracker_router_max_turns').val(s.routerMaxTurns);
+                    saveSettings();
+                });
+            }
+        const manualRunBtn = panel.querySelector('#rt-agent-router-manual-run');
+        if (manualRunBtn) {
+            manualRunBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const { chat } = SillyTavern.getContext();
+                const combinedNarrative = getNarrativeBlocks(chat, -1);
+                toastr['info']("Starting manual research pass...");
+                await runRouterPass(combinedNarrative);
+            });
+        }
+
+        const updateRouterPanels = () => {
+                const src = sourceSel.value;
+                if (profGrp) profGrp.style.display = src === 'profile' ? 'block' : 'none';
+                if (ollGrp) ollGrp.style.display = src === 'ollama' ? 'block' : 'none';
+                if (oaiGrp) oaiGrp.style.display = src === 'openai' ? 'block' : 'none';
+            };
+
+            if (sourceSel) {
+                sourceSel.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    s.routerConnectionSource = (/** @type {HTMLSelectElement} */ (e.target)).value;
+                    saveSettings();
+                    updateRouterPanels();
+                });
+            }
+
+            if (profSel) {
+                const ctx = SillyTavern.getContext();
+                if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                    /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profSel);
+                    profSel.value = settings.routerConnectionProfileId || "";
+                } else {
+                    getConnectionProfiles().then(profiles => {
+                        profSel.innerHTML = '<option value="">-- No Profile Selected --</option>';
+                        profiles.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p; opt.textContent = p;
+                            profSel.appendChild(opt);
+                        });
+                        profSel.value = settings.routerConnectionProfileId || "";
+                    });
+                }
+                profSel.addEventListener('change', () => {
+                    getSettings().routerConnectionProfileId = profSel.value;
+                    saveSettings();
+                });
+            }
+
+            if (ollUrl) {
+                ollUrl.addEventListener('input', () => {
+                    getSettings().routerOllamaUrl = ollUrl.value;
+                    saveSettings();
+                });
+            }
+            if (ollMod) {
+                ollMod.addEventListener('change', () => {
+                    getSettings().routerOllamaModel = ollMod.value;
+                    saveSettings();
+                });
+                ollRef.addEventListener('click', async () => {
+                    if (!ollUrl.value) return toastr['info']("Enter Ollama URL first.");
+                    try {
+                        toastr['info']("Fetching Ollama models...");
+                        const models = await fetchOllamaModels(ollUrl.value);
+                        ollMod.innerHTML = '<option value="">-- Select Model --</option>';
+                        models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.name; opt.textContent = m.name;
+                            ollMod.appendChild(opt);
+                        });
+                        ollMod.value = getSettings().routerOllamaModel || "";
+                        toastr['success']("Ollama models updated.");
+                    } catch (e) {
+                        toastr['error']("Failed to fetch Ollama models.");
+                    }
+                });
+            }
+
+            if (oaiUrl) {
+                oaiUrl.addEventListener('input', () => {
+                    getSettings().routerOpenaiUrl = oaiUrl.value;
+                    saveSettings();
+                });
+            }
+            if (oaiKey) {
+                oaiKey.addEventListener('input', () => {
+                    getSettings().routerOpenaiKey = oaiKey.value;
+                    saveSettings();
+                });
+            }
+            if (oaiMod) {
+                oaiMod.addEventListener('change', () => {
+                    if (oaiMod.value) {
+                        oaiMan.value = '';
+                        getSettings().routerOpenaiModel = oaiMod.value;
+                    } else {
+                        getSettings().routerOpenaiModel = oaiMan.value.trim();
+                    }
+                    saveSettings();
+                });
+                oaiRef.addEventListener('click', async () => {
+                    if (!oaiUrl.value) return toastr['info']("Enter Endpoint URL first.");
+                    try {
+                        toastr['info']("Fetching models...");
+                        const models = await fetchOpenAIModels(oaiUrl.value, oaiKey.value);
+                        oaiMod.innerHTML = '<option value="">-- Select Model --</option>';
+                        models.forEach(m => {
+                            const id = typeof m === 'string' ? m : (m.id || m.name);
+                            const opt = document.createElement('option');
+                            opt.value = id; opt.textContent = id;
+                            oaiMod.appendChild(opt);
+                        });
+                        oaiMod.value = getSettings().routerOpenaiModel || "";
+                        toastr['success']("Models updated.");
+                    } catch (e) {
+                        toastr['warning']("Cannot auto-detect models (CORS). Type manually.");
+                    }
+                });
+            }
+            if (oaiMan) {
+                oaiMan.addEventListener('input', () => {
+                    if (oaiMan.value.trim()) oaiMod.value = '';
+                    getSettings().routerOpenaiModel = oaiMan.value.trim() || oaiMod.value;
+                    saveSettings();
+                });
+            }
+
+            if (preSel) {
+                const ctx = SillyTavern.getContext();
+                const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+                if (pm && typeof pm.getAllPresets === 'function') {
+                    const presets = pm.getAllPresets();
+                    preSel.innerHTML = '<option value="">-- Use Current Settings --</option>';
+                    presets.forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p; opt.textContent = p;
+                        preSel.appendChild(opt);
+                    });
+                    preSel.value = settings.routerCompletionPresetId || '';
+                }
+                preSel.addEventListener('change', () => {
+                    getSettings().routerCompletionPresetId = preSel.value;
+                    saveSettings();
+                });
+            }
+
+            if (maxTok) {
+                maxTok.addEventListener('input', () => {
+                    getSettings().routerMaxTokens = parseInt(maxTok.value) || 0;
+                    saveSettings();
+                });
+            }
+        }
+        
+        document.addEventListener('rt_router_updated', renderRouterUI);
+
+        // ── Router Terminal Logic ──
+        let _routerSteps = [];
+        const terminal = panel.querySelector('#rt-agent-router-terminal');
+        const terminalClear = panel.querySelector('#rt-agent-router-terminal-clear');
+
+        document.addEventListener('rt_router_step', (e) => {
+            if (!terminal) return;
+            const step = (/** @type {CustomEvent} */ (e)).detail;
+            
+            if (step.type === 'start') _routerSteps = [];
+            _routerSteps.push(step);
+
+            terminal.innerHTML = renderRouterTerminal(_routerSteps);
+            terminal.scrollTop = terminal.scrollHeight;
+        });
+
+        if (terminalClear) {
+            terminalClear.addEventListener('click', () => {
+                _routerSteps = [];
+                if (terminal) terminal.innerHTML = '<div style="opacity: 0.4; font-size: 10px; font-style: italic;">Waiting for agent activity...</div>';
+            });
+        }
+
+
         updateChatLinkUI();
         updatePanelStatus();
 
@@ -1891,6 +2398,11 @@ Rules:
                 toastr['info']('Tracker hidden. You can reopen it at any time from the Extensions (Wand) Menu.', 'RPG Tracker');
             }
             saveSettings();
+        });
+
+        // Context Debugger toggle
+        panel.querySelector('#rpg-tracker-debug-btn').addEventListener('click', () => {
+            toggleDebugViewer();
         });
 
         // Direct prompt toggle
@@ -2561,6 +3073,7 @@ Rules:
         document.getElementById('rt_cfe_delete').onclick = del;
         document.getElementById('rt_cfe_cancel').onclick = close;
         document.getElementById('rt_cfe_close').onclick  = close;
+        document.getElementById('rpg-tracker-debug-btn').onclick = () => toggleDebugViewer();
         document.getElementById('rt_cfe_export').onclick = () => exportModules([field]);
     }
     function openPromptEditor(tag, title, currentText, defaultText, onSave) {
@@ -3270,6 +3783,7 @@ Rules:
 
             // ─── Dice System ───
             installInterceptor();
+            installRouterInterceptor();
             registerDiceFunctionTool();
             registerDiceSlashCommand();
 
@@ -3281,6 +3795,8 @@ Rules:
                 // getQuestMood is from memo-processor.js (no circular dep)
                 globalThis.__rpgQuestUtils = { computeFrustration, getQuestMood };
             }).catch(e => console.error('[RPG Tracker] quests.js failed to load:', e));
+
+            initializeDebugViewer();
 
             // Connection Settings
             const sourceSelect = $('#rpg_tracker_connection_source');
@@ -4034,6 +4550,184 @@ Rules:
                     saveSettings();
                 });
             }
+
+            // Router Agent Settings
+            $('#rpg_tracker_router_enabled').prop('checked', settings.routerEnabled).on('change', function () {
+                settings.routerEnabled = !!$(this).prop('checked');
+                saveSettings();
+                updatePanelStatus();
+            });
+
+            const routerSourceSelect = $('#rpg_tracker_router_source');
+            const routerProfileGroup = $('#rpg_tracker_router_profile_group');
+            const routerProfileSelect = $('#rpg_tracker_router_connection_profile');
+            const routerOllamaGroup = $('#rpg_tracker_router_ollama_group');
+            const routerOpenaiGroup = $('#rpg_tracker_router_openai_group');
+            const routerMaxTokensInput = $('#rpg_tracker_router_max_tokens');
+
+            function updateRouterConnectionPanels() {
+                const source = routerSourceSelect.val();
+                routerProfileGroup.toggle(source === 'profile');
+                routerOllamaGroup.toggle(source === 'ollama');
+                routerOpenaiGroup.toggle(source === 'openai');
+            }
+
+            routerSourceSelect.val(settings.routerConnectionSource).on('change', function () {
+                settings.routerConnectionSource = $(this).val();
+                updateRouterConnectionPanels();
+                saveSettings();
+            });
+            updateRouterConnectionPanels();
+
+            $('#rpg_tracker_router_campaign_prefix').val(settings.routerCampaignPrefix || '').on('input', function () {
+                const s = getSettings();
+                s.routerCampaignPrefix = String($(this).val() || '');
+                saveSettings();
+                if (s.chatLinkEnabled && _currentChatId) {
+                    saveChatState(_currentChatId);
+                }
+            });
+
+            // Router Ollama
+            $('#rpg_tracker_router_ollama_url').val(settings.routerOllamaUrl).on('input', function () {
+                settings.routerOllamaUrl = $(this).val();
+                saveSettings();
+            });
+            const routerOllamaModelSelect = $('#rpg_tracker_router_ollama_model');
+            routerOllamaModelSelect.val(settings.routerOllamaModel).on('change', function () {
+                settings.routerOllamaModel = $(this).val();
+                saveSettings();
+            });
+            $('#rpg_tracker_router_ollama_refresh').on('click', async function () {
+                const url = $('#rpg_tracker_router_ollama_url').val();
+                if (!url) return toastr['info']("Please enter an Ollama URL first.");
+                try {
+                    toastr['info']("Fetching Ollama models...");
+                    const models = await fetchOllamaModels(url);
+                    routerOllamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                    models.forEach(m => {
+                        routerOllamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
+                    });
+                    routerOllamaModelSelect.val(settings.routerOllamaModel);
+                    toastr['success']("Ollama models updated.");
+                } catch (e) {
+                    toastr['error']("Failed to fetch Ollama models.");
+                }
+            });
+
+            // Router OpenAI
+            $('#rpg_tracker_router_openai_url').val(settings.routerOpenaiUrl).on('input', function () {
+                settings.routerOpenaiUrl = $(this).val();
+                saveSettings();
+            });
+            $('#rpg_tracker_router_openai_key').val(settings.routerOpenaiKey).on('input', function () {
+                settings.routerOpenaiKey = $(this).val();
+                saveSettings();
+            });
+            const routerOpenaiModelSelect = $('#rpg_tracker_router_openai_model');
+            const routerOpenaiModelManual = $('#rpg_tracker_router_openai_model_manual');
+            routerOpenaiModelManual.val(settings.routerOpenaiModel || '');
+            routerOpenaiModelSelect.on('change', function () {
+                const val = $(this).val();
+                if (val) {
+                    routerOpenaiModelManual.val('');
+                    settings.routerOpenaiModel = String(val);
+                } else {
+                    settings.routerOpenaiModel = String(routerOpenaiModelManual.val() || '').trim() || '';
+                }
+                saveSettings();
+            });
+            routerOpenaiModelManual.on('input', function () {
+                const manual = String($(this).val() || '').trim();
+                if (manual) routerOpenaiModelSelect.val('');
+                settings.routerOpenaiModel = manual || String(routerOpenaiModelSelect.val() || '') || '';
+                saveSettings();
+            });
+            $('#rpg_tracker_router_openai_refresh').on('click', async function () {
+                const url = $('#rpg_tracker_router_openai_url').val();
+                const key = $('#rpg_tracker_router_openai_key').val();
+                if (!url) return toastr['info']("Please enter an Endpoint URL first.");
+                try {
+                    toastr['info']("Fetching models...");
+                    const models = await fetchOpenAIModels(url, key);
+                    routerOpenaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                    models.forEach(m => {
+                        const id = typeof m === 'string' ? m : (m.id || m.name);
+                        if (id) routerOpenaiModelSelect.append($('<option></option>').val(id).text(id));
+                    });
+                    routerOpenaiModelSelect.val(settings.routerOpenaiModel);
+                    toastr['success']("Models updated.");
+                } catch (e) {
+                    toastr['warning']("Cannot auto-detect models. Type manually.");
+                }
+            });
+
+            // Router Profiles & Presets Population
+            const routerPresetSelect = $('#rpg_tracker_router_completion_preset');
+            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(routerProfileSelect[0]);
+                routerProfileSelect.val(settings.routerConnectionProfileId || "");
+            } else {
+                getConnectionProfiles().then(profiles => {
+                    routerProfileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
+                    profiles.forEach(p => routerProfileSelect.append($('<option></option>').val(p).text(p)));
+                    routerProfileSelect.val(settings.routerConnectionProfileId || "");
+                });
+            }
+            routerProfileSelect.on('change', function () {
+                settings.routerConnectionProfileId = $(this).val();
+                saveSettings();
+            });
+
+            if (pm && typeof pm.getAllPresets === 'function') {
+                const presets = pm.getAllPresets();
+                routerPresetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+                presets.forEach(p => routerPresetSelect.append($('<option></option>').val(p).text(p)));
+                routerPresetSelect.val(settings.routerCompletionPresetId || '');
+            }
+            routerPresetSelect.on('change', function () {
+                settings.routerCompletionPresetId = String($(this).val() || '');
+                saveSettings();
+            });
+
+            routerMaxTokensInput.val(settings.routerMaxTokens).on('input', function () {
+                settings.routerMaxTokens = parseInt(String($(this).val() || '')) || 0;
+                saveSettings();
+            });
+            $('#rpg_tracker_router_max_turns').val(settings.routerMaxTurns).on('input', function () {
+                settings.routerMaxTurns = parseInt(String($(this).val() || '')) || 5;
+                saveSettings();
+            });
+
+            $('#rpg_tracker_router_prompt').val(settings.routerSystemPromptTemplate).on('input', function () {
+                settings.routerSystemPromptTemplate = String($(this).val() || '');
+                saveSettings();
+            });
+            $('#rpg_tracker_router_btn_reset_prompt').on('click', function () {
+                if (!confirm('Reset Router Agent prompt to default?')) return;
+                
+                const researcherPrompt = `You are the Researcher Agent, a specialized Dungeon Master's Assistant. Your goal is to maintain the narrative's "Active Context" by managing lorebook entries.
+
+You have the authority to browse the campaign's archive, search for relevant history, and update {{campaignRoot}} to reflect new developments.
+
+When you identify a gap in the active context, use your tools to find the missing information. When new NPCs or locations are introduced, record them immediately.
+
+Your primary focus is narrative consistency and preventing the AI Narrator from forgetting established facts.`;
+
+                const s = getSettings();
+                s.routerSystemPromptTemplate = researcherPrompt;
+                
+                const $el = $('#rpg_tracker_router_prompt');
+                $el.val(researcherPrompt);
+                $el.trigger('input'); 
+                
+                if (typeof (/** @type {any} */ ($el)).trigger === 'function') {
+                    (/** @type {any} */ ($el)).trigger('autosize.resize');
+                }
+                
+                saveSettings();
+                toastr['success']('Router prompt reset to Researcher Agent (with {{campaignRoot}} macro).', 'RPG Tracker');
+            });
 
             $('#rpg_tracker_btn_apply_sysprompt').on('click', async function () {
                 const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';

@@ -1034,3 +1034,41 @@ export function renderQuestLog(quests, currentTime, collapsed, detached, filterT
         <div class="rt-section-body" style="padding-bottom: 5px;">${bodyHtml}</div>
     </div>`;
 }
+    /**
+     * Renders a real-time terminal view of the Router Agent's internal steps.
+     * @param {any[]} steps
+     */
+    export function renderRouterTerminal(steps) {
+        if (!steps || steps.length === 0) return '';
+
+        return steps.map(step => {
+            const time = new Date(step.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            let icon = 'fa-brain';
+            let color = 'var(--rt-custom-text-muted)';
+            let title = 'Thought';
+
+            switch (step.type) {
+                case 'tool': icon = 'fa-screwdriver-wrench'; color = '#3498db'; title = 'Tool'; break;
+                case 'result': icon = 'fa-list-ul'; color = '#9b59b6'; title = 'Result'; break;
+                case 'error': icon = 'fa-circle-exclamation'; color = '#e74c3c'; title = 'Error'; break;
+                case 'finish': icon = 'fa-circle-check'; color = '#2ecc71'; title = 'Finished'; break;
+                case 'start': icon = 'fa-play'; color = '#f1c40f'; title = 'Starting'; break;
+            }
+
+            const content = escapeHtml(step.content);
+            const metadata = step.metadata || {};
+
+            return `
+            <div class="rt-terminal-step" style="margin-bottom: 8px; font-family: var(--rt-custom-font-mono, monospace); font-size: 11px;">
+                <div class="rt-terminal-header" style="display: flex; align-items: center; gap: 8px; opacity: 0.8;">
+                    <span style="font-size: 9px; opacity: 0.5;">${time}</span>
+                    <i class="fa-solid ${icon}" style="color: ${color}; width: 14px; text-align: center;"></i>
+                    <b style="color: ${color}; text-transform: uppercase; letter-spacing: 0.5px;">${title}</b>
+                    ${metadata.time ? `<span style="margin-left: auto; font-size: 10px; opacity: 0.6;">Worked for ${metadata.time}s</span>` : ''}
+                </div>
+                <div class="rt-terminal-content" style="margin-top: 4px; padding-left: 22px; line-height: 1.4; white-space: pre-wrap; word-break: break-all; color: var(--rt-custom-text);">
+                    ${content}
+                </div>
+            </div>`;
+        }).join('');
+    }
