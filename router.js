@@ -13,6 +13,22 @@ function broadcastStep(type, content, metadata = {}) {
 }
 
 /**
+ * Compatibility helper for older SillyTavern versions.
+ */
+async function getWorldInfoNamesSafe() {
+    const ctx = SillyTavern.getContext();
+    if (typeof ctx.getWorldInfoNames === 'function') {
+        return await ctx.getWorldInfoNames();
+    }
+    // Fallback for older versions
+    if (typeof ctx.getLorebookList === 'function') {
+        return await ctx.getLorebookList();
+    }
+    // Deep fallback
+    return [];
+}
+
+/**
  * Builds the summary "Keyring" text for archive entries.
  */
 function buildKeyringText(allBooks) {
@@ -42,11 +58,11 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
         broadcastStep('start', 'Initializing Lorebook Agent...');
 
         const startTime = Date.now();
+        const allBookNames = await getWorldInfoNamesSafe();
         const prefix = settings.routerCampaignPrefix || '';
         
         async function fetchArchiveBooks() {
-            const names = await ctx.getWorldInfoNames();
-            const scoped = prefix ? names.filter(n => n.startsWith(prefix)) : names;
+            const scoped = prefix ? allBookNames.filter(n => n.startsWith(prefix)) : allBookNames;
             const books = {};
             for (const n of scoped) {
                 const b = await ctx.loadWorldInfo(n);
@@ -195,7 +211,8 @@ Thought: I see a new NPC named Barnaby. I will record him.
                 broadcastStep('thought', 'Parsing tags...');
                 const basicAction = parseBasicTags(response, archiveBooks);
                 if (basicAction.record.length > 0 || basicAction.update.length > 0) {
-                    await applyAction(basicAction);
+                    const allBookNames = Object.keys(archiveBooks);
+                    await applyAction(basicAction, allBookNames);
                     broadcastStep('finish', `Basic Mode: Processed ${basicAction.record.length} records and ${basicAction.update.length} updates.`);
                 } else {
                     broadcastStep('finish', 'Basic Mode: No tags found.');
@@ -226,7 +243,8 @@ Thought: I see a new NPC named Barnaby. I will record him.
 
                     try {
                         const currentAction = JSON.parse(cleanJson(argsStr));
-                        await applyAction(currentAction);
+                        const allBookNames = Object.keys(archiveBooks);
+                        await applyAction(currentAction, allBookNames);
                         
                         // REFRESH STATE: Re-load books so next loop sees new entries
                         archiveBooks = await fetchArchiveBooks();
@@ -275,6 +293,12 @@ Thought: I see a new NPC named Barnaby. I will record him.
 
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
         broadcastStep('finish', `Finished in ${totalTime}s`, { time: totalTime, turns });
+
+        // Final application for Basic Mode (if turn ended on tags)
+        if (settings.routerBasicMode && turns === 1) {
+             // Basic mode application is already handled inside the loop for single-turn
+        }
+
         return true;
     } catch (e) {
         console.error("[Lorebook Agent] Run failed:", e);
@@ -288,7 +312,7 @@ Thought: I see a new NPC named Barnaby. I will record him.
 /**
  * Applies the agent's final decision to settings and lorebooks.
  */
-async function applyAction(action) {
+async function applyAction(action, allBookNames) {
     const settings = getSettings();
     const ctx = SillyTavern.getContext();
     let changed = false;
@@ -335,7 +359,7 @@ async function applyAction(action) {
         else if (cat.includes('FAC')) targetBook = prefix ? `${prefix}_Factions` : 'Factions';
         else if (cat.includes('EVENT')) targetBook = prefix ? `${prefix}_Events` : 'Events';
 
-        const newId = await addLorebookEntry(targetBook, rec);
+        const newId = await addLorebookEntry(targetBook, rec, allBookNames);
         if (!newActive.includes(newId)) {
             newActive.push(newId);
         }
@@ -456,9 +480,9 @@ function parseBasicTags(text, archiveBooks) {
 /**
  * Shared helper to add an entry to a specific lorebook.
  */
-async function addLorebookEntry(lorebookName, entryData) {
+async function addLorebookEntry(lorebookName, entryData, allNames) {
     const ctx = SillyTavern.getContext();
-    const allNames = await ctx.getWorldInfoNames();
+    if (!allNames) allNames = await getWorldInfoNamesSafe();
     let bookData = null;
     if (allNames.includes(lorebookName)) {
         bookData = await ctx.loadWorldInfo(lorebookName);
@@ -572,7 +596,7 @@ export async function getLorebookManifest() {
     const ctx = SillyTavern.getContext();
     const prefix = settings.routerCampaignPrefix || '';
     
-    const names = await ctx.getWorldInfoNames();
+    const names = await getWorldInfoNamesSafe();
     const scoped = prefix ? names.filter(n => n.startsWith(prefix)) : names;
     
     const manifest = [];
