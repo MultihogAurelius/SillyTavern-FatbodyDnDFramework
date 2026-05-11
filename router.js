@@ -59,6 +59,7 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
 
         const startTime = Date.now();
         const prefix = settings.routerCampaignPrefix || '';
+        let basicSummary = '';
         
         async function fetchArchiveBooks() {
             const allBookNames = await getWorldInfoNamesSafe();
@@ -241,7 +242,7 @@ Thought: I see a new NPC named Barnaby. I will record him.
                     basicAction.reason = (thoughtMatch ? thoughtMatch[1].trim() : "Tag-based update.") + ` (${summaries.join(', ')})`;
                     
                     await applyAction(basicAction, archiveBooks);
-                    broadcastStep('finish', `Basic Mode: ${summaries.join(', ')}`);
+                    basicSummary = summaries.join(', ');
                 } else {
                     broadcastStep('finish', 'Basic Mode: No tags found.');
                 }
@@ -326,7 +327,8 @@ Thought: I see a new NPC named Barnaby. I will record him.
         }
 
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
-        broadcastStep('finish', `Finished in ${totalTime}s`, { time: totalTime, turns });
+        const finishMsg = basicSummary ? `Finished in ${totalTime}s — ${basicSummary}` : `Finished in ${totalTime}s`;
+        broadcastStep('finish', finishMsg, { time: totalTime, turns });
 
         // Final application for Basic Mode
         if (settings.routerBasicMode && turns === 1) {

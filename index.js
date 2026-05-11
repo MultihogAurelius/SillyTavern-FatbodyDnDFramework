@@ -4430,6 +4430,18 @@ Rules:
 
                 // Diagnostic: confirm the final quest mode state at init
                 console.log(`[RPG Tracker] Quest mode at init: questLegacyMode=${settings.questLegacyMode}, quests slot=${settings.stockPrompts.quests?.includes?.('updates') ? 'MODERN/JSON' : settings.stockPrompts.quests?.includes?.('OBJ_ACTIVE') ? 'LEGACY' : 'UNKNOWN'}`);
+
+                // Retroactive Log Cleanup: replace generic messages with more descriptive ones
+                if (settings.routerLog && settings.routerLog.length > 0) {
+                    let cleaned = false;
+                    settings.routerLog.forEach(entry => {
+                        if (entry.reason === "Tag-based update.") {
+                            entry.reason = "Processed narrative entities (Legacy Log).";
+                            cleaned = true;
+                        }
+                    });
+                    if (cleaned) saveSettings();
+                }
             }
 
             $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
