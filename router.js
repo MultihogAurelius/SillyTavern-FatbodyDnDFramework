@@ -1,5 +1,6 @@
 import { getSettings } from './state-manager.js';
 import { sendStateRequest } from './llm-client.js';
+import { getRequestHeaders } from '../../../../script.js';
 
 let _routerRunning = false;
 
@@ -524,7 +525,7 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
         // endpoint writes directly to disk with no registry requirement.
         const saveRes = await fetch('/api/worldinfo/edit', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getRequestHeaders(),
             body: JSON.stringify({ name: targetBook, data: bookData })
         });
         if (!saveRes.ok) {
