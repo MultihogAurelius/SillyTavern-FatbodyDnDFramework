@@ -1227,6 +1227,8 @@
 
 /* Detached Panels */
 .rt-detached-panel {
+    position: fixed !important;
+    z-index: 5000 !important;
     min-height: auto;
     min-width: 250px;
     height: auto;

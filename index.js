@@ -2434,7 +2434,9 @@ Rules:
             const applyDetachedState = () => {
                 if (isDetached()) {
                     agentPanel.classList.add('rt-detached-panel');
+                    agentPanel.style.display = 'flex'; // Force visibility if detached
                     document.body.appendChild(agentPanel);
+                    renderRouterUI(); // Ensure it's populated
                     const header = agentPanel.querySelector('.rpg-tracker-delta-toolbar');
                     if (header instanceof HTMLElement) {
                         makeDraggable(agentPanel, header, GEO_KEY);
@@ -2442,19 +2444,42 @@ Rules:
                     detachBtn.innerHTML = '↓';
                     detachBtn.title = 'Re-attach Lorebook Agent';
                     
-                    // Restore geometry
+                    // Restore geometry with off-screen protection
                     try {
-                        const saved = JSON.parse(localStorage.getItem(GEO_KEY));
-                        if (saved) {
-                            if (saved.left !== undefined) {
-                                agentPanel.style.left = saved.left + 'px';
-                                agentPanel.style.top = saved.top + 'px';
-                                agentPanel.style.right = 'auto';
+                        const savedStr = localStorage.getItem(GEO_KEY);
+                        const saved = savedStr ? JSON.parse(savedStr) : null;
+                        
+                        let left = 100;
+                        let top = 100;
+                        let width = 300;
+                        let height = 400;
+
+                        if (saved && typeof saved.left === 'number') {
+                            const isOffScreen = (
+                                saved.left + 50 > window.innerWidth || 
+                                saved.top + 50 > window.innerHeight || 
+                                saved.left < -250 || 
+                                saved.top < -50
+                            );
+                            
+                            if (!isOffScreen) {
+                                left = saved.left;
+                                top = saved.top;
+                                if (saved.width) width = saved.width;
+                                if (saved.height) height = saved.height;
                             }
-                            if (saved.width) agentPanel.style.width = saved.width + 'px';
-                            if (saved.height) agentPanel.style.height = saved.height + 'px';
                         }
-                    } catch (e) {}
+
+                        agentPanel.style.left = left + 'px';
+                        agentPanel.style.top = top + 'px';
+                        agentPanel.style.width = width + 'px';
+                        if (height) agentPanel.style.height = height + 'px';
+                        agentPanel.style.right = 'auto';
+                    } catch (e) {
+                        agentPanel.style.left = '100px';
+                        agentPanel.style.top = '100px';
+                        agentPanel.style.width = '300px';
+                    }
                 } else {
                     agentPanel.classList.remove('rt-detached-panel');
                     panel.appendChild(agentPanel);
