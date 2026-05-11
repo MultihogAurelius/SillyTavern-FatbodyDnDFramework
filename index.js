@@ -4347,14 +4347,9 @@ Rules:
                 e.preventDefault();
                 e.stopPropagation();
                 const drawer = $(this).closest('.inline-drawer');
-                drawer.toggleClass('open');
-                // Ensure the content is visible when open, even if ST defaults vary
                 const content = drawer.find('> .inline-drawer-content');
-                if (drawer.hasClass('open')) {
-                    content.show();
-                } else {
-                    content.hide();
-                }
+                drawer.toggleClass('open');
+                content.stop(true, true).slideToggle(200);
                 $(this).find('.inline-drawer-icon').toggleClass('down');
             });
 
