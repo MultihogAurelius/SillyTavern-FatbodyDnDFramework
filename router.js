@@ -142,7 +142,12 @@ Action: commit({"update":[{"id":"Adventure_NPCs::0","content":"Now a known ally.
 Observation: Committed successfully.
 Thought: I have updated Elara. Research complete.
 
-Campaign Root: "${prefix || 'World Archive'}" (NPCs/Locations go into "${prefix ? prefix + '_NPCs' : 'NPCs'}" or "${prefix ? prefix + '_Locations' : 'Locations'}").
+Campaign Root: "${prefix || 'World Archive'}"
+Hierarchy: When recording locations or NPCs, use the current breadcrumb (${breadcrumb || 'Root'}) as a prefix in the label using the " :: " separator.
+Example: "Khelt :: Section Four :: Impact Site"
+
+Categories: Always include "In: [Parent]" in the keywords for every ancestor in the hierarchy.
+Example Keywords: "Impact Site, In: Khelt, In: Section Four"
 
 ## FIELD INSTRUCTIONS
 ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `- ${m.tag}: ${m.instruction}`).join('\n')}
@@ -155,13 +160,17 @@ ${(settings.routerCustomTags || []).map(m => `- ${m.tag}: ${m.instruction}`).joi
             const narrativeTimeMatch = recentChat.match(timeRegex);
             const memoTimeMatch = settings.currentMemo?.match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
             const cleanMemoTime = memoTimeMatch ? memoTimeMatch[1].split('\n')[0].trim() : '';
-            
             const currentTime = narrativeTimeMatch ? narrativeTimeMatch[1] : cleanMemoTime;
+
+            const locationRegex = /\(Location:\s*([^)]+)\)/i;
+            const locMatch = recentChat.match(locationRegex);
+            const currentHierarchy = locMatch ? locMatch[1].trim() : '';
+            const breadcrumb = currentHierarchy ? currentHierarchy.replace(/,\s*/g, ' :: ') : '';
             
             const questMatch = settings.currentMemo?.match(/\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i);
             const questBlock = questMatch ? `[QUESTS]${questMatch[1].trim()}[/QUESTS]` : 'None';
             
-            const userPrompt = `## ACTIVE QUESTS\n${questBlock}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None'}\n\n## ARCHIVE INDEX\n${keyringText}\n\n## NARRATIVE\n${recentChat}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}${loopHistory.join('\n\n')}\n\nNext Step:`;
+            const userPrompt = `## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlock}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None'}\n\n## ARCHIVE INDEX\n${keyringText}\n\n## NARRATIVE\n${recentChat}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}${loopHistory.join('\n\n')}\n\nNext Step:`;
 
             const routerSettings = {
                 ...settings,
@@ -245,7 +254,7 @@ Thought: I see a new NPC named Barnaby. I will record him.
                     
                     basicAction.reason = (thoughtMatch ? thoughtMatch[1].trim() : "Tag-based update.") + ` (${summaries.join(', ')})`;
                     
-                    await applyAction(basicAction, archiveBooks, currentTime);
+                    await applyAction(basicAction, archiveBooks, currentTime, breadcrumb);
                     basicSummary = summaries.join(', ');
                 } else {
                     broadcastStep('finish', 'Basic Mode: No tags found.');
@@ -276,7 +285,7 @@ Thought: I see a new NPC named Barnaby. I will record him.
 
                     try {
                         const currentAction = JSON.parse(cleanJson(argsStr));
-                        const result = await applyAction(currentAction, archiveBooks, currentTime);
+                        const result = await applyAction(currentAction, archiveBooks, currentTime, breadcrumb);
                         
                         // REFRESH STATE: Re-load books so next loop sees new entries
                         archiveBooks = await fetchArchiveBooks();
@@ -356,9 +365,10 @@ Thought: I see a new NPC named Barnaby. I will record him.
  * @param {object} action - The action to apply.
  * @param {object} allBooks - The cached archive books for verification.
  * @param {string} [currentTime=''] - The current time string for timestamping.
+ * @param {string} [breadcrumb=''] - The current location hierarchy string (Main :: Sub).
  * @returns {Promise<{success: boolean, errors: string[], recordedIds: string[]}>}
  */
-async function applyAction(action, allBooks = {}, currentTime = '') {
+async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb = '') {
     const settings = getSettings();
     const ctx = SillyTavern.getContext();
     let changed = false;
@@ -454,6 +464,11 @@ async function applyAction(action, allBooks = {}, currentTime = '') {
             const book = await ctx.loadWorldInfo(targetBook);
             if (book?.entries?.[existingUid]) {
                 book.entries[existingUid].content = rec.content;
+                // Update keywords to include hierarchy if missing
+                const keys = book.entries[existingUid].key || [];
+                (rec.keys || []).forEach(k => { if (!keys.includes(k)) keys.push(k); });
+                book.entries[existingUid].key = keys;
+
                 await ctx.saveWorldInfo(targetBook, book);
                 const fullId = `${targetBook}::${existingUid}`;
                 if (!newActive.includes(fullId)) newActive.push(fullId);
@@ -461,6 +476,16 @@ async function applyAction(action, allBooks = {}, currentTime = '') {
                 changed = true;
             }
         } else {
+            // Force hierarchical keywords if not provided by Agent
+            if (currentTime && !rec.keys?.some(k => k.startsWith('In:'))) {
+                const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
+                rec.keys = rec.keys || [];
+                parts.forEach(p => {
+                    const k = `In: ${p}`;
+                    if (!rec.keys.includes(k)) rec.keys.push(k);
+                });
+            }
+
             const newId = await addLorebookEntry(targetBook, rec, Object.keys(allBooks));
             if (!newActive.includes(newId)) {
                 newActive.push(newId);
