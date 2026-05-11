@@ -757,7 +757,7 @@ Output a JSON object:
         const routerSettings = {
             ...settings,
             connectionSource: settings.routerConnectionSource || "default",
-            maxTokens: settings.routerMaxTokens || 1000,
+            maxTokens: (settings.routerMaxTokens !== undefined && settings.routerMaxTokens !== null && settings.routerMaxTokens !== '') ? Number(settings.routerMaxTokens) : 1000,
         };
 
         const result = await sendStateRequest(routerSettings, systemPrompt, userPrompt);
@@ -802,6 +802,17 @@ export async function getLorebookManifest() {
     
     const names = await getWorldInfoNamesSafe();
     const scoped = prefix ? names.filter(n => n.startsWith(prefix)) : names;
+    
+    // Also include any books referenced in activeRouterKeys that aren't in the registry
+    // (books created by us via saveWorldInfo but not formally registered with ST)
+    const activeBookNames = (settings.activeRouterKeys || [])
+        .map(k => k.split('::')[0])
+        .filter(Boolean);
+    for (const n of activeBookNames) {
+        if (!scoped.includes(n) && (!prefix || n.startsWith(prefix))) {
+            scoped.push(n);
+        }
+    }
     
     const manifest = [];
     for (const n of scoped) {
