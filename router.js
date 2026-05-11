@@ -120,7 +120,9 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
 
 ## MEMORY LIMIT
 Maximum Active Entities: **${settings.routerMaxActivations || 5}**.
-If you are at the limit and need to activate a new entity, you MUST use \`commit({"deactivate": ["Book::UID"]})\` on the least relevant active entity to make room.
+- If you are at the limit and need to activate a new entity, you MUST use \`commit({"deactivate": ["Book::UID"]})\` on the least relevant active entity.
+- **IMPORTANT**: Entries you \`record\` are ACTIVATED AUTOMATICALLY. Do not include them in the \`activate\` list of the same commit.
+- **IMPORTANT**: You MUST use the exact \`Book::UID\` format for activation/update. Never use names or invent IDs.
 
 ## PROCESS
 1. **SEARCH FIRST**: Always use \`grep_lore\` or \`inspect_book\` before recording a new entry to prevent duplicates.
@@ -136,7 +138,7 @@ Action: commit({"update":[{"id":"Adventure_NPCs::0","content":"Now a known ally.
 Observation: Committed successfully.
 Thought: I have updated Elara. Research complete.
 
-Campaign Root: "${prefix || 'None'}" (All records go here. NPCs/Locations may be sorted into "${prefix ? prefix + '_NPCs' : 'NPCs'}" or "${prefix ? prefix + '_Locations' : 'Locations'}").
+Campaign Root: "${prefix || 'World Archive'}" (NPCs/Locations go into "${prefix ? prefix + '_NPCs' : 'NPCs'}" or "${prefix ? prefix + '_Locations' : 'Locations'}").
 
 ## FIELD INSTRUCTIONS
 ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `- ${m.tag}: ${m.instruction}`).join('\n')}
