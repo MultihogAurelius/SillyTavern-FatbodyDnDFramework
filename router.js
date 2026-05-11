@@ -188,7 +188,8 @@ ${(settings.routerCustomTags || []).map(m => `- ${m.tag}: ${m.instruction}`).joi
                 maxTokens: (settings.routerMaxTokens !== undefined && settings.routerMaxTokens !== null && settings.routerMaxTokens !== '') ? Number(settings.routerMaxTokens) : 1000,
             };
 
-            broadcastStep('thought', `Thinking (Turn ${turns}/${maxTurns})...`);
+            const thinkingMsg = settings.routerBasicMode ? 'Thinking...' : `Thinking (Turn ${turns}/${maxTurns})...`;
+            broadcastStep('thought', thinkingMsg);
             
             let currentSystemPrompt = systemPrompt;
             if (settings.routerBasicMode) {
