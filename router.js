@@ -422,31 +422,22 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             changed = true;
         }
     }
-
     // 3. Record new (with Deduplication)
+    // Group entries by target book and commit once per book to avoid UID collisions
     const records = action.record || [];
     const prefix = settings.routerCampaignPrefix || '';
+    const baseBook = prefix || 'World Chronicle';
     const recordedIds = [];
+
+    // -- Phase A: Route each record to its target book --
+    const catMap = { 'NPC': 'NPCs', 'LOC': 'Locations', 'QUEST': 'Quests', 'FAC': 'Factions', 'EVENT': 'Events' };
+    /** @type {Map<string, Array>} */
+    const bookQueue = new Map();
+
     for (const rec of records) {
-        // Map category to book name
-        const allBookNames = Object.keys(allBooks);
-        const baseBook = prefix || 'World Chronicle';
-        let targetBook = baseBook;
         const cat = (rec.category || rec.comment || '').toUpperCase();
-        
-        const catMap = { 'NPC': 'NPCs', 'LOC': 'Locations', 'QUEST': 'Quests', 'FAC': 'Factions', 'EVENT': 'Events' };
         const catName = Object.keys(catMap).find(k => cat.includes(k));
-        const targetCat = catName ? catMap[catName] : null;
-
-        if (targetCat) {
-            const prefixed = prefix ? `${prefix}_${targetCat}` : targetCat;
-            // Always prefer the category-specific name (will be created if missing)
-            targetBook = prefixed;
-        } else {
-            targetBook = baseBook;
-        }
-
-        if (settings.debugMode) console.log(`[RPG Tracker] Routing ${cat} "${rec.label}" to: ${targetBook}`);
+        const targetBook = catName ? (prefix ? `${prefix}_${catMap[catName]}` : catMap[catName]) : baseBook;
 
         if (cat.includes('EVENT')) {
             if (currentTime && !rec.label.includes('[Day')) {
@@ -454,66 +445,82 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             }
         }
 
-        // Apply temporal content tagging to ALL records
         if (timePrefix && !rec.content.includes('[Day')) {
             rec.content = timePrefix + rec.content;
         }
 
-        // DEDUPLICATION: Check if an entry with this label already exists in the target book
-        let existingUid = null;
-        const targetBookData = allBooks[targetBook];
-        if (targetBookData?.entries) {
-            const cleanLabel = (rec.label || '').replace(/^\[Day[^\]]+\]\s*/i, '').toLowerCase().trim();
-            for (const [uid, entry] of Object.entries(targetBookData.entries)) {
-                const entryLabel = (entry.comment || '').replace(/^\[Day[^\]]+\]\s*/i, '').toLowerCase().trim();
-                if (entryLabel === cleanLabel) {
-                    existingUid = uid;
-                    break;
-                }
+        // Add hierarchy keyword if missing
+        if (!rec.keys?.some(k => k.startsWith('In:'))) {
+            const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
+            if (parts.length > 0) {
+                rec.keys = rec.keys || [];
+                rec.keys.push(`In: ${parts.join(', ')}`);
             }
         }
+        rec.keys = cleanKeys(rec.keys || []);
 
-        if (existingUid) {
-            // Convert record to update
-            const book = await ctx.loadWorldInfo(targetBook);
-            if (book?.entries?.[existingUid]) {
-                book.entries[existingUid].content = rec.content;
-                // Update keywords to include hierarchy if missing
-                const keys = book.entries[existingUid].key || [];
-                const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
-                if (parts.length > 0) {
-                    const hierarchyKey = `In: ${parts.join(', ')}`;
-                    if (!keys.includes(hierarchyKey)) keys.push(hierarchyKey);
-                }
+        if (!bookQueue.has(targetBook)) bookQueue.set(targetBook, []);
+        bookQueue.get(targetBook).push(rec);
+    }
+
+    // -- Phase B: For each book, load (or create) it, append all entries, save once --
+    const knownBookNames = Object.keys(allBooks);
+    for (const [targetBook, recs] of bookQueue.entries()) {
+        if (settings.debugMode) console.log(`[RPG Tracker] Writing ${recs.length} entries to: ${targetBook}`);
+
+        // Load existing book or initialize a new one
+        let bookData = knownBookNames.includes(targetBook)
+            ? await ctx.loadWorldInfo(targetBook)
+            : null;
+
+        if (!bookData) {
+            bookData = { entries: {}, name: targetBook, scan_depth: 4, token_budget: 400, recursive: false, extensions: {} };
+        }
+
+        for (const rec of recs) {
+            // Deduplication: skip if an entry with this label already exists
+            const cleanLabel = (rec.label || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+            let existingUid = null;
+            for (const [uid, entry] of Object.entries(bookData.entries)) {
+                const entryLabel = (entry.comment || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+                if (entryLabel === cleanLabel) { existingUid = uid; break; }
+            }
+
+            if (existingUid) {
+                // Update in-memory
+                bookData.entries[existingUid].content = rec.content;
+                const keys = bookData.entries[existingUid].key || [];
                 (rec.keys || []).forEach(k => { if (!keys.includes(k)) keys.push(k); });
-                book.entries[existingUid].key = cleanKeys(keys);
-
-                await ctx.saveWorldInfo(targetBook, book);
+                bookData.entries[existingUid].key = cleanKeys(keys);
                 const fullId = `${targetBook}::${existingUid}`;
                 if (!newActive.includes(fullId)) newActive.push(fullId);
-                recordedIds.push(`${fullId} (updated existing)`);
-                changed = true;
+                recordedIds.push(`${fullId} (updated)`);
+            } else {
+                // Append new entry with the next sequential UID
+                const uids = Object.keys(bookData.entries).map(Number).filter(n => !isNaN(n));
+                const nextUid = uids.length > 0 ? Math.max(...uids) + 1 : 0;
+                bookData.entries[nextUid] = {
+                    uid: nextUid,
+                    key: rec.keys || [rec.label],
+                    keysecondary: [],
+                    comment: rec.label || 'LORE_GEN',
+                    content: rec.content,
+                    constant: false, selective: false, selectiveLogic: 0, addMemo: true,
+                    order: 100, position: 0, disable: false,
+                    probability: 100, useProbability: false,
+                    depth: 4, group: '', groupOverride: false, groupWeight: 100,
+                };
+                const fullId = `${targetBook}::${nextUid}`;
+                if (!newActive.includes(fullId)) newActive.push(fullId);
+                recordedIds.push(fullId);
             }
-        } else {
-            // Force hierarchical keywords if not provided by Agent
-            if (currentTime && !rec.keys?.some(k => k.startsWith('In:'))) {
-                const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
-                if (parts.length > 0) {
-                    rec.keys = rec.keys || [];
-                    const hierarchyKey = `In: ${parts.join(', ')}`;
-                    if (!rec.keys.includes(hierarchyKey)) rec.keys.push(hierarchyKey);
-                }
-            }
-            rec.keys = cleanKeys(rec.keys || []);
-
-            const newId = await addLorebookEntry(targetBook, rec, allBookNames);
-            if (!newActive.includes(newId)) {
-                newActive.push(newId);
-            }
-            recordedIds.push(newId);
             changed = true;
         }
+
+        // Save the entire book once
+        await ctx.saveWorldInfo(targetBook, bookData);
     }
+
 
     // 4. Enforce Max Activations (FIFO Pruning)
     const maxActive = settings.routerMaxActivations || 5;
