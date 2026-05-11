@@ -159,7 +159,7 @@ Hierarchy: When recording locations or NPCs, use the current breadcrumb (${bread
 Example: "Khelt :: Section Four :: Impact Site"
 
 Categories: Always include "In: [Parent]" in the keywords for every ancestor in the hierarchy.
-Example Keywords: "Impact Site, In: Khelt, In: Section Four"
+Example Keywords: "scholarly, In: Khelt, In: Section Four" (Note: do not include the name of the entry itself or parents without the "In:" prefix).
 
 ## FIELD INSTRUCTIONS
 ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `- ${m.tag}: ${m.instruction}`).join('\n')}
@@ -468,8 +468,13 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
                 book.entries[existingUid].content = rec.content;
                 // Update keywords to include hierarchy if missing
                 const keys = book.entries[existingUid].key || [];
+                const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
+                if (parts.length > 0) {
+                    const hierarchyKey = `In: ${parts.join(', ')}`;
+                    if (!keys.includes(hierarchyKey)) keys.push(hierarchyKey);
+                }
                 (rec.keys || []).forEach(k => { if (!keys.includes(k)) keys.push(k); });
-                book.entries[existingUid].key = keys;
+                book.entries[existingUid].key = cleanKeys(keys);
 
                 await ctx.saveWorldInfo(targetBook, book);
                 const fullId = `${targetBook}::${existingUid}`;
@@ -481,12 +486,13 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             // Force hierarchical keywords if not provided by Agent
             if (currentTime && !rec.keys?.some(k => k.startsWith('In:'))) {
                 const parts = (breadcrumb || '').split(' :: ').filter(Boolean);
-                rec.keys = rec.keys || [];
-                parts.forEach(p => {
-                    const k = `In: ${p}`;
-                    if (!rec.keys.includes(k)) rec.keys.push(k);
-                });
+                if (parts.length > 0) {
+                    rec.keys = rec.keys || [];
+                    const hierarchyKey = `In: ${parts.join(', ')}`;
+                    if (!rec.keys.includes(hierarchyKey)) rec.keys.push(hierarchyKey);
+                }
             }
+            rec.keys = cleanKeys(rec.keys || []);
 
             const newId = await addLorebookEntry(targetBook, rec, Object.keys(allBooks));
             if (!newActive.includes(newId)) {
@@ -772,4 +778,12 @@ export async function deleteLorebookEntry(id) {
     }
     
     return true;
+}
+
+/**
+ * Removes duplicates and empty strings from an array of keywords.
+ */
+function cleanKeys(keys) {
+    if (!Array.isArray(keys)) return [];
+    return [...new Set(keys.map(k => k?.trim()).filter(Boolean))];
 }
