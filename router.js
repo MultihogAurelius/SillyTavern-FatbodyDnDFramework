@@ -150,6 +150,13 @@ ${(settings.routerCustomTags || []).map(m => `- ${m.tag}: ${m.instruction}`).joi
             const routerSettings = {
                 ...settings,
                 connectionSource: settings.routerConnectionSource || "default",
+                connectionProfileId: settings.routerConnectionProfileId,
+                completionPresetId: settings.routerCompletionPresetId,
+                ollamaUrl: settings.routerOllamaUrl,
+                ollamaModel: settings.routerOllamaModel,
+                openaiUrl: settings.routerOpenaiUrl,
+                openaiKey: settings.routerOpenaiKey,
+                openaiModel: settings.routerOpenaiModel,
                 maxTokens: settings.routerMaxTokens || 1000,
             };
 
@@ -210,10 +217,9 @@ Thought: I see a new NPC named Barnaby. I will record him.
             if (settings.routerBasicMode) {
                 broadcastStep('thought', 'Parsing tags...');
                 const basicAction = parseBasicTags(response, archiveBooks);
-                if (basicAction.record.length > 0 || basicAction.update.length > 0) {
-                    const allBookNames = Object.keys(archiveBooks);
-                    await applyAction(basicAction, allBookNames);
-                    broadcastStep('finish', `Basic Mode: Processed ${basicAction.record.length} records and ${basicAction.update.length} updates.`);
+                if (basicAction.record.length > 0 || basicAction.update.length > 0 || basicAction.activate.length > 0) {
+                    await applyAction(basicAction, archiveBooks);
+                    broadcastStep('finish', `Basic Mode: Processed ${basicAction.record.length} records, ${basicAction.update.length} updates, ${basicAction.activate.length} activations.`);
                 } else {
                     broadcastStep('finish', 'Basic Mode: No tags found.');
                 }
@@ -243,15 +249,18 @@ Thought: I see a new NPC named Barnaby. I will record him.
 
                     try {
                         const currentAction = JSON.parse(cleanJson(argsStr));
-                        const allBookNames = Object.keys(archiveBooks);
-                        await applyAction(currentAction, allBookNames);
+                        const result = await applyAction(currentAction, archiveBooks);
                         
                         // REFRESH STATE: Re-load books so next loop sees new entries
                         archiveBooks = await fetchArchiveBooks();
                         keyringText = buildKeyringText(archiveBooks);
                         updateActiveEntries();
                         
-                        observation = "Committed successfully. Archive updated.";
+                        if (result.errors.length > 0) {
+                            observation = `Committed with warnings: ${result.errors.join(', ')}`;
+                        } else {
+                            observation = "Committed successfully. Archive updated.";
+                        }
                     } catch (e) {
                         observation = `Error: Invalid JSON in commit. ${e.message}`;
                     }
@@ -294,9 +303,11 @@ Thought: I see a new NPC named Barnaby. I will record him.
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
         broadcastStep('finish', `Finished in ${totalTime}s`, { time: totalTime, turns });
 
-        // Final application for Basic Mode (if turn ended on tags)
+        // Final application for Basic Mode
         if (settings.routerBasicMode && turns === 1) {
-             // Basic mode application is already handled inside the loop for single-turn
+             // Handled inside the loop
+        } else if (finalAction) {
+            await applyAction(finalAction, archiveBooks);
         }
 
         return true;
@@ -311,11 +322,16 @@ Thought: I see a new NPC named Barnaby. I will record him.
 
 /**
  * Applies the agent's final decision to settings and lorebooks.
+ * @param {object} action - The action to apply.
+ * @param {object} allBooks - The cached archive books for verification.
+ * @returns {Promise<{success: boolean, errors: string[]}>}
  */
-async function applyAction(action, allBookNames) {
+async function applyAction(action, allBooks = {}) {
     const settings = getSettings();
     const ctx = SillyTavern.getContext();
     let changed = false;
+    const errors = [];
+    const allBookNames = Object.keys(allBooks);
 
     // 1. Activate/Deactivate
     const activate = action.activate || [];
@@ -327,9 +343,20 @@ async function applyAction(action, allBookNames) {
     
     // Add activations
     for (const k of activate) {
-        if (!newActive.includes(k)) {
-            newActive.push(k);
-            changed = true;
+        if (typeof k !== 'string' || !k.includes('::')) {
+            errors.push(`Invalid ID format: ${k}`);
+            continue;
+        }
+        const [bookName, uid] = k.split('::');
+        const exists = allBooks[bookName]?.entries?.[uid];
+        
+        if (exists) {
+            if (!newActive.includes(k)) {
+                newActive.push(k);
+                changed = true;
+            }
+        } else {
+            errors.push(`Entity not found: ${k}`);
         }
     }
     if (deactivate.length > 0) changed = true;
@@ -406,6 +433,8 @@ async function applyAction(action, allBookNames) {
         ctx.saveSettingsDebounced();
         document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
     }
+
+    return { success: true, errors };
 }
 
 /**

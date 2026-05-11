@@ -4345,6 +4345,12 @@ Rules:
                 $('#extensions_settings').append(html);
             }
 
+            // Bind drawer toggles for newly added content
+            $(document).on('click', '.inline-drawer-toggle', function() {
+                $(this).closest('.inline-drawer').find('> .inline-drawer-content').stop().slideToggle();
+                $(this).find('.inline-drawer-icon').toggleClass('down');
+            });
+
             const settings = getSettings();
 
             // --- Automatic Stock Prompt Synchronization ---
@@ -5287,12 +5293,12 @@ Rules:
                 routerOpenaiGroup.toggle(source === 'openai');
             }
 
-            routerSourceSelect.val(settings.routerConnectionSource).on('change', function () {
+            routerSourceSelect.val(settings.routerConnectionSource || 'default').on('change', function () {
                 settings.routerConnectionSource = $(this).val();
                 updateRouterConnectionPanels();
                 saveSettings();
             });
-            updateRouterConnectionPanels();
+            setTimeout(updateRouterConnectionPanels, 100); // Ensure DOM is ready for toggle
 
             $('#rpg_tracker_router_campaign_prefix').val(settings.routerCampaignPrefix || '').on('input', function () {
                 const s = getSettings();
