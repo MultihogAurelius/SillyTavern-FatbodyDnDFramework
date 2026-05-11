@@ -4345,8 +4345,10 @@ Rules:
                 $('#extensions_settings').append(html);
             }
 
-            // Bind drawer toggles for newly added content
-            $(document).on('click', '.inline-drawer-toggle', function() {
+            // Bind drawer toggles ONLY for our own content to avoid global conflicts
+            $('.rpg-tracker-settings').on('click', '.inline-drawer-toggle', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 $(this).closest('.inline-drawer').find('> .inline-drawer-content').stop().slideToggle();
                 $(this).find('.inline-drawer-icon').toggleClass('down');
             });
