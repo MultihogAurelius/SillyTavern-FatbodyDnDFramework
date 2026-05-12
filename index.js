@@ -3032,6 +3032,7 @@ Rules:
             renderRouterUI();
             renderAgentDebug();
             updateUndoLabel();
+            refreshManifest();
         });
 
         // ── Lorebook Terminal Logic ──

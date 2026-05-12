@@ -683,6 +683,11 @@ export async function rollbackRouterPass(index = 0) {
             }
         }
 
+        // Re-index so ST knows about deletions before we start restoring
+        if (typeof ctx.updateWorldInfoList === 'function') {
+            try { await ctx.updateWorldInfoList(); } catch (_) {}
+        }
+
         // ── Step 2: Restore pre-pass lorebooks to their snapshotted state ─────
         for (const [bookName, bookData] of Object.entries(snapshot.bookSnapshots || {})) {
             const saveRes = await fetch('/api/worldinfo/edit', {
