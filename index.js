@@ -1846,11 +1846,27 @@ Rules:
             el.innerHTML = html;
             bindRenderedCardEvents(el, memo, false);
 
-            // Update footer location
-            const locMatch = (memo || '').match(/Location:\s*([^)\n]+)/i);
+            // Update footer location: try parsing from recent chat status footer first, fallback to memo
+            let locText = '';
+            const ctx = SillyTavern.getContext();
+            if (ctx && ctx.chat && ctx.chat.length) {
+                for (let i = ctx.chat.length - 1; i >= 0; i--) {
+                    const msgContent = ctx.chat[i]?.mes || ctx.chat[i]?.content || '';
+                    const m = msgContent.match(/\(Location:\s*([^)]+)\)/i);
+                    if (m) {
+                        locText = m[1].trim();
+                        break;
+                    }
+                }
+            }
+            if (!locText) {
+                const locMatch = (memo || '').match(/Location:\s*([^)\n]+)/i);
+                if (locMatch) locText = locMatch[1].trim();
+            }
             const footerLoc = document.getElementById('rt-footer-location');
             if (footerLoc) {
-                footerLoc.textContent = locMatch ? locMatch[1].trim() : 'Unknown Location';
+                footerLoc.textContent = locText || 'Unknown Location';
+                footerLoc.title = locText ? `Location: ${locText}` : 'Unknown Location';
             }
         }
 
