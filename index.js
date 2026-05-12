@@ -2163,7 +2163,11 @@ Rules:
                     </div>
 
                     <hr style="border-color: rgba(255,255,255,0.05); margin: 10px 0;">
-                    <div id="rt-agent-router-log" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="font-weight: bold; opacity: 0.8; font-size: 11px;">Agent Log History:</div>
+                        <button id="rt-agent-router-log-clear" style="background: transparent; border: none; color: #ff5555; font-size: 9px; cursor: pointer; opacity: 0.7;">Clear</button>
+                    </div>
+                    <div id="rt-agent-router-log" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; max-height: 150px; overflow-y: auto;">
                     </div>
 
                     <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
@@ -3039,6 +3043,7 @@ Rules:
         let _routerSteps = [];
         const terminal = agentPanel.querySelector('#rt-agent-router-terminal');
         const terminalClear = agentPanel.querySelector('#rt-agent-router-terminal-clear');
+        const logClear = agentPanel.querySelector('#rt-agent-router-log-clear');
 
         document.addEventListener('rt_lore_agent_step', (e) => {
             if (!terminal) return;
@@ -3057,6 +3062,16 @@ Rules:
                 if (terminal) terminal.innerHTML = '<div style="opacity: 0.4; font-size: 10px; font-style: italic;">Waiting for agent activity...</div>';
             });
         }
+
+        if (logClear) {
+            logClear.addEventListener('click', () => {
+                const s = getSettings();
+                s.routerLog = [];
+                saveSettings();
+                renderRouterUI();
+            });
+        }
+
 
 
         updateChatLinkUI();
