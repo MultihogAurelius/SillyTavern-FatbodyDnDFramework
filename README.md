@@ -14,22 +14,17 @@ I wasn't satisfied with any of the commercial offerings available (AI Realm, AI 
 2. 🎲 **Hybrid RNG System** — A dual-engine approach to tabletop physics. 
    - **RNG Queue (Combat)**: Pre-seeded deterministic dice injected into every turn for high-speed, zero-latency combat resolution, neatly within a single output. Sidesteps the unreliability and massive input token costs of tool chains.
    - **Tool Call RNG (Narrative)**: A proactive AI-driven rolling system for non-combat skill checks. Features a "Waterproof" commitment logic where the AI must declare a DC before seeing the result, preventing narrative sycophancy and cheating.
-3. 📜 **sysprompt.txt** — Required for the AI to understand the Hybrid RNG system, buff/temporal logic, resistance/vulnerability/immunity, level-up, and consistent output structure. Version 1.4.0 offers both the Modern (Hybrid) and Legacy (Queue-only) prompts via a toggle in the UI.
+3. 🤖 **The Lorebook Agent** — This is a fully autonomous lorebook manager that creates, updates, activates and deactivates, deactivates lorebooks for you in the background. Handles the macroscopic consistency of your adventure.
 
-Together they solve the two core problems of LLM tabletop RP: the AI forgets your inventory/spells, and you always winning (aka. plot armor). I have high confidence in the system's reliability—you can just play and not worry about tinkering with much of anything.
-
----
-
-⚠️ **Updating?** To stay up to date after updating the extension, copy and paste the system prompt from the SYSPROMPT button in the bottom right corner of the UI and reset all the core prompt and the module prompts in the settings. Alternatively, just press the "Reset All and Apply Main System Prompt" button in the settings.
-
-<img width="228" height="133" alt="image" src="https://github.com/user-attachments/assets/cf5e5cab-c4c9-413c-9b20-ff601c9e82fc" />
-
-<img width="500" height="..." alt="image" src="https://github.com/user-attachments/assets/07bdbaee-3e65-44ed-b384-09f638592bda" />
-
+Together they solve the three core problems of LLM tabletop RP: the AI forgeting your inventory/spells, the AI forgetting long-term context, and you always winning (aka. plot armor).  I have high confidence in the system's reliability—you can just play and not worry about tinkering with much of anything.
 
 ---
 
-⚠️ **NOTE: if you close the UI window, it can be reopened from the wand menu.**
+⚠️ **Updating?** To stay up to date after updating the extension, especially after updating to 2.0.0+, click on the "Update Main Sysprompt" button in the extension settings.
+
+<img width="366" height="75" alt="image" src="https://github.com/user-attachments/assets/42b7370b-071a-43d3-a0c7-a5df2e2d0ea9" />
+
+---
 
 ## Highlights
 
@@ -40,13 +35,14 @@ Together they solve the two core problems of LLM tabletop RP: the AI forgets you
 - **Snapshot history + delta log** - easy rollback, and see at a glance what was changed in the state.
 - **Auto model-switching** so that you can use a different model for tracking the state.
 - **Full-context audit mode** in case you lose your state.
-- **Custom fields, themes, reorderable sections**; track whatever you want beyond the stock fields.
+- **Custom fields, themes, reorderable sections**; track whatever you want beyond the stock fields and customize the visuals to your liking.
 - **Automatic D&D wikidot spell links** - look up spells by clicking on them without awkward googling.
 - **Mobile support** (open from the wand menu).
 - **Talk to the tracker model directly via (💬)**, making editing or adding things easy.
 - **Onboarding system** - roll up a random character or describe one to the model.
 - **Profile saving** - switch between multiple campaigns without losing your state.
 - **Homebrew-friendly** and flexible in general, relying on AI to do a lot of the lifting.
+- **Automatic Long-Context Tracking** via the Lorebook Agent.
 
 <div align="center">
   <figure>
