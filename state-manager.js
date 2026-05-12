@@ -19,7 +19,7 @@ export const DEFAULT_MODULES = {
     npc:   { enabled: true, tag: 'NPC',   format: 'Name | Description | Keywords',                    instruction: 'Use for NEW NPCs or updating ACTIVE ones. NEVER create a standalone NPC entry for the player character ({{user}}) — their state is in the State Memo. You may still mention them in EVENT or QUEST entries.' },
     loc:   { enabled: true, tag: 'LOC',   format: 'Name | Description | Keywords',                    instruction: 'Use for NEW Locations. The Name MUST be the full hierarchical path with " :: " separator (e.g. "Khelt :: Rust-Lantern District :: Marrow-Deep Mines Office"). Include each ancestor in the keywords (e.g. "mines, contracts, Khelt, Rust-Lantern"). Do NOT explicitly activate locations; they trigger via keywords. To update an existing location, just use the same hierarchical Name — the agent will append the new content to the existing entry.' },
     fac:   { enabled: true, tag: 'FAC',   format: 'Name | Status | Keywords',                         instruction: 'Track faction reputation and standing.' },
-    quest: { enabled: true, tag: 'QUEST', format: 'Name | Location | Description | Keywords',         instruction: 'Record quests and where they were received.' },
+    quest: { enabled: true, tag: 'QUEST', format: 'Name | Location | Description | Keywords',         instruction: 'Record quests and where they were received. ONLY record quests if the player accepts the quest. A quest being simply listed is NOT enough.' },
     event: { enabled: true, tag: 'EVENT', format: 'Name | Details | Keywords',                        instruction: 'Record significant narrative events. The Name is a SHORT, STABLE arc identifier (e.g. "Calibration of Sensor 4") — no timestamps, no "Final"/"Update" suffixes. Put the timestamp in the Details pipe (e.g. [Day 1, 14:00]). If this event is ongoing or you are adding new information to an existing event, use the EXACT same Name as before — entries are chronicles that append automatically when the name matches.' }
 };
 
@@ -246,7 +246,7 @@ Example: "[Day 1, 11:52] Character signed the contract with Brodrik."
             npc: { enabled: !!old.npc, tag: 'NPC', format: 'Name | Description | Keywords', instruction: 'Use for NEW NPCs or updating ACTIVE ones.' },
             loc: { enabled: !!old.loc, tag: 'LOC', format: 'Name | Description | Keywords', instruction: 'Use for NEW Locations. Name MUST be the full hierarchical path with " :: " separator (e.g. "Khelt :: Rust-Lantern District :: Marrow-Deep Mines Office"). Include each ancestor as a keyword.' },
             fac: { enabled: !!old.fac, tag: 'FAC', format: 'Name | Status | Keywords', instruction: 'Track faction reputation and standing.' },
-            quest: { enabled: !!old.quest, tag: 'QUEST', format: 'Name | Location | Description | Keywords', instruction: 'Record quests and where they were received.' },
+            quest: { enabled: !!old.quest, tag: 'QUEST', format: 'Name | Location | Description | Keywords', instruction: 'Record quests and where they were received. ONLY record quests if the player accepts the quest. A quest being simply listed is NOT enough.' },
             event: { enabled: !!old.event, tag: 'EVENT', format: 'Name | Details | Keywords', instruction: 'Record significant narrative events.' }
         };
     }
