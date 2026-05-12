@@ -156,7 +156,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         routerBasicMode: false,
         routerModules: {
             npc: { enabled: true, tag: 'NPC', format: 'Name | Description | Keywords', instruction: 'Use for NEW NPCs or updating ACTIVE ones. NEVER create a standalone NPC entry for the player character ({{user}}) — their state is in the State Memo. You may still mention them in EVENT or QUEST entries.' },
-            loc: { enabled: true, tag: 'LOC', format: 'Name | Parent Location | Description | Keywords', instruction: 'Use for NEW Locations. ALWAYS specify the Parent Location. Do NOT explicitly activate locations; they trigger via the footer. Record them with keywords matching the footer\'s location fragments (e.g. \'Khelt\', \'Third Tier\').' },
+            loc: { enabled: true, tag: 'LOC', format: 'Name | Parent Location | Description | Keywords', instruction: 'Use for NEW Locations. ALWAYS specify the Parent Location. Do NOT explicitly activate locations; they trigger via the footer. Record them with keywords matching the footer\'s location fragments (e.g. \'Khelt\', \'Third Tier\'). To update an active location, use the update tool with the [ID:] from the entry — provide only the NEW timestamped delta, not the full rewritten content. Entries are chronicles; deltas are appended.' },
             fac: { enabled: true, tag: 'FAC', format: 'Name | Status | Keywords', instruction: 'Track faction reputation and standing.' },
             quest: { enabled: true, tag: 'QUEST', format: 'Name | Location | Description | Keywords', instruction: 'Record quests and where they were received.' },
             event: { enabled: true, tag: 'EVENT', format: 'Name | Details | Keywords', instruction: 'Record significant narrative events. ALWAYS include a timestamp (e.g., [Day 1, 14:00]) in the details so the chronology is preserved.' }
@@ -191,7 +191,9 @@ When you log a quest, describe the location and the quest giver in a single para
 </quests>
 
 <updating_entities>
-When an entity (location, NPC, etc) changes in a meaningful way, change the associated lorebook entry to keep everything up to date.
+When an entity (location, NPC, etc) changes in a meaningful way, update the associated lorebook entry.
+Entries are append-only chronicles. Provide ONLY the new information as a timestamped delta (e.g. "[Day 3, 14:00] The forge was destroyed."). Do NOT rewrite or re-summarize the full entry.
+For locations: the [ID:] stamp at the top of every injected entry is the ID you pass to the update tool.
 </updating_entities>
 
 <timestamps>

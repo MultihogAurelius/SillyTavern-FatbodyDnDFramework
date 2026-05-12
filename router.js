@@ -415,13 +415,13 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
         const [bookName, uid] = up.id.split('::');
         const book = await ctx.loadWorldInfo(bookName);
         if (book?.entries?.[uid]) {
-            let newContent = up.content;
-            if (timePrefix && !newContent.includes('[Day')) {
-                newContent = timePrefix + newContent;
+            let delta = (up.content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trim();
+            if (timePrefix && !delta.includes('[Day')) {
+                delta = timePrefix.trim() + ' ' + delta;
             }
-            // Strip any model-echoed ID header, then re-stamp the canonical one
-            newContent = newContent.replace(/^\[ID:[^\]]+\]\n?/i, '');
-            book.entries[uid].content = `[ID: ${up.id}]\n${newContent}`;
+            // Append delta to the existing chronicle; preserve the [ID:] stamp at the top
+            const existing = (book.entries[uid].content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trimEnd();
+            book.entries[uid].content = `[ID: ${up.id}]\n${existing}\n${delta}`;
             await ctx.saveWorldInfo(bookName, book);
             changed = true;
         }
@@ -498,10 +498,11 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             }
 
             if (existingUid) {
-                // Update in-memory — strip any stale ID header then re-stamp it
+                // Append delta to existing chronicle (dedup path)
                 const fullId = `${targetBook}::${existingUid}`;
-                const strippedContent = (rec.content || '').replace(/^\[ID:[^\]]+\]\n?/i, '');
-                bookData.entries[existingUid].content = `[ID: ${fullId}]\n${strippedContent}`;
+                let delta = (rec.content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trim();
+                const existing = (bookData.entries[existingUid].content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trimEnd();
+                bookData.entries[existingUid].content = `[ID: ${fullId}]\n${existing}\n${delta}`;
                 const keys = bookData.entries[existingUid].key || [];
                 (rec.keys || []).forEach(k => { if (!keys.includes(k)) keys.push(k); });
                 bookData.entries[existingUid].key = cleanKeys(keys);
