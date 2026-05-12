@@ -2,6 +2,10 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [1.10.41] - 2026-05-12
+### Added
+- **Persona Character Creation**: Added a new `🎭 Persona` archetype option to the startup onboarding screen. This feature resolves the active SillyTavern persona description via macro replacement and feeds it as a direct instruction to generate a custom-tailored D&D character matching the specified persona and starting level.
+
 ## [1.8.29] - 2026-05-11
 ### Added
 - **Direct Prompt & Adjustable Lookback**: Added the ability to send direct commands to the Lorebook Agent and adjust the number of recent chat messages (lookback) it analyzes.

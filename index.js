@@ -1395,12 +1395,30 @@ Rules:
             btn.addEventListener('click', async () => {
                 const archetype = btn.dataset.archetype;
                 const level = el.querySelector('#rt-starting-level')?.value || 1;
-                const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...' };
+                const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...', persona: '🎭 Embodying...' };
                 const prompts = {
                     magic: `Generate a random Level ${level} D&D Magic User (Wizard, Sorcerer, or Warlock). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes consistent with Level ${level}.`,
                     melee: `Generate a random Level ${level} D&D Melee Fighter (Fighter, Barbarian, or Paladin). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons consistent with Level ${level}.`,
                     rogue: `Generate a random Level ${level} D&D Rogue or Thief-style character. Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack consistent with Level ${level}.`
                 };
+
+                // ── Persona archetype: derive character from the active SillyTavern persona ──
+                if (archetype === 'persona') {
+                    const { substituteParams } = SillyTavern.getContext();
+                    const resolvedPersona = substituteParams ? substituteParams('{{persona}}').trim() : '';
+                    if (!resolvedPersona || resolvedPersona === '{{persona}}') {
+                        toastr['warning'](
+                            'No persona is set. Set a persona in SillyTavern (User Settings → Personas) and try again.',
+                            'RPG Tracker'
+                        );
+                        return;
+                    }
+                    el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
+                    btn.textContent = labels.persona;
+                    const personaPrompt = `Using the following persona description as the basis for the player character, create a Level ${level} D&D character that faithfully embodies this persona. Translate the personality, background, and traits into appropriate D&D stats, class, race, and equipment. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks (and [SPELLS] if the class is a spellcaster, using 'Cantrips:' for level 0 spells). All attributes and gear should be consistent with Level ${level}.\n\nPersona:\n${resolvedPersona}`;
+                    await sendDirectPrompt(personaPrompt);
+                    return;
+                }
 
                 el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
                 btn.textContent = labels[archetype] || '🎲 Rolling...';

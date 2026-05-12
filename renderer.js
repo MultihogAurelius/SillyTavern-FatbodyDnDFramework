@@ -653,6 +653,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                     <button class="rt-random-char-btn" data-archetype="magic">✨ Magic</button>
                     <button class="rt-random-char-btn" data-archetype="melee">⚔️ Melee</button>
                     <button class="rt-random-char-btn" data-archetype="rogue">🗡️ Rogue</button>
+                    <button class="rt-random-char-btn" data-archetype="persona">🎭 Persona</button>
                 </div>
 
                 <div style="font-size: 13px; opacity: 0.9; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; line-height: 1.4;">
