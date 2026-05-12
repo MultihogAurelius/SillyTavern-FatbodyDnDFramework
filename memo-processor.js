@@ -71,7 +71,7 @@ export function escapeRegex(str) {
 }
 
 export function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /** Wraps parenthetical groups in a highlight span. */
