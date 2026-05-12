@@ -348,6 +348,11 @@ export async function sendStateRequest(settings, systemPrompt, userPrompt, signa
                 ?? r?.message?.content
                 ?? r?.choices?.[0]?.message?.content
                 ?? r?.choices?.[0]?.text
+                // Some providers (e.g. models with extended thinking) return empty content
+                // with the actual response in a reasoning/thinking field — treat it as the output.
+                ?? r?.reasoning
+                ?? r?.message?.reasoning
+                ?? r?.choices?.[0]?.message?.reasoning
                 ?? null;
 
             if (text) {

@@ -478,6 +478,32 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
 
                 // parseTimeStr removed, using shared parseInWorldTime from memo-processor.js
 
+                // Extracts the 24-hour from a free-form "HH:MM[ AM/PM]" pattern in a line.
+                // Returns -1 if no clock pattern is found.
+                const hourOfLine = (s) => {
+                    const m = String(s || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+                    if (!m) return -1;
+                    let h = parseInt(m[1], 10);
+                    if (m[3]) {
+                        const mer = m[3].toUpperCase();
+                        if (mer === 'AM' && h === 12) h = 0;
+                        if (mer === 'PM' && h !== 12) h += 12;
+                    }
+                    if (!Number.isFinite(h) || h < 0 || h > 23) return -1;
+                    return h;
+                };
+                // Maps a 24-hour value to a time-of-day emoji.
+                const todEmoji = (h) => {
+                    if (h < 0) return '';
+                    if (h < 5)  return '🌙'; // late night
+                    if (h < 7)  return '🌅'; // dawn
+                    if (h < 12) return '☀️'; // morning
+                    if (h < 14) return '🌞'; // midday
+                    if (h < 18) return '🌤️'; // afternoon
+                    if (h < 20) return '🌇'; // sunset
+                    return '🌃';             // night
+                };
+
 
                 for (let line of lines) {
                     if (line.toLowerCase().startsWith('last rest:')) continue;
@@ -507,7 +533,9 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                         }
                         const asMarker = tryRenderMarker(line, tag);
                         if (asMarker !== null) return asMarker;
-                        return `<div class="rt-card-item">${escapeHtmlWithColor(line)}</div>`;
+                        const lineEmoji = todEmoji(hourOfLine(line));
+                        const linePrefix = lineEmoji ? `<span class="rt-tod-emoji" style="margin-right:4px;">${lineEmoji}</span>` : '';
+                        return `<div class="rt-card-item">${linePrefix}${escapeHtmlWithColor(line)}</div>`;
                     });
             }
             case 'XP':

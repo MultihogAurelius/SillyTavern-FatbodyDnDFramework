@@ -484,10 +484,10 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             rec.label = rec.label.replace(/^[A-Z_]{2,10}:\s+/i, '').trim();
         }
 
-        // For LOC entries, auto-enrich the label with the breadcrumb hierarchy if not already set
-        if (cat.includes('LOC') && breadcrumb && !rec.label.includes(' :: ')) {
-            rec.label = `${breadcrumb} :: ${rec.label}`;
-        }
+        // Breadcrumb enrichment is intentionally omitted: the model is instructed in the system
+        // prompt to include the full hierarchy in the label itself (e.g. "Khelt :: Section 4").
+        // Auto-prepending the current breadcrumb causes corruption when recording parent/sibling
+        // locations that are not children of the current scene.
 
         if (cat.includes('EVENT')) {
             if (currentTime && !rec.label.includes('[Day')) {

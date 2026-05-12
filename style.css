@@ -1375,16 +1375,16 @@
 /* Mobile UI overrides */
 @media screen and (max-width: 800px) {
     .rpg-tracker-panel:not(.rt-detached-panel) {
-        top: 5vh !important;
+        top: 44px !important;
         left: 3vw !important;
         right: 3vw !important;
         width: 94vw !important;
-        height: 85vh !important; /* using fallback vh */
-        height: 85dvh !important; /* using dvh if supported */
+        height: calc(100vh - 44px - 58px) !important; /* fallback */
+        height: calc(100dvh - 44px - 58px) !important; /* viewport minus ST toolbar and input bar */
         bottom: auto !important;
         min-width: unset !important;
         max-width: 100% !important;
-        max-height: 90vh !important;
+        max-height: calc(100dvh - 44px - 58px) !important;
         resize: none !important;
     }
 
@@ -1543,13 +1543,15 @@
 }
 
 @media (max-width: 600px) {
-    /* Make the panel taller on mobile — cover more screen */
+    /* Make the panel fill the screen between the ST toolbar and the input bar */
     .rpg-tracker-panel {
-        top: 40px !important;
+        top: 44px !important;                         /* clear the SillyTavern top toolbar */
         left: 0 !important;
         right: 0 !important;
         width: 100% !important;
-        height: 70vh !important;
+        height: calc(100vh - 44px - 58px) !important;   /* fallback: viewport - toolbar - input bar */
+        height: calc(100dvh - 44px - 58px) !important;  /* dynamic viewport minus both bars */
+        max-height: calc(100dvh - 44px - 58px) !important;
         border-radius: 0 !important;
     }
 
@@ -1558,19 +1560,6 @@
         gap: 0 !important;
         padding: 4px !important;
         height: auto !important;
-    }
-
-    .rt-footer-toggle-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: transparent;
-        border: none;
-        color: var(--rt-accent);
-        font-size: 1.07em;
-        padding: 4px 8px;
-        cursor: pointer;
-        opacity: 0.7;
     }
 
     /* Hide drawer sections by default on mobile */
@@ -1615,21 +1604,22 @@
         margin-left: auto !important;
     }
 
-    /* Top row: toggle + centered nav */
+    /* Top row: nav only — toggle button is removed */
     .rt-mobile-top-row {
         width: 100%;
         display: flex;
         align-items: center;
+        justify-content: center;
     }
 
+    /* Hide the green arrow footer-drawer toggle on mobile — no longer needed */
+    .rt-footer-toggle-btn {
+        display: none !important;
+    }
+
+    /* Balance centering spacer no longer needed without toggle */
     .rt-mobile-top-row::after {
-        content: '';
-        flex: 0 0 auto;
-        width: 28px;
-    }
-
-    .rt-mobile-top-row .rt-footer-toggle-btn {
-        flex: 0 0 auto;
+        display: none;
     }
 
     .rt-mobile-top-row .rpg-tracker-nav {
@@ -1638,6 +1628,23 @@
         justify-content: center;
         align-items: center;
         gap: 8px;
+    }
+
+    /* Cap active-keys chip list so it cannot overflow into the terminal below */
+    #rt-agent-router-active-keys {
+        max-height: 110px;
+        overflow-y: auto;
+    }
+
+    /* Reduce campaign records list height so it doesn't crowd the bottom */
+    #rt-agent-manifest-list {
+        max-height: 220px !important;
+        padding-bottom: 12px !important; /* ensure last row isn't clipped mid-height */
+    }
+
+    /* Extra breathing room at the bottom of the agent content scroll area */
+    #rpg-tracker-agent .rpg-tracker-content {
+        padding-bottom: 20px !important;
     }
 }
 
