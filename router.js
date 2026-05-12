@@ -5,6 +5,57 @@ import { getRequestHeaders } from '../../../../script.js';
 let _routerRunning = false;
 
 /**
+ * Parses a single Action: toolname({...}) call from a text response.
+ * Used as a fallback for profile/default connections that don't support native tool calling.
+ * Safe because the caller always passes a single-turn response (multi-turn messages mean
+ * the model never echoes prior turns, so only one action appears in the text).
+ *
+ * @param {string} text
+ * @returns {{name: string, args: object, id: string} | null}
+ */
+function parseTextAction(text) {
+    // Find the last "Action:" line to be safe, then extract the balanced JSON argument.
+    const parts = ('\n' + text).split(/\nAction:\s*/i);
+    if (parts.length < 2) return null;
+    const lastPart = parts[parts.length - 1].trim();
+
+    // Extract the tool name
+    const nameMatch = lastPart.match(/^(\w+)\s*\(/);
+    if (!nameMatch) return null;
+    const name = nameMatch[1].toLowerCase();
+
+    // Extract balanced-paren args starting after the tool name
+    const parenStart = lastPart.indexOf('(');
+    if (parenStart === -1) return null;
+    let depth = 0, end = -1;
+    for (let i = parenStart; i < lastPart.length; i++) {
+        if (lastPart[i] === '(') depth++;
+        else if (lastPart[i] === ')') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    const rawArgs = end !== -1 ? lastPart.slice(parenStart + 1, end) : lastPart.slice(parenStart + 1);
+
+    // For tools that take a bare string (grep_lore, inspect_book, read_entry), wrap in object
+    let args;
+    try {
+        // Try JSON first
+        let cleaned = rawArgs.trim();
+        if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
+            // Bare string argument like grep_lore("Iron Syndicate")
+            cleaned = cleaned.replace(/^['"]|['"]$/g, '');
+            const argNames = { grep_lore: 'query', inspect_book: 'book_name', read_entry: 'uid' };
+            args = { [argNames[name] || 'value']: cleaned };
+        } else {
+            cleaned = cleaned.replace(/,\s*\}/g, '}').replace(/,\s*\]/g, ']');
+            args = JSON.parse(cleaned);
+        }
+    } catch (_) {
+        return null;
+    }
+
+    return { name, args, id: `text_${Date.now()}` };
+}
+
+/**
  * Broadcasts an agent step to the UI for the Terminal view.
  */
 function broadcastStep(type, content, metadata = {}) {
@@ -314,15 +365,13 @@ Thought: I see a new NPC named Barnaby. I will record him.
                 }
             ];
 
-            // System prompt for agent mode — no Action:/Observation: text format since
-            // the model uses native tool calling and gets the schemas separately.
-            const agentSystemPrompt = `${basePrompt}
+            // Native tool calling is only reliable for direct openai/ollama connections.
+            // For profile/default the ConnectionManagerRequestService may not forward tools
+            // correctly, causing MALFORMED_FUNCTION_CALL errors. Those connections get a
+            // text-format (Action:/Observation:) system prompt and text-based parsing instead.
+            const usesNativeTools = ['openai', 'ollama'].includes(routerSettings.connectionSource);
 
-## YOUR ROLE
-You are a lorebook research agent. Maintain the campaign lorebook using the tools provided.
-Use grep_lore / inspect_book / read_entry to look up existing data before recording.
-When research is complete, call commit once to write all changes. Stop immediately after.
-
+            const sharedContext = `
 ## MEMORY LIMIT
 Maximum Active Entities: **${settings.routerMaxActivations || 5}**.
 - Entries you record are ACTIVATED AUTOMATICALLY. Do NOT also include them in activate.
@@ -339,6 +388,41 @@ Include ancestor location names as plain keywords (e.g. keys: ["Khelt", "Rust-La
 ## FIELD INSTRUCTIONS
 ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `- ${m.tag}: ${m.instruction}`).join('\n')}${(settings.routerCustomTags || []).length ? '\n\n### CUSTOM CATEGORIES\n' + (settings.routerCustomTags || []).map(m => `- ${m.tag.toUpperCase()}: ${m.instruction}`).join('\n') : ''}`;
 
+            const agentSystemPrompt = usesNativeTools
+                // Clean prompt for native tool calling — model gets schemas via the API
+                ? `${basePrompt}
+
+## YOUR ROLE
+You are a lorebook research agent. Maintain the campaign lorebook using the provided tools.
+Use grep_lore / inspect_book / read_entry to look up existing data before recording.
+When research is complete, call commit once to write all changes. Stop immediately after.
+${sharedContext}`
+                // Text-format prompt for profile/default — model outputs Action:/Observation: text
+                : `${basePrompt}
+
+## YOUR ROLE
+You are a lorebook research agent. Maintain the campaign lorebook using the actions below.
+Use grep_lore / inspect_book / read_entry to look up existing data before recording.
+When research is complete, output commit once to write all changes, then stop.
+
+## ACTIONS
+Output exactly ONE action per turn in this format:
+  Action: toolname({"arg": "value"})
+
+Available actions:
+- grep_lore({"query": "..."}) — search lorebooks for entries matching a keyword
+- inspect_book({"book_name": "..."}) — list UIDs in a lorebook
+- read_entry({"uid": "Book::0"}) — read full content of an entry
+- commit({"record": [...], "update": [...], "activate": [...], "deactivate": [...], "delete_ids": [...]}) — write all changes and finish
+
+commit record items: {"label": "Name only (NO tag prefix)", "keys": ["kw1","kw2"], "content": "...", "category": "NPC|LOC|FAC|QUEST|EVENT"}
+commit update items: {"id": "Book::UID", "content": "new text to append"}
+
+## EXAMPLE
+Thought: I see a new faction called Iron Syndicate. I will record it.
+Action: commit({"record": [{"label": "Iron Syndicate", "keys": ["Khelt", "faction"], "content": "The dominant industrial authority.", "category": "FAC"}]})
+${sharedContext}`;
+
             const questMatchA = settings.currentMemo?.match(/\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i);
             const questBlockA = questMatchA ? `[QUESTS]${questMatchA[1].trim()}[/QUESTS]` : 'None';
             const contextMessage = `## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlockA}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None yet.'}\n\n## ARCHIVE INDEX\n${keyringText || 'Empty.'}\n\n## NARRATIVE\n${recentChat}${manualPrompt ? `\n\n## INSTRUCTION\n${manualPrompt}` : ''}`;
@@ -353,7 +437,9 @@ ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `-
                 turns++;
                 broadcastStep('thought', `Thinking (Turn ${turns}/${maxTurns})...`);
 
-                const result = await sendAgentTurn(routerSettings, messages, agentTools);
+                // Only pass tool schemas to connections that support native tool calling.
+                // Profile/default connections ignore or mishandle the tools parameter.
+                const result = await sendAgentTurn(routerSettings, messages, usesNativeTools ? agentTools : null);
 
                 // Show any inline thought the model included alongside the tool call
                 if (result.content) {
@@ -362,13 +448,20 @@ ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `-
                     if (thoughtLine) broadcastStep('thought', thoughtLine.substring(0, 200));
                 }
 
-                if (!result.toolCall) {
-                    // No tool call = model is done thinking, no more actions
+                // For profile/default connections the model outputs text. Parse a single
+                // Action: call from the current turn response (safe since it's single-turn).
+                let resolvedToolCall = result.toolCall;
+                if (!resolvedToolCall && result.content) {
+                    resolvedToolCall = parseTextAction(result.content);
+                }
+
+                if (!resolvedToolCall) {
+                    // No tool call and no parseable action — model is done
                     break;
                 }
 
-                const { name: toolName, args } = result.toolCall;
-                const callId = /** @type {any} */ (result.toolCall).id || `call_${Date.now()}_${turns}`;
+                const { name: toolName, args } = resolvedToolCall;
+                const callId = /** @type {any} */ (resolvedToolCall).id || `call_${Date.now()}_${turns}`;
                 broadcastStep('tool', `${toolName}(...)`);
 
                 // Append the assistant turn (with tool_calls) to the conversation

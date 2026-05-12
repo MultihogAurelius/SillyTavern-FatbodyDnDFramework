@@ -567,13 +567,15 @@ export async function sendAgentTurn(settings, messages, tools = null, signal = n
         const service = context.ConnectionManagerRequestService;
         if (service && typeof service.sendRequest === 'function') {
             const maxTokens = settings.maxTokens > 0 ? settings.maxTokens : undefined;
+            // Do NOT pass tools to the profile service — ConnectionManagerRequestService
+            // does not reliably forward them to all API backends, causing MALFORMED_FUNCTION_CALL
+            // errors. The router uses a text-format fallback for profile connections.
             const raw = await service.sendRequest(
                 settings.connectionProfileId,
                 messages,
                 maxTokens,
                 { stream: false, extractData: true, includePreset: true, includeInstruct: true,
                   presetName: settings.completionPresetId || undefined,
-                  ...(tools?.length ? { tools } : {}),
                   signal }
             );
             if (typeof raw === 'string') return { content: raw, toolCall: null };
