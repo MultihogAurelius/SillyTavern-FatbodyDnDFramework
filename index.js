@@ -2031,6 +2031,7 @@ Rules:
             <div class="rpg-tracker-panel rpg-tracker-agent-panel ${settings.trackerTheme || 'rt-theme-native'}" id="rpg-tracker-agent" style="display:none; position: absolute; right: 0; top: 30px; width: 300px; max-height: calc(100% - 30px); z-index: 1000; flex-direction: column;">
                 <div class="rpg-tracker-header" style="cursor: default;">
                     <span class="rpg-tracker-header-left"><i class="fa-solid fa-robot"></i> Lorebook Agent</span>
+                    <div class="rpg-tracker-header-center" id="rt-agent-pause-banner" style="color:#ffa500; font-size:0.7em; font-weight:bold; letter-spacing:0.04em;">${settings.routerPaused ? 'AGENT PAUSED' : ''}</div>
                     <div class="rpg-tracker-header-right">
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-manual-run" title="Run Research Now" style="color: var(--rt-accent);"><i class="fa-solid fa-play"></i></button>
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-pause-btn" title="${settings.routerPaused ? 'Resume Agent (auto-runs paused)' : 'Pause Agent (skip auto-runs)'}" style="${settings.routerPaused ? 'color:#ffa500;' : ''}">${settings.routerPaused ? '▶' : '⏸'}</button>
@@ -2955,6 +2956,7 @@ Rules:
 
             // ── Agent pause button ──
             const agentPauseBtn = agentPanel.querySelector('#rt-agent-router-pause-btn');
+            const agentPauseBanner = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-pause-banner'));
             if (agentPauseBtn) {
                 agentPauseBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -2966,9 +2968,7 @@ Rules:
                         ? 'Resume Agent (auto-runs paused)'
                         : 'Pause Agent (skip auto-runs)';
                     /** @type {HTMLElement} */ (agentPauseBtn).style.color = s.routerPaused ? '#ffa500' : '';
-                    if (s.routerPaused) {
-                        toastr['info']('Lorebook Agent paused — manual runs still work.', 'Lorebook Agent');
-                    }
+                    if (agentPauseBanner) agentPauseBanner.textContent = s.routerPaused ? 'AGENT PAUSED' : '';
                 });
             }
 
