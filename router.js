@@ -538,6 +538,11 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             await new Promise(r => setTimeout(r, 200));
             // Force SillyTavern to re-index its list of world info books
             if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList();
+            
+            // Auto-activate the lorebook so keywords work immediately
+            if (typeof ctx.executeSlashCommandsWithOptions === 'function') {
+                await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${targetBook}"`);
+            }
         }
     }
 
