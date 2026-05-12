@@ -202,7 +202,7 @@ ${(settings.routerCustomTags || []).map(m => `- ${m.tag}: ${m.instruction}`).joi
             const questMatch = settings.currentMemo?.match(/\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i);
             const questBlock = questMatch ? `[QUESTS]${questMatch[1].trim()}[/QUESTS]` : 'None';
             
-            const userPrompt = `## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlock}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None'}\n\n## ARCHIVE INDEX\n${keyringText}\n\n## NARRATIVE\n${recentChat}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}${loopHistory.join('\n\n')}\n\nNext Step:`;
+            const userPrompt = `## CURRENT TIME\n${currentTime || 'Unknown'}\n\n## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlock}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None'}\n\n## ARCHIVE INDEX\n${keyringText}\n\n## NARRATIVE\n${recentChat}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}${loopHistory.join('\n\n')}\n\nNext Step:`;
 
             const routerSettings = {
                 ...settings,
@@ -478,11 +478,6 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             rec.label = `${breadcrumb} :: ${rec.label}`;
         }
 
-        if (cat.includes('EVENT')) {
-            if (currentTime && !rec.label.includes('[Day')) {
-                rec.label = `[${currentTime}] ${rec.label}`;
-            }
-        }
 
         if (timePrefix && !rec.content.includes('[Day')) {
             rec.content = timePrefix + rec.content;

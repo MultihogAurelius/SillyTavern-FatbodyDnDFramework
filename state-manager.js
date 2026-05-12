@@ -202,9 +202,9 @@ IMPORTANT: Never include the [ID:] line in the content field you write. It is ma
 </updating_entities>
 
 <timestamps>
-You have access to the CURRENT STATE memo. Always check the [TIME] block to see the current world date/time. 
+You have access to the current world date/time in the ## CURRENT TIME block.
 When recording an EVENT or any time-sensitive entry, include the timestamp at the beginning of the content. 
-Example: "DAY 1, 14:30: Character signed the contract with Brodrik."
+Example: "[Day 1, 14:30] Character signed the contract with Brodrik."
 </timestamps>`,
         categoryRenderOptions: {},
     };
