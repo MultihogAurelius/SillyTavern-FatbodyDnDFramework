@@ -3047,9 +3047,15 @@ Rules:
         }
         updateUndoLabel();
 
-        document.addEventListener('rt_lore_agent_updated', () => {
+        document.addEventListener('rt_lore_agent_updated', async () => {
             saveSettings();
-            renderRouterUI();
+            // Flush ST's in-memory lorebook cache before re-rendering so that
+            // loadWorldInfo() picks up the entries we just wrote via the HTTP API.
+            const _ctx = SillyTavern.getContext();
+            if (typeof _ctx.updateWorldInfoList === 'function') {
+                try { await _ctx.updateWorldInfoList(); } catch (_) {}
+            }
+            await renderRouterUI();
             renderAgentDebug();
             updateUndoLabel();
             refreshManifest();
