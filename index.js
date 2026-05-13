@@ -345,21 +345,54 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
         // Reset the run-every tick so the agent fires promptly on the first generation of each chat
         resetRouterTick();
 
-        // Auto-activate and prefix prompt run regardless of chatLinkEnabled
+        // Auto-activate and prefix logic run regardless of chatLinkEnabled
         const chatBooks = s.chatStates?.[newChatId]?.campaignBooks;
-        if (chatBooks?.length && typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
-            (async () => {
+
+        if (chatBooks?.length) {
+            // This chat has a linked stack — activate it
+            if (typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
+                (async () => {
+                    const ctx = SillyTavern.getContext();
+                    if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
+                    for (const bookName of chatBooks) {
+                        await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${bookName}"`).catch(() => {});
+                    }
+                })();
+            }
+        } else if (s.routerEnabled && newChatId) {
+            // No linked stack — auto-derive prefix from character name and link
+            setTimeout(async () => {
+                const s2 = getSettings();
+                if (s2.chatStates?.[newChatId]?.campaignBooks?.length) return; // linked in the meantime
                 const ctx = SillyTavern.getContext();
-                if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
-                for (const bookName of chatBooks) {
-                    await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${bookName}"`).catch(() => {});
+                const charName = (ctx.name2 || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+                if (!charName) {
+                    // No character loaded yet — fall back to prompt if enabled
+                    if (s2.routerPromptForPrefix) setTimeout(() => showPrefixPromptBanner(), 0);
+                    return;
                 }
-            })();
-        } else if (s.routerAutoActivateBooks) {
-            activateCampaignBooks().catch(() => {});
+                // Set the prefix
+                s2.routerCampaignPrefix = charName;
+                const prefixInput = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_router_campaign_prefix'));
+                if (prefixInput) prefixInput.value = charName;
+                // Link any existing books for this character
+                if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
+                let allNames = [];
+                if (typeof ctx.getWorldInfoNames === 'function') {
+                    try { allNames = await ctx.getWorldInfoNames(); } catch (_) {}
+                }
+                const matchingBooks = allNames.filter(n => n.startsWith(charName));
+                if (!s2.chatStates) s2.chatStates = {};
+                if (!s2.chatStates[newChatId]) s2.chatStates[newChatId] = {};
+                s2.chatStates[newChatId].campaignBooks = matchingBooks;
+                saveSettings();
+                if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
+                // Activate matching books (deactivates other campaign stacks)
+                if (matchingBooks.length) activateCampaignBooks().catch(() => {});
+            }, 800); // small delay so ctx.name2 is populated after chat load
         }
 
-        // Show prefix prompt if agent is on, toggle is on, and this chat has no linked stack
+        // Show manual prefix prompt if toggle is on and still no linked stack
         if (s.routerEnabled && s.routerPromptForPrefix && !chatBooks?.length) {
             setTimeout(() => showPrefixPromptBanner(), 600);
         }
