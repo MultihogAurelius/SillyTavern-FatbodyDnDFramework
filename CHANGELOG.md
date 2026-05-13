@@ -2,6 +2,24 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.1.6] - 2026-05-13
+> ⚠️ **Pre-fucking change that will likely need 2 years of debugging.**
+> The lorebook prefix system has been gutted and rebuilt from scratch.
+> If something is inexplicably broken, it's probably this.
+
+### Changed
+- **Lorebook prefix now derived from the raw chat ID** (`ctx.chatId`) at the moment of use — no more stored setting, no more 800ms timer races, no more stale "Assistant" prefix poisoning everything. The chat ID IS the namespace.
+- **Prefix derivation is simple and format-agnostic**: just sanitize the chat ID to alphanumeric+underscores. No regex demanding ST's default `Name - timestamp` format. Renamed chats work. Numeric IDs work. Everything works or at least fails loudly.
+- **Strict book matching**: a lorebook belongs to a chat only if its name is exactly `prefix` or `prefix_<SingleAlphaWord>`. No partial prefix matches. "Assistant" no longer reaches across sessions and activates 47 lorebooks.
+- **Removed manual Campaign Root UI**: the prefix input, Pick & Activate button, and Link button are gone from the settings panel. Replaced with a read-only display of the auto-derived prefix.
+- **`activateCampaignBooks` bails with an empty prefix** instead of activating every lorebook on disk.
+- **`loadChatState` no longer restores `routerCampaignPrefix`** from saved state. Stale values from old runs can no longer resurface.
+- **Deactivation on chat switch** now happens unconditionally (not only when there are matching books), so switching to a new empty chat correctly clears the previous session's lorebooks.
+
+### Added
+- **Apply System Prompt button on the onboarding screen** — same as the one in the settings panel. Previously toggling onboarding options saved settings but never actually applied the prompt.
+- **`scheduleAutoApply()` wired into onboarding toggles** so changing RNG mode, quest options, or components on the onboarding screen immediately updates the system prompt.
+
 ## [1.10.41] - 2026-05-12
 ### Added
 - **Persona Character Creation**: Added a new `🎭 Persona` archetype option to the startup onboarding screen. This feature resolves the active SillyTavern persona description via macro replacement and feeds it as a direct instruction to generate a custom-tailored D&D character matching the specified persona and starting level.
