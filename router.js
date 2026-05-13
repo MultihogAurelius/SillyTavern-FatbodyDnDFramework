@@ -1,4 +1,4 @@
-import { getSettings } from './state-manager.js';
+﻿import { getSettings } from './state-manager.js';
 import { sendStateRequest, sendAgentTurn } from './llm-client.js';
 import { getRequestHeaders } from '../../../../script.js';
 
@@ -1194,14 +1194,16 @@ export async function getLorebookManifest() {
     }
 
     const names = await getWorldInfoNamesSafe();
-    const scoped = prefix ? names.filter(n => n.startsWith(prefix)) : names;
+    // With no prefix, show nothing — the user hasn't set a campaign yet.
+    if (!prefix) return [];
+    const scoped = names.filter(n => n.startsWith(prefix));
     
     // Fallback 1: books referenced in activeRouterKeys (not yet in registry)
     const activeBookNames = (settings.activeRouterKeys || [])
         .map(k => k.split('::')[0])
         .filter(Boolean);
     for (const n of activeBookNames) {
-        if (!scoped.includes(n) && (!prefix || n.startsWith(prefix))) {
+        if (!scoped.includes(n) && n.startsWith(prefix)) {
             scoped.push(n);
         }
     }
@@ -1212,7 +1214,7 @@ export async function getLorebookManifest() {
         .flatMap(e => [...(e.record || []), ...(e.activate || [])].map(id => id.split('::')[0]))
         .filter(Boolean);
     for (const n of logBookNames) {
-        if (!scoped.includes(n) && (!prefix || n.startsWith(prefix))) {
+        if (!scoped.includes(n) && n.startsWith(prefix)) {
             scoped.push(n);
         }
     }

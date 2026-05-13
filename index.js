@@ -2681,7 +2681,8 @@ Rules:
                 try {
                     const manifest = await getLorebookManifest();
                     if (!manifest.length) {
-                        list.innerHTML = '<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">No records found.</div>';
+                        const hasPrefix = !!(getSettings().routerCampaignPrefix || '').trim();
+                        list.innerHTML = `<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">${hasPrefix ? 'No records found.' : 'Set a Campaign Prefix to see records.'}</div>`;
                         return;
                     }
 
