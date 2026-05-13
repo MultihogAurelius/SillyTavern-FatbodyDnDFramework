@@ -345,6 +345,25 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
         // Reset the run-every tick so the agent fires promptly on the first generation of each chat
         resetRouterTick();
 
+        // Auto-activate and prefix prompt run regardless of chatLinkEnabled
+        const chatBooks = s.chatStates?.[newChatId]?.campaignBooks;
+        if (chatBooks?.length && typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
+            (async () => {
+                const ctx = SillyTavern.getContext();
+                if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
+                for (const bookName of chatBooks) {
+                    await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${bookName}"`).catch(() => {});
+                }
+            })();
+        } else if (s.routerAutoActivateBooks) {
+            activateCampaignBooks().catch(() => {});
+        }
+
+        // Show prefix prompt if agent is on, toggle is on, and this chat has no linked stack
+        if (s.routerEnabled && s.routerPromptForPrefix && !chatBooks?.length) {
+            setTimeout(() => showPrefixPromptBanner(), 600);
+        }
+
         if (!s.chatLinkEnabled) {
             updateChatLinkUI();
             return;
@@ -367,26 +386,6 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
 
             updateUIMemo('');
             refreshRenderedView();
-        }
-
-        // Auto-activate campaign lorebooks for this chat.
-        // Priority: per-chat tracked books (campaignBooks), then prefix-based fallback.
-        const chatBooks = s.chatStates?.[newChatId]?.campaignBooks;
-        if (chatBooks?.length && typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
-            (async () => {
-                const ctx = SillyTavern.getContext();
-                if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
-                for (const bookName of chatBooks) {
-                    await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${bookName}"`).catch(() => {});
-                }
-            })();
-        } else if (s.routerAutoActivateBooks) {
-            activateCampaignBooks().catch(() => {});
-        }
-
-        // If agent is on, no stack is linked, no prefix is set, and prompt toggle is on → show inline banner
-        if (s.routerEnabled && s.routerPromptForPrefix && !chatBooks?.length && !(s.routerCampaignPrefix || '').trim()) {
-            setTimeout(() => showPrefixPromptBanner(), 600);
         }
 
         updateChatLinkUI();
