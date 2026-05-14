@@ -28,6 +28,8 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
     let themeUndoStack = [];
     let _pillDeselectHandler = null;
     let renderRouterUI = null;
+    /** Rebuilds CAMPAIGN RECORDS; assigned in createPanel when the agent panel is wired. */
+    let refreshAgentManifest = async () => {};
 
     /**
      * Centralized save helper that handles both global settings and
@@ -257,6 +259,7 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
         if (typeof renderRouterUI === 'function') {
             renderRouterUI();
         }
+        void refreshAgentManifest().catch(() => {});
 
         // Patch any managed entries that don't yet have disable:true so ST's
         // native keyword scanner cannot inject them on user-message send.
@@ -402,6 +405,7 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
                     // do NOT touch any lorebook state.
                     s2.routerCampaignPrefix = '';
                     if (prefixDisplay) prefixDisplay.textContent = '—';
+                    void refreshAgentManifest().catch(() => {});
                     return;
                 }
 
@@ -423,7 +427,10 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
                 if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
                 // Always call activateCampaignBooks so previous-session books get
                 // deactivated even when the new chat has no lorebooks yet.
-                activateCampaignBooks().catch(() => {});
+                try {
+                    await activateCampaignBooks();
+                } catch (_) { /* ignore */ }
+                void refreshAgentManifest().catch(() => {});
             }, 800);
         }
 
@@ -449,6 +456,10 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
 
             updateUIMemo('');
             refreshRenderedView();
+            if (typeof renderRouterUI === 'function') {
+                renderRouterUI();
+            }
+            void refreshAgentManifest().catch(() => {});
         }
 
         updateChatLinkUI();
@@ -2815,6 +2826,8 @@ Rules:
                     list.innerHTML = '<div style="text-align: center; color: #ff5555; font-size: 0.769em; padding: 10px;">Error loading manifest.</div>';
                 }
             };
+
+            refreshAgentManifest = refreshManifest;
 
             const refreshBtn = agentPanel.querySelector('#rt-agent-manifest-refresh');
             if (refreshBtn) refreshBtn.addEventListener('click', () => refreshManifest('manual-button'));
