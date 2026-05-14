@@ -6,5 +6,6 @@
     "css": "style.css",
     "loading_order": 20,
     "generate_interceptor": "rpgTrackerInterceptor",
+    "homePage": "https://github.com/MultihogAurelius/SillyTavern-FatbodyDnDFramework",
     "auto_update": true
 }
