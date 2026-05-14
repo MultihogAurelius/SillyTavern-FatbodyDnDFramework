@@ -275,7 +275,7 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
 
         // Budget status — computed once and reused in both basic and agent context
         const activeCount = settings.activeRouterKeys?.length || 0;
-        const maxActive = settings.routerMaxActivations || 5;
+        const maxActive = settings.routerMaxActivations || 8;
         const overflow = activeCount - maxActive;
         const budgetLine = `Active entries: ${activeCount} / ${maxActive}`;
         const overflowInstruction = overflow > 0
@@ -331,7 +331,7 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
 2. **ACTIVE MEMORY**: Full details of all other currently active entities. You can update them at any time.
 3. **ARCHIVE INDEX**: Inactive entries — labels and keywords only. You CANNOT see their full biography.
 4. **RECALL**: To read or update an archive entry, use [[ACTIVATE: Name]]. Its full content becomes visible next turn.
-5. **LIMIT**: You are limited to **${settings.routerMaxActivations || 5} active entries**. Nothing is archived automatically. If you exceed this limit you will see a **BUDGET VIOLATION** line and you MUST use [[DEACTIVATE: Name]] on the least relevant active entries to return within budget before this pass ends.
+5. **LIMIT**: You are limited to **${settings.routerMaxActivations || 8} active entries**. Nothing is archived automatically. If you exceed this limit you will see a **BUDGET VIOLATION** line and you MUST use [[DEACTIVATE: Name]] on the least relevant active entries to return within budget before this pass ends.
 
 ## RULES
 1. Only record persistent or significant entities/events.
@@ -469,7 +469,7 @@ Thought: I see a new NPC named Barnaby in Khelt's Rust-Lantern District. I will 
 
             const sharedContext = `
 ## MEMORY LIMIT
-Maximum Active Entities: **${settings.routerMaxActivations || 5}**.
+Maximum Active Entities: **${settings.routerMaxActivations || 8}**.
 - Entries you record are ACTIVATED AUTOMATICALLY. Do NOT also include them in activate.
 - Nothing is archived automatically. If you exceed the limit you will receive a **BUDGET VIOLATION** in the context and you MUST deactivate enough entries in that same commit call to return within budget. Choose the narratively least relevant entries.
 - Entries whose keywords appeared in the latest narrator output may already appear under **NEWLY ACTIVATED THIS TURN** with full content — you do not need to activate those again.

@@ -159,7 +159,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         routerCompletionPresetId: "",
         routerMaxTokens: 0,
         routerMaxTurns: 5,
-        routerMaxActivations: 5,
+        routerMaxActivations: 8,
         routerCampaignPrefix: "",
         routerLookback: 4,
         routerDirectLookback: 10,
