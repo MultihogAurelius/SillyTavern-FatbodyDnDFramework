@@ -1127,7 +1127,12 @@ function parseBasicTags(text, archiveBooks) {
             const body = [status, desc].filter(Boolean).join('\n\n');
             processMatch(name, body, keywords, 'FAC');
         } else if (parts.length >= 3) {
-            processMatch(parts[0], parts[1], parts[2], tagName);
+            // Generic: first = name, last = keywords, everything in between = body (joined with blank line).
+            // Supports any number of middle slots so renaming or adding slots in the UI works automatically.
+            const name = parts[0];
+            const keywords = parts[parts.length - 1];
+            const body = parts.slice(1, -1).filter(Boolean).join('\n\n');
+            processMatch(name, body, keywords, tagName);
         }
     }
 

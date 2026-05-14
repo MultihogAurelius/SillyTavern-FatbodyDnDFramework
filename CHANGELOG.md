@@ -2,6 +2,12 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.2.4] - 2026-05-14
+
+### Changed
+- **Modular Repertoire slot editor**: Each stock module row now shows an inline `[[TAG: Name | slot | … | Keywords]]` bar. Middle slot names are editable inputs that steer what the AI writes in each pipe section. Name and Keywords chips are fixed/dimmed. Reset restores both slots and instruction.
+- **Generic tag parser**: Middle segments (everything between first and last pipe) are all joined as entry body, so any number of renamed middle slots works automatically for NPC, LOC, EVENT and custom tags.
+
 ## [2.2.3] - 2026-05-14
 
 ### Changed
