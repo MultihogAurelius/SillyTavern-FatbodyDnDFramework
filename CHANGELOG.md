@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.2.8] - 2026-05-14
+
+### Fixed
+- **Lorebook deactivation on chat switch**: replaced fragile `_Letters` name-pattern heuristic with an exact lookup against the canonical `campaignBooks` lists stored per chat in `chatStates`. Only books the extension itself recorded as managed are ever deactivated — user-created lorebooks with any name are never touched.
+
 ## [2.2.7] - 2026-05-14
 
 ### Changed

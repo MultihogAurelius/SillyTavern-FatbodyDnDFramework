@@ -158,17 +158,14 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
 
         const bookNames = allNames.filter(n => bookBelongsToPrefix(n, prefix));
 
-        // Deactivate every managed book that does NOT belong to the current prefix.
-        // A "managed" book is any name that looks like "<something>_<SingleWordSuffix>",
-        // i.e. it has exactly one underscore-separated word at the end with no digits —
-        // same shape as auto-generated lorebooks. This safely ignores user's own books.
-        const toDeactivate = allNames.filter(n => {
-            if (bookNames.includes(n)) return false; // current session → keep
-            const lastUs = n.lastIndexOf('_');
-            if (lastUs <= 0) return false;
-            const tail = n.slice(lastUs + 1);
-            return /^[A-Za-z]+$/.test(tail); // looks like a managed book
-        });
+        // Deactivate books that the extension created for OTHER chats.
+        // Use the canonical campaignBooks lists recorded in chatStates rather than
+        // a name-pattern heuristic — this avoids touching user-created lorebooks that
+        // happen to look like managed ones (e.g. a custom "Lore" or "DOGS" book).
+        const allKnownManagedBooks = new Set(
+            Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
+        );
+        const toDeactivate = [...allKnownManagedBooks].filter(n => !bookNames.includes(n));
         for (const name of toDeactivate) {
             await ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`);
         }
