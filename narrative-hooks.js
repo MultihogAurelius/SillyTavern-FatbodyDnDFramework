@@ -319,6 +319,11 @@ export function installInterceptor() {
                             injections += `\n## NEWLY ACTIVATED LORE (KEYWORD MATCH)\n${loreBlock.trim()}\n`;
                             console.log(`[RPG|INTERCEPT] Same-turn lore injected for ${triggered.length} entries.`);
                         }
+
+                        // Trigger UI refresh so the Agent Panel updates immediately with yellow pills
+                        if (typeof globalThis._rpgRenderRouterUI === 'function') {
+                            globalThis._rpgRenderRouterUI();
+                        }
                     } catch (e) {
                         console.warn('[RPG Tracker] Same-turn lore injection failed:', e);
                     }
@@ -439,6 +444,11 @@ export async function onGenerationEnded() {
             _pendingKeywordTriggered = [...accumulated];
             if (settings.debugMode) {
                 console.log("[RPG Tracker] Keyword scanner activated entries:", thisGenTriggered, "| Pending total:", _pendingKeywordTriggered.length);
+            }
+
+            // Trigger UI refresh
+            if (typeof globalThis._rpgRenderRouterUI === 'function') {
+                globalThis._rpgRenderRouterUI();
             }
         }
     }

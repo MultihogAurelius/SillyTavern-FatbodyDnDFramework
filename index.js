@@ -29,8 +29,10 @@ import { getRequestHeaders } from '../../../../script.js';
     let themeUndoStack = [];
     let _pillDeselectHandler = null;
     let renderRouterUI = null;
+    globalThis._rpgRenderRouterUI = () => { if (typeof renderRouterUI === 'function') renderRouterUI(); };
     /** Rebuilds CAMPAIGN RECORDS; assigned in createPanel when the agent panel is wired. */
     let refreshAgentManifest = async () => {};
+    globalThis._rpgRefreshAgentManifest = async () => { if (typeof refreshAgentManifest === 'function') await refreshAgentManifest(); };
 
     /** Last lorebook /world sync diagnostics (JSON-serializable). */
     let _loreActivationDebugLast = /** @type {Record<string, any>|null} */ (null);
