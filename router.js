@@ -814,7 +814,7 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
                     comment: rec.label || 'LORE_GEN',
                     content: rec.content || '',
                     constant: false, selective: false, selectiveLogic: 0, addMemo: true,
-                    order: 100, position: 0, disable: true,
+                    order: 100, position: 0, disable: !settings.routerNativeKeywordActivation,
                     probability: 100, useProbability: false,
                     depth: 4, group: '', groupOverride: false, groupWeight: 100,
                 };
@@ -1535,6 +1535,8 @@ export async function scanAssistantOutputForKeywords(narrativeText, opts = {}) {
 export async function disableManagedEntries() {
     const settings = getSettings();
     if (!settings.routerEnabled) return;
+    // In native keyword mode, entries are left enabled for ST's keyword scanner to manage.
+    if (settings.routerNativeKeywordActivation) return;
     const ctx = SillyTavern.getContext();
     const prefix = getLivePrefix();
     if (!prefix) return;
