@@ -316,7 +316,7 @@ export function installInterceptor() {
                             }
                         }
                         if (loreBlock) {
-                            injections += `\n## NEWLY ACTIVATED LORE (KEYWORD MATCH)\n${loreBlock.trim()}\n`;
+                            injections += `\n<font color="#d4a028">## NEWLY ACTIVATED LORE (KEYWORD MATCH)</font>\n${loreBlock.trim()}\n`;
                             console.log(`[RPG|INTERCEPT] Same-turn lore injected for ${triggered.length} entries.`);
                         }
 
