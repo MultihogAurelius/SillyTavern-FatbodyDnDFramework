@@ -322,6 +322,17 @@
                         <b>Agent Instruction</b>
                         <textarea id="rpg_tracker_router_prompt" class="text_pole autoSetHeight" rows="5"></textarea>
                         <button id="rpg_tracker_router_btn_reset_prompt" class="menu_button interactable" style="width: 100%; margin-top: 4px; font-size: 11px;"><i class="fa-solid fa-arrow-rotate-left"></i> Reset Agent Prompt</button>
+
+                        <details id="rpg_tracker_lore_activation_debug_wrap" style="margin-top: 12px; opacity: 0.55;">
+                            <summary style="cursor: pointer; user-select: none; font-size: 10px; color: inherit; list-style: none;" title="Prefix matching, ST APIs, and /world slash diagnostics">Lore activation debug</summary>
+                            <div style="margin-top: 8px; font-size: 10px; line-height: 1.35;">
+                                <div class="flex-container gap-1" style="flex-wrap: wrap; margin-bottom: 8px;">
+                                    <button type="button" id="rpg_tracker_lore_debug_capture" class="menu_button interactable" style="font-size: 10px; padding: 2px 8px;">Capture now</button>
+                                    <button type="button" id="rpg_tracker_lore_debug_resync" class="menu_button interactable" style="font-size: 10px; padding: 2px 8px;">Re-sync chat to worlds</button>
+                                </div>
+                                <pre id="rpg_tracker_lore_activation_debug_pre" style="margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 10px; line-height: 1.25; padding: 8px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid rgba(127,127,127,0.25);"></pre>
+                            </div>
+                        </details>
                     </div>
                 </div>
             </div>

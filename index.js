@@ -31,6 +31,161 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
     /** Rebuilds CAMPAIGN RECORDS; assigned in createPanel when the agent panel is wired. */
     let refreshAgentManifest = async () => {};
 
+    /** Last lorebook /world sync diagnostics (JSON-serializable). */
+    let _loreActivationDebugLast = /** @type {Record<string, any>|null} */ (null);
+
+    /**
+     * Updates the Lorebook Agent debug <pre> if the panel exists.
+     */
+    function renderLoreActivationDebugPanel() {
+        const pre = document.getElementById('rpg_tracker_lore_activation_debug_pre');
+        if (!pre) return;
+        if (!_loreActivationDebugLast) {
+            pre.textContent = '(no data yet — use Capture now in Extension Settings > Lorebook Agent, or switch chats / Activate Books.)';
+            return;
+        }
+        try {
+            pre.textContent = JSON.stringify(_loreActivationDebugLast, null, 2);
+        } catch (_) {
+            pre.textContent = String(_loreActivationDebugLast);
+        }
+    }
+
+    /**
+     * Read-only snapshot of chat id, prefixes, ST APIs, and which books would match (no slash commands).
+     * @param {string} source
+     * @returns {Promise<Record<string, any>>}
+     */
+    async function readLoreActivationDebugSnapshot(source) {
+        const ctx = SillyTavern.getContext();
+        const s = getSettings();
+        const paramChatId = _currentChatId || ctx.chatId || '';
+        const ctxChatId = ctx.chatId || '';
+        const derivedPrefix = derivePrefixFromChatId(paramChatId);
+        const storedPrefix = (s.routerCampaignPrefix || '').trim();
+        let allNames = [];
+        if (typeof ctx.updateWorldInfoList === 'function') {
+            try { await ctx.updateWorldInfoList(); } catch (e) { /* ignore */ }
+        }
+        if (typeof ctx.getWorldInfoNames === 'function') {
+            try { allNames = await ctx.getWorldInfoNames(); } catch (e) {
+                return {
+                    ts: new Date().toISOString(),
+                    source,
+                    error: 'getWorldInfoNames threw',
+                    message: String(e?.message || e),
+                    paramChatId,
+                    ctxChatId,
+                };
+            }
+        }
+        const matchingForDerived = derivedPrefix ? allNames.filter(n => bookBelongsToPrefix(n, derivedPrefix)) : [];
+        const matchingForStored = storedPrefix ? allNames.filter(n => bookBelongsToPrefix(n, storedPrefix)) : [];
+        const allKnownManagedBooks = new Set(
+            Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
+        );
+        const toDeactivateForStored = storedPrefix
+            ? [...allKnownManagedBooks].filter(n => !matchingForStored.includes(n))
+            : [...allKnownManagedBooks];
+        return {
+            ts: new Date().toISOString(),
+            source,
+            routerEnabled: !!s.routerEnabled,
+            chatLinkEnabled: !!s.chatLinkEnabled,
+            paramChatId,
+            ctxChatId,
+            chatIdMismatch: paramChatId !== ctxChatId,
+            derivedPrefix: derivedPrefix || '(empty)',
+            storedPrefix: storedPrefix || '(empty)',
+            prefixesMatch: derivedPrefix === storedPrefix,
+            bookMatchRule: 'Book matches if name === prefix OR name === prefix + "_" + single segment (no extra underscores in suffix).',
+            apis: {
+                executeSlashCommandsWithOptions: typeof ctx.executeSlashCommandsWithOptions,
+                updateWorldInfoList: typeof ctx.updateWorldInfoList,
+                getWorldInfoNames: typeof ctx.getWorldInfoNames,
+                addPromptManagerInterceptor: typeof ctx.addPromptManagerInterceptor,
+            },
+            allWorldNamesCount: allNames.length,
+            matchingForDerivedPrefix: matchingForDerived,
+            matchingForStoredPrefix: matchingForStored,
+            managedBooksInChatStates: [...allKnownManagedBooks],
+            wouldDeactivateForStoredPrefix: toDeactivateForStored,
+            priorSlashLog: _loreActivationDebugLast?.slashLog ?? null,
+        };
+    }
+
+    /**
+     * Re-runs the same prefix + chatStates + /world pipeline as CHAT_CHANGED (debounced handler),
+     * without waiting 800ms. For troubleshooting ST worlds not toggling.
+     * @param {string} newChatId
+     * @param {string} source
+     */
+    async function syncCampaignPrefixAndWorldsForChat(newChatId, source) {
+        const s2 = getSettings();
+        if (!newChatId) {
+            _loreActivationDebugLast = {
+                ts: new Date().toISOString(),
+                source,
+                stopped: 'empty chat id',
+            };
+            renderLoreActivationDebugPanel();
+            return;
+        }
+        if (!s2.routerEnabled) {
+            _loreActivationDebugLast = {
+                ts: new Date().toISOString(),
+                source,
+                newChatId,
+                stopped: 'routerDisabled (Lorebook Agent off - no prefix/world sync)',
+            };
+            renderLoreActivationDebugPanel();
+            return;
+        }
+        const prefix = derivePrefixFromChatId(newChatId);
+        if (!prefix) {
+            s2.routerCampaignPrefix = '';
+            syncRouterPrefixDisplays('');
+            void refreshAgentManifest().catch(() => {});
+            _loreActivationDebugLast = {
+                ts: new Date().toISOString(),
+                source,
+                newChatId,
+                stopped: 'noPrefixFromChatId (transient rename or empty derive)',
+                derivedPrefix: '',
+            };
+            renderLoreActivationDebugPanel();
+            return;
+        }
+        s2.routerCampaignPrefix = prefix;
+        syncRouterPrefixDisplays(prefix);
+
+        const ctx = SillyTavern.getContext();
+        if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
+        let allNames = [];
+        if (typeof ctx.getWorldInfoNames === 'function') {
+            try { allNames = await ctx.getWorldInfoNames(); } catch (_) {}
+        }
+        const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, prefix));
+
+        if (!s2.chatStates) s2.chatStates = {};
+        if (!s2.chatStates[newChatId]) s2.chatStates[newChatId] = {};
+        s2.chatStates[newChatId].campaignBooks = matchingBooks;
+        saveSettings();
+        if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
+        try {
+            await activateCampaignBooks({ debugSource: source, syncMeta: { newChatId, matchingBooksCount: matchingBooks.length } });
+        } catch (e) {
+            _loreActivationDebugLast = {
+                ...(_loreActivationDebugLast || {}),
+                ts: new Date().toISOString(),
+                source,
+                syncError: String(e?.message || e),
+            };
+            renderLoreActivationDebugPanel();
+        }
+        void refreshAgentManifest().catch(() => {});
+    }
+
     /**
      * Centralized save helper that handles both global settings and
      * the Chat-Linked State for the active chat.
@@ -135,24 +290,51 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
      * world-info system (equivalent to toggling them ON in the World Info panel).
      * Uses the full ST lorebook registry filtered by campaign prefix, so keyless
      * lorebooks that never appear in activeRouterKeys are still caught.
-     * Returns the count of books activated.
+     * @param {{ debugSource?: string, syncMeta?: Record<string, any> }} [opts]
+     * @returns {Promise<number>} Count of books turned on.
      */
-    async function activateCampaignBooks() {
+    async function activateCampaignBooks(opts = {}) {
+        const debugSource = opts.debugSource || 'activateCampaignBooks';
         const s = getSettings();
         const ctx = SillyTavern.getContext();
-        if (typeof ctx.executeSlashCommandsWithOptions !== 'function') return 0;
+        const baseDebug = {
+            ts: new Date().toISOString(),
+            source: debugSource,
+            ctxChatId: ctx.chatId || '',
+            trackedChatId: _currentChatId,
+            routerEnabled: !!s.routerEnabled,
+            syncMeta: opts.syncMeta || null,
+        };
+
+        if (typeof ctx.executeSlashCommandsWithOptions !== 'function') {
+            _loreActivationDebugLast = {
+                ...baseDebug,
+                stopped: 'executeSlashCommandsWithOptions missing on SillyTavern context',
+                apis: {
+                    executeSlashCommandsWithOptions: 'undefined',
+                    updateWorldInfoList: typeof ctx.updateWorldInfoList,
+                    getWorldInfoNames: typeof ctx.getWorldInfoNames,
+                },
+            };
+            renderLoreActivationDebugPanel();
+            return 0;
+        }
 
         const prefix = s.routerCampaignPrefix || '';
-        // No valid prefix → do nothing. Never touch lorebook state with an
-        // unknown / ambiguous prefix or we risk activating books from other sessions.
-        if (!prefix) return 0;
+        if (!prefix) {
+            _loreActivationDebugLast = {
+                ...baseDebug,
+                stopped: 'no routerCampaignPrefix (derive failed earlier or chat id empty)',
+                storedPrefix: '',
+            };
+            renderLoreActivationDebugPanel();
+            return 0;
+        }
 
-        // Flush ST registry so freshly-written books are visible
         if (typeof ctx.updateWorldInfoList === 'function') {
             try { await ctx.updateWorldInfoList(); } catch (_) {}
         }
 
-        // Get all known lorebook names then filter to this campaign
         let allNames = [];
         if (typeof ctx.getWorldInfoNames === 'function') {
             try { allNames = await ctx.getWorldInfoNames(); } catch (_) {}
@@ -160,21 +342,57 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
 
         const bookNames = allNames.filter(n => bookBelongsToPrefix(n, prefix));
 
-        // Deactivate books that the extension created for OTHER chats.
-        // Use the canonical campaignBooks lists recorded in chatStates rather than
-        // a name-pattern heuristic — this avoids touching user-created lorebooks that
-        // happen to look like managed ones (e.g. a custom "Lore" or "DOGS" book).
         const allKnownManagedBooks = new Set(
             Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
         );
         const toDeactivate = [...allKnownManagedBooks].filter(n => !bookNames.includes(n));
+
+        /** @type {{ cmd: string, ok?: boolean, isError?: boolean, errorMessage?: string, isAborted?: boolean, abortReason?: string, thrown?: string }[]} */
+        const slashLog = [];
+
+        const runWorldCmd = async (cmd) => {
+            try {
+                const result = await ctx.executeSlashCommandsWithOptions(cmd, {
+                    handleParserErrors: true,
+                    handleExecutionErrors: true,
+                });
+                const row = { cmd };
+                if (!result) {
+                    row.ok = true;
+                    row.note = 'null result';
+                } else {
+                    row.isError = !!result.isError;
+                    row.errorMessage = result.errorMessage || undefined;
+                    row.isAborted = !!result.isAborted;
+                    row.abortReason = result.abortReason || undefined;
+                    row.ok = !result.isError && !result.isAborted;
+                }
+                slashLog.push(row);
+            } catch (e) {
+                slashLog.push({ cmd, ok: false, thrown: String(e?.message || e) });
+            }
+        };
+
         for (const name of toDeactivate) {
-            await ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`);
+            await runWorldCmd(`/world state=off silent=true "${name}"`);
         }
 
         for (const name of bookNames) {
-            await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${name}"`);
+            await runWorldCmd(`/world state=on silent=true "${name}"`);
         }
+
+        _loreActivationDebugLast = {
+            ...baseDebug,
+            storedPrefix: prefix,
+            allWorldNamesCount: allNames.length,
+            matchingBookNames: bookNames,
+            matchingCount: bookNames.length,
+            managedBooksUnion: [...allKnownManagedBooks],
+            toDeactivate,
+            slashCommandsRun: slashLog.length,
+            slashLog,
+        };
+        renderLoreActivationDebugPanel();
         return bookNames.length;
     }
 
@@ -412,41 +630,7 @@ import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManife
                 // Bail if a newer chat change has come in while we were waiting.
                 if (newChatId !== _currentChatId) return;
 
-                const prefix = derivePrefixFromChatId(newChatId);
-                const s2 = getSettings();
-
-                if (!prefix) {
-                    // Chat ID doesn't have a usable timestamp (transient ST state
-                    // during rename, or unusual format). Clear the live prefix and
-                    // do NOT touch any lorebook state.
-                    s2.routerCampaignPrefix = '';
-                    syncRouterPrefixDisplays('');
-                    void refreshAgentManifest().catch(() => {});
-                    return;
-                }
-
-                s2.routerCampaignPrefix = prefix;
-                syncRouterPrefixDisplays(prefix);
-
-                const ctx = SillyTavern.getContext();
-                if (typeof ctx.updateWorldInfoList === 'function') await ctx.updateWorldInfoList().catch(() => {});
-                let allNames = [];
-                if (typeof ctx.getWorldInfoNames === 'function') {
-                    try { allNames = await ctx.getWorldInfoNames(); } catch (_) {}
-                }
-                const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, prefix));
-
-                if (!s2.chatStates) s2.chatStates = {};
-                if (!s2.chatStates[newChatId]) s2.chatStates[newChatId] = {};
-                s2.chatStates[newChatId].campaignBooks = matchingBooks;
-                saveSettings();
-                if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
-                // Always call activateCampaignBooks so previous-session books get
-                // deactivated even when the new chat has no lorebooks yet.
-                try {
-                    await activateCampaignBooks();
-                } catch (_) { /* ignore */ }
-                void refreshAgentManifest().catch(() => {});
+                await syncCampaignPrefixAndWorldsForChat(newChatId, 'CHAT_CHANGED(debounced)');
             }, 800);
         }
 
@@ -3059,13 +3243,13 @@ Rules:
             const refreshBtn = agentPanel.querySelector('#rt-agent-manifest-refresh');
             if (refreshBtn) refreshBtn.addEventListener('click', () => refreshManifest('manual-button'));
 
-            const activateBooksBtn = agentPanel.querySelector('#rt-agent-activate-books');
+            const activateBooksBtn = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-activate-books'));
             if (activateBooksBtn) activateBooksBtn.addEventListener('click', async () => {
                 activateBooksBtn.disabled = true;
                 const origOpacity = activateBooksBtn.style.opacity;
                 activateBooksBtn.style.opacity = '1';
                 try {
-                    const count = await activateCampaignBooks();
+                    const count = await activateCampaignBooks({ debugSource: 'manual:agent-activate-books' });
                     toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
                 } catch (e) {
                     toastr['error']('Failed to activate campaign lorebooks.');
@@ -6315,10 +6499,38 @@ Rules:
                 const btn = $(this);
                 btn.prop('disabled', true);
                 try {
-                    const count = await activateCampaignBooks();
+                    const count = await activateCampaignBooks({ debugSource: 'manual:settings-activate-books' });
                     toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
                 } catch (e) {
                     toastr['error']('Failed to activate campaign lorebooks.');
+                } finally {
+                    btn.prop('disabled', false);
+                }
+            });
+
+            $('#rpg_tracker_lore_debug_capture').on('click', async function () {
+                const btn = $(this);
+                btn.prop('disabled', true);
+                try {
+                    _loreActivationDebugLast = await readLoreActivationDebugSnapshot('manual:capture-settings');
+                    renderLoreActivationDebugPanel();
+                    toastr['info']('Lore debug snapshot captured (read-only, no /world commands).');
+                } catch (_) {
+                    toastr['error']('Capture failed.');
+                } finally {
+                    btn.prop('disabled', false);
+                }
+            });
+            $('#rpg_tracker_lore_debug_resync').on('click', async function () {
+                const btn = $(this);
+                btn.prop('disabled', true);
+                try {
+                    const ctx = SillyTavern.getContext();
+                    const id = ctx.chatId || _currentChatId || '';
+                    await syncCampaignPrefixAndWorldsForChat(id, 'manual:re-sync-settings');
+                    toastr['info']('Re-sync finished; see JSON in Lore activation debug below.');
+                } catch (_) {
+                    toastr['error']('Re-sync failed.');
                 } finally {
                     btn.prop('disabled', false);
                 }
