@@ -675,6 +675,17 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
     }
     if (deactivate.length > 0) changed = true;
 
+    // Sync keywordActivatedKeys: agent ownership trumps keyword-auto tracking.
+    // - Explicitly activated: agent owns it now, no longer auto-expires.
+    // - Explicitly deactivated: remove from both pools.
+    if ((activate.length > 0 || deactivate.length > 0) && Array.isArray(settings.keywordActivatedKeys)) {
+        const activateSet = new Set(activate);
+        const deactivateSet = new Set(deactivate);
+        settings.keywordActivatedKeys = settings.keywordActivatedKeys.filter(k =>
+            !activateSet.has(k) && !deactivateSet.has(k)
+        );
+    }
+
     // 2. Update existing
     const updates = action.update || [];
     for (const up of updates) {
@@ -1399,16 +1410,24 @@ export async function scanAssistantOutputForKeywords(narrativeText) {
         booksToScan = [...scopedSet];
     }
 
+    // ── Forward pass: activate entries whose keywords appear in the new narrative ──
     const lowerText = narrativeText.toLowerCase();
     const currentActive = new Set(settings.activeRouterKeys || []);
+    const currentKeyword = new Set(settings.keywordActivatedKeys || []);
     const newlyTriggered = [];
+
+    // Cache loaded books so the reverse sweep can reuse them without re-loading.
+    /** @type {Map<string, any>} */
+    const bookCache = new Map();
 
     for (const bookName of booksToScan) {
         const book = await ctx.loadWorldInfo(bookName);
         if (!book?.entries) continue;
+        bookCache.set(bookName, book);
+
         for (const [uid, entry] of Object.entries(book.entries)) {
             const fullId = `${bookName}::${uid}`;
-            if (currentActive.has(fullId)) continue; // already active
+            if (currentActive.has(fullId)) continue; // already active — skip
 
             const keywords = Array.isArray(entry.key) ? entry.key : [];
             const matched = keywords.some(kw =>
@@ -1418,27 +1437,80 @@ export async function scanAssistantOutputForKeywords(narrativeText) {
 
             if (matched) {
                 currentActive.add(fullId);
+                currentKeyword.add(fullId);
                 newlyTriggered.push(fullId);
             }
         }
     }
 
-    // Always reset the field so stale IDs from a prior turn are cleared,
-    // even when nothing new matched this pass.
-    settings.lastKeywordTriggeredKeys = newlyTriggered;
+    // ── Reverse sweep: auto-expire keyword-activated entries whose keywords ──────
+    // ── are no longer present in the last `entry.depth` messages.          ──────
+    // This matches native ST's scan_depth window expiry exactly:
+    // if the keyword leaves the sliding context window, the entry drops out.
+    const chat = ctx.chat || [];
+    const recentMessages = chat.filter(m => !m.is_system); // exclude system messages
+    const autoExpired = [];
 
-    if (newlyTriggered.length > 0) {
-        settings.activeRouterKeys = [...currentActive];
-        ctx.saveSettingsDebounced();
-        if (settings.debugMode) {
-            console.log('[RPG Tracker] Keyword scanner activated:', newlyTriggered);
+    for (const id of currentKeyword) {
+        // Skip entries that were JUST activated this turn — they're guaranteed to be
+        // in the window (they matched the current narrative text).
+        if (newlyTriggered.includes(id)) continue;
+
+        const [bookName, uid] = id.split('::');
+        if (!bookName || uid === undefined) { autoExpired.push(id); continue; }
+
+        // Load from cache if available, else fetch
+        let book = bookCache.get(bookName);
+        if (!book) {
+            book = await ctx.loadWorldInfo(bookName);
+            if (book) bookCache.set(bookName, book);
         }
-    } else {
-        ctx.saveSettingsDebounced();
+        const entry = book?.entries?.[uid];
+        if (!entry) { autoExpired.push(id); continue; } // entry deleted — expire it
+
+        const keywords = Array.isArray(entry.key) ? entry.key : [];
+        if (keywords.length === 0) continue; // no keywords — can't expire
+
+        // Use the entry's own scan depth (ST default is 4 if not set)
+        const depth = (typeof entry.depth === 'number' && entry.depth > 0) ? entry.depth : (book.scan_depth ?? 4);
+        const window = recentMessages.slice(-depth);
+        const windowText = window.map(m => (m.mes || m.content || '')).join(' ').toLowerCase();
+
+        const stillPresent = keywords.some(kw =>
+            typeof kw === 'string' && kw.length > 0 && windowText.includes(kw.toLowerCase())
+        );
+
+        if (!stillPresent) {
+            autoExpired.push(id);
+        }
+    }
+
+    // Apply expirations
+    if (autoExpired.length > 0) {
+        const expiredSet = new Set(autoExpired);
+        for (const id of autoExpired) {
+            currentActive.delete(id);
+            currentKeyword.delete(id);
+        }
+        if (settings.debugMode) {
+            console.log('[RPG Tracker] Keyword scanner auto-expired:', autoExpired);
+        }
+    }
+
+    // ── Persist ───────────────────────────────────────────────────────────────
+    settings.activeRouterKeys = [...currentActive];
+    settings.keywordActivatedKeys = [...currentKeyword];
+    settings.lastKeywordTriggeredKeys = newlyTriggered;
+    ctx.saveSettingsDebounced();
+
+    if (settings.debugMode && newlyTriggered.length > 0) {
+        console.log('[RPG Tracker] Keyword scanner activated:', newlyTriggered);
     }
 
     return newlyTriggered;
 }
+
+
 
 
 /**

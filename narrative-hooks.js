@@ -361,6 +361,12 @@ let _pendingKeywordTriggered = [];
 export function resetRouterTick() {
     _routerAutoTick = 0;
     _pendingKeywordTriggered = [];
+    // Keyword-activated entries are transient (they expire when the keyword leaves the scan window).
+    // Clear them on chat change so the new chat starts with a clean slate.
+    const s = getSettings();
+    if (s.keywordActivatedKeys?.length) {
+        s.keywordActivatedKeys = [];
+    }
 }
 
 /**
