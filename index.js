@@ -582,8 +582,9 @@ import { getRequestHeaders } from '../../../../script.js';
         s.quests = [];
         s.historyIndex = saved.historyIndex ?? -1;
         
-        s.activeRouterKeys = JSON.parse(JSON.stringify(saved.activeRouterKeys || []));
-        s.routerLog        = JSON.parse(JSON.stringify(saved.routerLog || []));
+        s.activeRouterKeys    = JSON.parse(JSON.stringify(saved.activeRouterKeys    || []));
+        s.keywordActivatedKeys = JSON.parse(JSON.stringify(saved.keywordActivatedKeys || []));
+        s.routerLog           = JSON.parse(JSON.stringify(saved.routerLog || []));
         // Don't restore routerCampaignPrefix from per-chat saved state — the prefix
         // is fully derivable from the chat ID and must be re-derived live by
         // onChatChanged. Restoring a stale value (e.g. a bare "Assistant" from
