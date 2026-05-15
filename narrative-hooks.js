@@ -328,6 +328,33 @@ export function installInterceptor() {
                         console.warn('[RPG Tracker] Same-turn lore injection failed:', e);
                     }
                 }
+
+                // Re-inject previously keyword-activated lore on every subsequent turn.
+                // These entries are still disable:true in the lorebook so ST's native system
+                // won't inject them — we must keep doing it manually every generation.
+                const triggeredSet = new Set(triggered);
+                const persistent = (settings.keywordActivatedKeys || []).filter(id => !triggeredSet.has(id));
+                if (persistent.length > 0) {
+                    try {
+                        const ctx = SillyTavern.getContext();
+                        let persistBlock = '';
+                        const bookCache = {};
+                        for (const id of persistent) {
+                            const [bookName, uid] = id.split('::');
+                            if (!bookCache[bookName]) bookCache[bookName] = await ctx.loadWorldInfo(bookName);
+                            const entry = bookCache[bookName]?.entries?.[uid];
+                            if (entry?.content) {
+                                persistBlock += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
+                            }
+                        }
+                        if (persistBlock) {
+                            injections += `\n<font color="#d4a028">## ACTIVE LORE (KEYWORD)</font>\n${persistBlock.trim()}\n`;
+                        }
+                    } catch (e) {
+                        console.warn('[RPG Tracker] Persistent keyword lore re-injection failed:', e);
+                    }
+                }
+
                 console.groupEnd();
             }
         }
