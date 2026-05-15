@@ -1370,29 +1370,40 @@ export async function scanAssistantOutputForKeywords(narrativeText) {
     const prefix = getLivePrefix();
     if (!prefix) return [];
 
-    // Flush ST's registry so books saved in prior passes are visible
-    if (typeof ctx.updateWorldInfoList === 'function') {
-        try { await ctx.updateWorldInfoList(); } catch (_) {}
-    }
+    // Fast Path: use the campaignBooks ownership list if available.
+    // This avoids calling updateWorldInfoList() — the same 90-second registry scan
+    // that was causing the chat-switch latency — on EVERY generation.
+    const chatId = typeof globalThis._rpgCurrentChatId === 'function' ? globalThis._rpgCurrentChatId() : null;
+    const knownBooks = chatId ? (settings.chatStates?.[chatId]?.campaignBooks || []) : [];
 
-    const allNames = await getWorldInfoNamesSafe();
-    const inScope = (n) => bookBelongsToPrefix(n, prefix);
-    const scoped = allNames.filter(inScope);
+    let booksToScan;
+    if (knownBooks.length > 0) {
+        // We know exactly which books belong to this campaign — no registry scan needed.
+        booksToScan = [...knownBooks];
+    } else {
+        // Fallback for first-time chats: need to discover books via registry scan.
+        if (typeof ctx.updateWorldInfoList === 'function') {
+            try { await ctx.updateWorldInfoList(); } catch (_) {}
+        }
+        const allNames = await getWorldInfoNamesSafe();
+        const scoped = allNames.filter(n => bookBelongsToPrefix(n, prefix));
 
-    // Also sweep books referenced in routerLog (catches books not yet re-indexed)
-    const logBookNames = (settings.routerLog || [])
-        .flatMap(e => [...(e.record || []), ...(e.activate || [])].map(id => id.split('::')[0]))
-        .filter(Boolean);
-    const scopedSet = new Set(scoped);
-    for (const n of logBookNames) {
-        if (inScope(n)) scopedSet.add(n);
+        // Also sweep books referenced in routerLog (catches books not yet re-indexed)
+        const logBookNames = (settings.routerLog || [])
+            .flatMap(e => [...(e.record || []), ...(e.activate || [])].map(id => id.split('::')[0]))
+            .filter(Boolean);
+        const scopedSet = new Set(scoped);
+        for (const n of logBookNames) {
+            if (bookBelongsToPrefix(n, prefix)) scopedSet.add(n);
+        }
+        booksToScan = [...scopedSet];
     }
 
     const lowerText = narrativeText.toLowerCase();
     const currentActive = new Set(settings.activeRouterKeys || []);
     const newlyTriggered = [];
 
-    for (const bookName of scopedSet) {
+    for (const bookName of booksToScan) {
         const book = await ctx.loadWorldInfo(bookName);
         if (!book?.entries) continue;
         for (const [uid, entry] of Object.entries(book.entries)) {
@@ -1428,6 +1439,7 @@ export async function scanAssistantOutputForKeywords(narrativeText) {
 
     return newlyTriggered;
 }
+
 
 /**
  * Sets disable: true on every entry in all scoped lorebooks so ST's native
