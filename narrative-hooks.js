@@ -14,7 +14,7 @@
 
 import { getSettings } from './state-manager.js';
 import { parseQuestsFromMemo } from './memo-processor.js';
-import { runRouterPass, saveSceneToLorebook, scanAssistantOutputForKeywords } from './router.js';
+import { runRouterPass, rollbackRouterPass, saveSceneToLorebook, scanAssistantOutputForKeywords } from './router.js';
 import { logTransaction } from './debug-viewer.js';
 
 // ── Dice naming helpers ────────────────────────────────────────────────────────
@@ -484,9 +484,41 @@ export async function onGenerationEnded() {
     const isStateRunning = typeof globalThis._rpgStateModelRunning === 'function' && globalThis._rpgStateModelRunning();
     if (!settings.enabled || settings.paused || isStateRunning) return;
 
-    const { chat } = SillyTavern.getContext();
+    const ctx = SillyTavern.getContext();
+    const { chat } = ctx;
     const combinedNarrative = getNarrativeBlocks(chat, -1, !!settings.routerIncludeHidden);
     if (!combinedNarrative) return;
+
+    // ── Swipe detection ────────────────────────────────────────────────────────
+    // A right swipe (regenerate) is identified by swipe_id > 0 on the last message.
+    // When the toggle is on, roll back both systems BEFORE the new pass runs so
+    // the incoming generation writes onto the restored state, not the old one.
+    const lastMsg = chat[chat.length - 1];
+    const isSwipe = lastMsg && typeof lastMsg.swipe_id === 'number' && lastMsg.swipe_id > 0;
+
+    if (isSwipe && settings.routerAutoRollbackOnSwipe) {
+        if (settings.debugMode) console.log('[RPG Tracker] Swipe detected — auto-rolling back State Tracker and Lorebook Agent.');
+
+        // 1. State Tracker rollback: restore to the memo from before the last generation.
+        //    memoHistory[0] = live state after last gen, memoHistory[1] = state before it.
+        if (settings.memoHistory && settings.memoHistory.length > 1) {
+            const previousMemo = settings.memoHistory[1];
+            // Remove the generation that's being replaced
+            settings.memoHistory.shift();
+            settings.currentMemo = settings.memoHistory[0] ?? previousMemo;
+            settings.historyIndex = 0;
+            if (settings.debugMode) console.log('[RPG Tracker] State Tracker rolled back one generation.');
+            // Notify the UI
+            if (typeof globalThis._rpgSyncMemoView === 'function') globalThis._rpgSyncMemoView();
+        }
+
+        // 2. Lorebook Agent rollback: restore the most recent agent pass snapshot.
+        if ((settings.routerHistory || []).length > 0) {
+            const ok = await rollbackRouterPass(0);
+            if (settings.debugMode) console.log('[RPG Tracker] Lorebook Agent rollback:', ok ? 'success' : 'failed or nothing to restore');
+        }
+    }
+    // ── End swipe detection ────────────────────────────────────────────────────
 
     if (settings.debugMode) console.log("[RPG Tracker] Assistant generation ended. Running keyword scanner...");
 

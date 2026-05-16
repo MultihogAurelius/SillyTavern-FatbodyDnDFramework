@@ -2584,6 +2584,11 @@ Rules:
                         <input type="checkbox" id="rt-agent-router-native-kw" ${settings.routerNativeKeywordActivation ? 'checked' : ''}>
                     </label>
 
+                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; opacity: 0.8; font-size: 0.846em;" title="Automatically roll back both the State Tracker memo and Lorebook Agent lore to their pre-generation snapshots when you swipe right (regenerate the last AI message).">
+                        Auto-Rollback on Swipe
+                        <input type="checkbox" id="rt-agent-router-auto-rollback" ${settings.routerAutoRollbackOnSwipe ? 'checked' : ''}>
+                    </label>
+
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
                         <div style="display: flex; align-items: center; gap: 6px; flex: 1;" title="Main lookback: last N chat messages (user and assistant, in order) included in the agent context during automatic passes.">
                             <span style="font-size: 0.769em; opacity: 0.7;">Lookback (user/assistant):</span>
@@ -3116,6 +3121,18 @@ Rules:
                     const s = getSettings();
                     s.routerNativeKeywordActivation = (/** @type {HTMLInputElement} */ (e.target)).checked;
                     saveSettings();
+                });
+            }
+
+            const autoRollbackCheck = agentPanel.querySelector('#rt-agent-router-auto-rollback');
+            if (autoRollbackCheck) {
+                autoRollbackCheck.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    s.routerAutoRollbackOnSwipe = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                    saveSettings();
+                    // Keep settings drawer in sync
+                    const drawerCheck = document.getElementById('rpg_tracker_router_auto_rollback');
+                    if (drawerCheck) (/** @type {HTMLInputElement} */ (drawerCheck)).checked = s.routerAutoRollbackOnSwipe;
                 });
             }
 
@@ -4585,6 +4602,8 @@ Rules:
 
         refreshRenderedView();
     }
+    // Expose for cross-module use (narrative-hooks swipe rollback)
+    globalThis._rpgSyncMemoView = syncMemoView;
 
     /**
      * @param {HTMLElement} panel
@@ -6693,6 +6712,14 @@ Rules:
                     if (settings.routerEnabled) ap.classList.remove('is-agent-disabled');
                     else ap.classList.add('is-agent-disabled');
                 }
+            });
+
+            $('#rpg_tracker_router_auto_rollback').prop('checked', !!settings.routerAutoRollbackOnSwipe).on('change', function () {
+                settings.routerAutoRollbackOnSwipe = !!$(this).prop('checked');
+                saveSettings();
+                // Sync agent panel checkbox
+                const panelCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rt-agent-router-auto-rollback'));
+                if (panelCheck) panelCheck.checked = settings.routerAutoRollbackOnSwipe;
             });
 
             const routerSourceSelect = $('#rpg_tracker_router_source');

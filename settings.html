@@ -265,6 +265,11 @@
                             <span>Enable Lorebook Agent</span>
                         </label>
 
+                        <label class="checkbox_label" title="When enabled, both the State Tracker and Lorebook Agent automatically roll back to their pre-generation state whenever you right-swipe (regenerate) an AI message.">
+                            <input id="rpg_tracker_router_auto_rollback" type="checkbox" />
+                            <span>Auto-Rollback on Swipe</span>
+                        </label>
+
                         <div style="margin-bottom: 8px; font-size: 10px; opacity: 0.65; line-height: 1.4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                             <span>Effective campaign prefix: <span id="rpg_tracker_router_prefix_display" style="font-family: monospace; opacity: 0.9;">—</span></span>
                             <button id="rpg_tracker_activate_books_btn" title="Activate campaign lorebooks now" style="padding: 1px 7px; font-size: 10px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.18); border-radius: 4px; color: inherit; cursor: pointer; white-space: nowrap;">Activate Books</button>
