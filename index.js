@@ -2596,10 +2596,7 @@ Rules:
                     </label>
 
                     <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                        <div style="flex: 1;" title="Max Tokens: The maximum token limit for the agent's response. 0 = model default.">
-                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 0.846em; color: var(--rt-text-muted);">Max Tokens:</div>
-                            <input type="number" id="rt-agent-router-max-tokens" value="${settings.routerMaxTokens || 0}" style="width: 100%; background: var(--rt-card-bg); color: var(--rt-text); border: var(--rt-border); border-radius: 4px; padding: 4px; font-size: 0.846em; box-sizing: border-box;">
-                        </div>
+
                         <div style="flex: 1;" title="Max Turns: How many Thought/Action loops the agent can perform before timing out (Advanced Mode only).">
                             <div style="margin-bottom: 5px; opacity: 0.8; font-size: 0.846em; color: var(--rt-text-muted);">Max Agent Turns:</div>
                             <input type="number" id="rt-agent-router-max-turns" value="${settings.routerMaxTurns || 5}" style="width: 100%; background: var(--rt-card-bg); color: var(--rt-text); border: var(--rt-border); border-radius: 4px; padding: 4px; font-size: 0.846em; box-sizing: border-box;">
@@ -3764,7 +3761,7 @@ Rules:
                 maxTok.addEventListener('input', (e) => {
                     const s = getSettings();
                     s.routerMaxTokens = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 0;
-                    $('#rpg_tracker_router_max_tokens').val(s.routerMaxTokens);
+
                     saveSettings();
                 });
             }
@@ -5861,7 +5858,7 @@ Rules:
             const profileSelect = $('#rpg_tracker_connection_profile');
             const ollamaGroup = $('#rpg_tracker_ollama_group');
             const openaiGroup = $('#rpg_tracker_openai_group');
-            const maxTokensInput = $('#rpg_tracker_max_tokens');
+
 
             function updateConnectionPanels() {
                 const source = sourceSelect.val();
@@ -5996,10 +5993,7 @@ Rules:
                 }
             });
 
-            maxTokensInput.val(settings.maxTokens || "").on('input', function () {
-                settings.maxTokens = parseInt(/** @type {string} */($(this).val())) || 0;
-                saveSettings();
-            });
+
 
             // Advanced Options
             const lookbackInput = $('#rpg_tracker_lookback_messages');
@@ -6700,7 +6694,7 @@ Rules:
             const routerProfileSelect = $('#rpg_tracker_router_connection_profile');
             const routerOllamaGroup = $('#rpg_tracker_router_ollama_group');
             const routerOpenaiGroup = $('#rpg_tracker_router_openai_group');
-            const routerMaxTokensInput = $('#rpg_tracker_router_max_tokens');
+
 
             function updateRouterConnectionPanels() {
                 const source = routerSourceSelect.val();
@@ -6876,10 +6870,7 @@ Rules:
                 saveSettings();
             });
 
-            routerMaxTokensInput.val(settings.routerMaxTokens).on('input', function () {
-                settings.routerMaxTokens = parseInt(String($(this).val() || '')) || 0;
-                saveSettings();
-            });
+
             $('#rpg_tracker_router_max_turns').val(settings.routerMaxTurns).on('input', function () {
                 settings.routerMaxTurns = parseInt(String($(this).val() || '')) || 5;
                 saveSettings();
