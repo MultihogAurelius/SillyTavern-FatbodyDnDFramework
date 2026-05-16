@@ -66,6 +66,8 @@ DELETION: To REMOVE a section entirely, you MUST output: \`[TAG]REMOVED[/TAG]\`.
 <modules>
 You must track the following enabled modules:
 {{modulesText}}
+
+NEVER ignore a module.
 </modules>
 
 <rules>
