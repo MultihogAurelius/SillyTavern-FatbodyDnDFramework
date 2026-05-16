@@ -1414,6 +1414,39 @@
         padding: 4px 6px !important;
         gap: 4px !important;
     }
+
+    /* Squeeze header elements on mobile screens to prevent button overflow/cutoff */
+    .rpg-tracker-header {
+        padding: 5px 8px !important;
+        font-size: 0.84em !important;
+        gap: 6px !important;
+    }
+
+    .rpg-tracker-header-left {
+        min-width: 0 !important;
+        flex: 1 !important;
+        gap: 4px !important;
+        overflow: hidden !important;
+    }
+
+    .rpg-tracker-header-left span {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        min-width: 0 !important;
+        display: inline-block !important;
+        max-width: 100% !important;
+    }
+
+    .rpg-tracker-header-right {
+        gap: 3px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .rpg-tracker-icon-btn {
+        padding: 2px 4px !important;
+        font-size: 0.88em !important;
+    }
 }
 
 
@@ -2158,4 +2191,10 @@
 .rpg-tracker-panel.rt-panel-collapsed .rpg-tracker-footer {
     display: none !important;
 }
+
+/* Override high-specificity ID-based block rules in `#rpg-tracker-agent` when collapsed */
+#rpg-tracker-agent.rt-panel-collapsed .rpg-tracker-content {
+    display: none !important;
+}
+
 
