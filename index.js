@@ -1,7 +1,7 @@
 import { EXAMPLES, COLOR_EXAMPLES, DEFAULT_STOCK_PROMPTS, RT_PROMPTS, BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE, QUESTS_NARRATOR_MODERN, QUESTS_NARRATOR_LEGACY } from './constants.js';
 import { MODULE_NAME, DEFAULT_MODULES, getSettings, getBarBackground, migrateCustomFields, saveChatState, saveProfile, deleteProfile, getEffectiveRouterCampaignPrefix, sanitizeCampaignPrefixString } from './state-manager.js';
 import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
-import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded, resetRouterTick } from './narrative-hooks.js';
+import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationStarted, onGenerationEnded, resetRouterTick } from './narrative-hooks.js';
 import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood } from './memo-processor.js';
 import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderLorebookTerminal } from './renderer.js';
 import { registerLogQuestTool, checkQuestDeadlines } from './quests.js';
@@ -2596,6 +2596,11 @@ Rules:
                         <input type="checkbox" id="rt-agent-router-native-kw" ${settings.routerNativeKeywordActivation ? 'checked' : ''}>
                     </label>
 
+                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; opacity: 0.8; font-size: 0.846em;" title="Automatically roll back both the State Tracker memo and Lorebook Agent lore to their pre-generation snapshots when you swipe right (regenerate the last AI message). Runs when the new generation starts.">
+                        Auto-Rollback on Swipe (State Tracker & Lorebook Agent)
+                        <input type="checkbox" id="rt-agent-router-auto-rollback" ${settings.routerAutoRollbackOnSwipe ? 'checked' : ''}>
+                    </label>
+
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
                         <div style="display: flex; align-items: center; gap: 6px; flex: 1;" title="Main lookback: last N chat messages (user and assistant, in order) included in the agent context during automatic passes.">
                             <span style="font-size: 0.769em; opacity: 0.7;">Lookback (user/assistant):</span>
@@ -3100,6 +3105,10 @@ Rules:
                 // Keep settings sidebar toggle in sync
                 const sidebarCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_router_enabled'));
                 if (sidebarCheck) sidebarCheck.checked = !!s.routerEnabled;
+                const sidebarAutoRb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_router_auto_rollback'));
+                if (sidebarAutoRb) sidebarAutoRb.checked = !!s.routerAutoRollbackOnSwipe;
+                const panelAutoRb = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-agent-router-auto-rollback'));
+                if (panelAutoRb) panelAutoRb.checked = !!s.routerAutoRollbackOnSwipe;
                 // Keep header ⏻ button in sync
                 const agentEnableBtn = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-agent-router-enable-btn'));
                 if (agentEnableBtn) {
@@ -3172,6 +3181,17 @@ Rules:
                     const s = getSettings();
                     s.routerNativeKeywordActivation = (/** @type {HTMLInputElement} */ (e.target)).checked;
                     saveSettings();
+                });
+            }
+
+            const autoRollbackCheck = agentPanel.querySelector('#rt-agent-router-auto-rollback');
+            if (autoRollbackCheck) {
+                autoRollbackCheck.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    s.routerAutoRollbackOnSwipe = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                    saveSettings();
+                    const drawerCheck = document.getElementById('rpg_tracker_router_auto_rollback');
+                    if (drawerCheck) (/** @type {HTMLInputElement} */ (drawerCheck)).checked = s.routerAutoRollbackOnSwipe;
                 });
             }
 
@@ -4669,6 +4689,7 @@ Rules:
 
         refreshRenderedView();
     }
+    globalThis._rpgSyncMemoView = syncMemoView;
 
     /**
      * @param {HTMLElement} panel
@@ -5899,6 +5920,9 @@ Rules:
             });
 
             // ─── Event Hooks ───
+            if (event_types.GENERATION_STARTED != null) {
+                eventSource.on(event_types.GENERATION_STARTED, onGenerationStarted);
+            }
             eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
             eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
 
@@ -6787,6 +6811,13 @@ Rules:
                     if (settings.routerEnabled) ap.classList.remove('is-agent-disabled');
                     else ap.classList.add('is-agent-disabled');
                 }
+            });
+
+            $('#rpg_tracker_router_auto_rollback').prop('checked', !!settings.routerAutoRollbackOnSwipe).on('change', function () {
+                settings.routerAutoRollbackOnSwipe = !!$(this).prop('checked');
+                saveSettings();
+                const panelCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rt-agent-router-auto-rollback'));
+                if (panelCheck) panelCheck.checked = settings.routerAutoRollbackOnSwipe;
             });
 
             const routerSourceSelect = $('#rpg_tracker_router_source');

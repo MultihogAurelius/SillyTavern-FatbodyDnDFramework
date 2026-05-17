@@ -13,8 +13,8 @@
  */
 
 import { getSettings } from './state-manager.js';
-import { parseQuestsFromMemo } from './memo-processor.js';
-import { runRouterPass, saveSceneToLorebook, scanAssistantOutputForKeywords } from './router.js';
+import { parseQuestsFromMemo, syncQuestsFromMemo } from './memo-processor.js';
+import { runRouterPass, rollbackRouterPass, saveSceneToLorebook, scanAssistantOutputForKeywords } from './router.js';
 import { logTransaction } from './debug-viewer.js';
 
 // ── Dice naming helpers ────────────────────────────────────────────────────────
@@ -446,7 +446,7 @@ export function getNarrativeBlocks(chat, limit = -1, includeHidden = false) {
     return narrativeBlocks.join('\n\n');
 }
 
-// ── Generation-ended handler ───────────────────────────────────────────────────
+// ── Generation lifecycle (swipe rollback + ended handler) ─────────────────────
 
 /** In-memory counter: how many generations have fired since the agent last ran. Resets on chat change. */
 let _routerAutoTick = 0;
@@ -471,6 +471,42 @@ export function resetRouterTick(clearKeywordPool = false) {
         if (s.keywordActivatedKeys?.length) {
             s.keywordActivatedKeys = [];
         }
+    }
+}
+
+/**
+ * Fires on GENERATION_STARTED (when SillyTavern exposes it).
+ * Rolls back State Tracker + Lorebook Agent before the replacement stream runs so
+ * keyword scan and state/router passes in onGenerationEnded operate on pre-swipe data.
+ */
+export async function onGenerationStarted() {
+    const settings = getSettings();
+    const isStateRunning = typeof globalThis._rpgStateModelRunning === 'function' && globalThis._rpgStateModelRunning();
+    if (!settings.enabled || settings.paused || isStateRunning) return;
+
+    const { chat } = SillyTavern.getContext();
+    if (!chat || chat.length === 0) return;
+
+    const lastMsg = chat[chat.length - 1];
+    const isSwipe = lastMsg && typeof lastMsg.swipe_id === 'number' && lastMsg.swipe_id > 0;
+
+    if (!isSwipe || !settings.routerAutoRollbackOnSwipe) return;
+
+    if (settings.debugMode) console.log('[RPG Tracker] Swipe detected — auto-rolling back State Tracker and Lorebook Agent (pre-generation).');
+
+    if (settings.memoHistory && settings.memoHistory.length > 1) {
+        const previousMemo = settings.memoHistory[1];
+        settings.memoHistory.shift();
+        settings.currentMemo = settings.memoHistory[0] ?? previousMemo;
+        settings.historyIndex = 0;
+        syncQuestsFromMemo(settings.currentMemo);
+        if (typeof globalThis._rpgSyncMemoView === 'function') globalThis._rpgSyncMemoView();
+        if (settings.debugMode) console.log('[RPG Tracker] State Tracker rolled back one generation.');
+    }
+
+    if ((settings.routerHistory || []).length > 0) {
+        const ok = await rollbackRouterPass(0);
+        if (settings.debugMode) console.log('[RPG Tracker] Lorebook Agent rollback:', ok ? 'success' : 'failed or nothing to restore');
     }
 }
 
