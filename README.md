@@ -24,6 +24,8 @@ Together they solve the three core problems of LLM tabletop RP: the AI forgeting
 
 ⚠️ **Updating?** To stay up to date after updating the extension, especially after updating to 2.0.0+, click on the "Update Main Sysprompt" button in the extension settings.
 
+<img width="396" height="73" alt="image" src="https://github.com/user-attachments/assets/1bd13ed4-0afb-4ed4-84bc-d9bdfebc17d3" />
+
 ---
 
 ## Highlights
@@ -91,6 +93,13 @@ For the state pass, I use Gemini 3 Flash with low reasoning.
   <figure>
     <img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
     <figcaption>Some combat in progress</figcaption>
+  </figure>
+</div>
+
+<div align="center">
+  <figure>
+    <img width="700" height="..." alt="image" src="https://github.com/user-attachments/assets/bd7debe0-b97d-4aa0-a8ec-49cd0fc527f3" />
+    <figcaption>Lorebook Agent</figcaption>
   </figure>
 </div>
 
