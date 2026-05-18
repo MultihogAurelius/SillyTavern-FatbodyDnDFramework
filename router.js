@@ -1383,11 +1383,16 @@ export async function rollbackRouterPass(index = 0) {
         const prefix = getLivePrefix();
 
         // -- Step 1: Delete lorebooks that were CREATED during the pass --------
-        // Fetch current book list scoped to the campaign prefix (or all if none).
+        // Only consider books under the live campaign prefix. If the prefix is missing,
+        // scanning "all" lorebooks would treat every unrelated book as newly created
+        // and delete or wipe anything not present in this pass's snapshot.
         const allCurrentNames = await getWorldInfoNamesSafe();
         const scopedCurrent = prefix
             ? allCurrentNames.filter(n => bookBelongsToPrefix(n, prefix))
-            : allCurrentNames;
+            : [];
+        if (!prefix && allCurrentNames.length) {
+            console.warn('[RPG Tracker] Rollback: no campaign prefix — skipping delete-new-books step (would otherwise touch the entire lore library).');
+        }
 
         for (const bookName of scopedCurrent) {
             if (prePassBooks.has(bookName)) continue; // Pre-existed ? restore below, don't delete
