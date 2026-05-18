@@ -89,20 +89,19 @@ I like Deepseek 4 a lot so far, though it's still a new model. Gemini 3 is a goo
 
 For the state pass, I use Gemini 3 Flash with low reasoning.
 
-<div align="center">
-  <figure>
-    <img width="2800" height="auto" alt="image" src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" />
-    <figcaption>Some combat in progress</figcaption>
-  </figure>
-</div>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/a0e1c88c-092f-488b-b421-48cabe09e6e2" width="100%" alt="Combat in progress" />
+  <br>
+  <em>Some combat in progress</em>
+</p>
 
+---
 
-<div align="center">
-  <figure>
-    <img width="700" height="auto" alt="image" src="https://github.com/user-attachments/assets/bd7debe0-b97d-4aa0-a8ec-49cd0fc527f3" />
-    <figcaption>Lorebook Agent</figcaption>
-  </figure>
-</div>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/bd7debe0-b97d-4aa0-a8ec-49cd0fc527f3" width="500" alt="Lorebook Agent" />
+  <br>
+  <strong>Lorebook Agent</strong>
+</p>
 
 
 ## License
