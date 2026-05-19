@@ -531,11 +531,11 @@ import { getRequestHeaders } from '../../../../script.js';
      * @returns {Promise<void>}
      */
     async function cloneCampaignStack() {
-        const s = getSettings();
         const ctx = SillyTavern.getContext();
 
-        // 1. Determine current prefix
-        const currentPrefix = s.routerCampaignPrefix || '';
+        // 1. Determine current prefix (must match router.js getLivePrefix — effective override or chat id, not stale stored-only)
+        const paramChatId = _currentChatId || ctx.chatId || '';
+        const currentPrefix = getEffectiveRouterCampaignPrefix(paramChatId);
         if (!currentPrefix) {
             toastr['warning']('No campaign prefix is active. Activate the Lorebook Agent and load a chat first.', 'Clone Stack');
             return;
@@ -577,24 +577,40 @@ import { getRequestHeaders } from '../../../../script.js';
             return;
         }
 
+        // Preflight: /api/worldinfo/edit replaces an entire book — never silently overwrite existing targets.
+        const nameSet = new Set(allNames);
+        /** @type {{ src: string, dest: string }[]} */
+        const plannedWrites = [];
+        for (const bookName of matchingBooks) {
+            let newBookName;
+            if (bookName === currentPrefix) {
+                newBookName = newPrefix;
+            } else {
+                const suffix = bookName.slice(currentPrefix.length);
+                newBookName = newPrefix + suffix;
+            }
+            plannedWrites.push({ src: bookName, dest: newBookName });
+        }
+        const conflicts = plannedWrites.filter(({ dest }) => nameSet.has(dest));
+        if (conflicts.length > 0) {
+            const sample = conflicts.slice(0, 5).map(c => c.dest).join(', ');
+            const more = conflicts.length > 5 ? ` (+${conflicts.length - 5} more)` : '';
+            toastr['error'](
+                `Clone aborted: ${conflicts.length} target lorebook name(s) already exist (${sample}${more}). ` +
+                'Choose a different new prefix, or rename/delete the conflicting books first.',
+                'Clone Stack',
+                { timeOut: 12000 }
+            );
+            return;
+        }
+
         toastr['info'](`Cloning ${matchingBooks.length} lorebook(s) to prefix "${newPrefix}"…`, 'Clone Stack');
 
         // 4. Clone each book under the new prefix name
         let cloned = 0;
         const errors = [];
 
-        for (const bookName of matchingBooks) {
-            // Derive new name: replace the old prefix at the start of the book name
-            let newBookName;
-            if (bookName === currentPrefix) {
-                // Root book: OldPrefix → NewPrefix
-                newBookName = newPrefix;
-            } else {
-                // Suffixed book: OldPrefix_Suffix → NewPrefix_Suffix
-                const suffix = bookName.slice(currentPrefix.length); // includes leading '_'
-                newBookName = newPrefix + suffix;
-            }
-
+        for (const { src: bookName, dest: newBookName } of plannedWrites) {
             // Load existing book data
             let bookData = null;
             try {
