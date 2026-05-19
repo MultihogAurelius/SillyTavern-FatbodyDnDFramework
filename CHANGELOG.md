@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.4.3] - 2026-05-19
+
+### Fixed
+- **Clone Stack data safety**: Clone Stack now aborts before writing when any destination lorebook name already exists, preventing silent full-book overwrites from `/api/worldinfo/edit`. The source prefix is taken from the same effective campaign prefix as the Lorebook Agent (chat id or override), not only the last stored `routerCampaignPrefix` value.
+
 ## [2.4.2] - 2026-05-18
 
 ### Fixed
