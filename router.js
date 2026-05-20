@@ -109,6 +109,26 @@ async function getWorldInfoNamesSafe() {
 }
 
 /**
+ * Lorebook filenames from global settings (/api/settings/get → world_names).
+ * Lightweight read used when ST's in-memory registry is empty or stale so the
+ * keyword scanner can still see on-disk books without calling updateWorldInfoList().
+ */
+async function getWorldInfoNamesFromSettingsApi() {
+    try {
+        const result = await fetch('/api/settings/get', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({}),
+        });
+        if (!result.ok) return [];
+        const data = await result.json();
+        return Array.isArray(data?.world_names) ? [...data.world_names] : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+/**
  * Builds the summary "Keyring" text for archive (inactive) entries only.
  * Active entries are excluded to avoid double-listing them in the agent context.
  * @param {object} allBooks
@@ -1865,7 +1885,9 @@ export async function scanAssistantOutputForKeywords(narrativeText, opts = {}) {
         // We know exactly which books belong to this campaign — no registry scan needed.
         booksToScan = [...knownBooks];
     } else {
-        // Fallback for first-time chats: discover books via in-memory registry.
+        // Fallback for first-time chats: merge ST's in-memory list with world_names
+        // from /api/settings/get (cheap JSON read) so we still see on-disk books when
+        // the client registry is empty after cold boot — without updateWorldInfoList().
         // updateWorldInfoList() is intentionally NOT called here — it triggers a
         // full disk re-index on every message send, causing multi-second latency
         // for users whose chatStates.campaignBooks is empty (new campaigns, no
@@ -1873,7 +1895,9 @@ export async function scanAssistantOutputForKeywords(narrativeText, opts = {}) {
         // books not yet visible in the in-memory registry at zero I/O cost.
         // runRouterPass calls updateWorldInfoList() after actual book writes (line ~1298),
         // so the registry is already current by the time the next scan fires.
-        const allNames = await getWorldInfoNamesSafe();
+        const memNames = await getWorldInfoNamesSafe();
+        const apiNames = await getWorldInfoNamesFromSettingsApi();
+        const allNames = [...new Set([...(Array.isArray(memNames) ? memNames : []), ...apiNames])];
         const scoped = allNames.filter(n => bookBelongsToPrefix(n, prefix));
 
         // Also sweep books referenced in routerLog (catches books not yet re-indexed)

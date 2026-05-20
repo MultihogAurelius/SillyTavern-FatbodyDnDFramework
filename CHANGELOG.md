@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.4.3] - 2026-05-20
+
+### Fixed
+- **Keyword scanner cold registry**: When `chatStates.campaignBooks` is still empty, the scanner fallback now merges SillyTavern's in-memory world list with `world_names` from `/api/settings/get`. This restores keyword discovery after a cold boot (where the client registry can be empty) without bringing back the expensive `updateWorldInfoList()` call removed in 2.4.2.
+
 ## [2.4.2] - 2026-05-18
 
 ### Fixed
