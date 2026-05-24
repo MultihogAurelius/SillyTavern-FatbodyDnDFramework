@@ -2,6 +2,11 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.4.3] - 2026-05-24
+
+### Fixed
+- **Consolidate data loss**: When the Lorebook Agent or Cleanup pass issued a `consolidate` operation with the survivor entry also listed in `targets` (a common model mistake when merging duplicates into one row), the code updated the survivor and then deleted it while processing targets, wiping the merged lore. Targets equal to the survivor are now skipped during deletion.
+
 ## [2.4.2] - 2026-05-18
 
 ### Fixed

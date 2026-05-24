@@ -1127,8 +1127,12 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             continue;
         }
 
-        // Delete each target and scrub from active/keyword key lists
-        for (const targetId of (op.targets || [])) {
+        // Delete each target and scrub from active/keyword key lists.
+        // Models often list the survivor among targets ("merge A and B into A"); never delete the survivor row.
+        const survivorNorm = String(op.survivor || '').trim();
+        for (const rawTargetId of (op.targets || [])) {
+            const targetId = String(rawTargetId || '').trim();
+            if (!targetId || targetId === survivorNorm) continue;
             const [tBook, tUid] = targetId.split('::');
             const tBookData = await ctx.loadWorldInfo(tBook);
             if (tBookData?.entries?.[tUid]) {
