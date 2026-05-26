@@ -165,7 +165,7 @@ function buildKeyringText(allBooks, activeKeys = []) {
 /**
  * The core Researcher Agent loop.
  */
-export async function runRouterPass(narrativeOutput, manualPrompt = null, customLookback = null, isManual = false, newlyTriggeredIds = []) {
+export async function runRouterPass(narrativeOutput, manualPrompt = null, customLookback = null, isManual = false, newlyTriggeredIds = [], overrideChatLog = null) {
     const settings = getSettings();
     if (!settings.routerEnabled || _routerRunning) return;
     // routerPaused blocks auto-runs only; manual UI runs always go through
@@ -257,22 +257,27 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
         let keyringText = buildKeyringText(archiveBooks, settings.activeRouterKeys);
         const { chat } = ctx;
         
-        const N = customLookback !== null ? customLookback : (settings.routerLookback || 4);
-        const recentChat = chat.slice(-N).map(m => {
-            const name = (/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator');
-            const content = (/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '';
-            return `${name}: ${content.replace(/<[^>]+>/g, '')}`;
-        }).join('\n\n');
+        let recentChatString = "";
+        if (overrideChatLog) {
+            recentChatString = overrideChatLog;
+        } else {
+            const N = customLookback !== null ? customLookback : (settings.routerLookback || 4);
+            recentChatString = chat.slice(-N).map(m => {
+                const name = (/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator');
+                const content = (/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '';
+                return `${name}: ${content.replace(/<[^>]+>/g, '')}`;
+            }).join('\n\n');
+        }
 
         // Extract Current Context (Time & Location)
         const timeRegex = /([0-9]{1,2}:[0-9]{2}\s*[AP]M,\s*Day\s*[0-9]+)/i;
-        const narrativeTimeMatch = recentChat.match(timeRegex);
+        const narrativeTimeMatch = recentChatString.match(timeRegex);
         const memoTimeMatch = settings.currentMemo?.match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
         const cleanMemoTime = memoTimeMatch ? memoTimeMatch[1].split('\n')[0].trim() : '';
         const currentTime = narrativeTimeMatch ? narrativeTimeMatch[1] : cleanMemoTime;
 
         const locationRegex = /\(Location:\s*([^)]+)\)/i;
-        const locMatch = recentChat.match(locationRegex);
+        const locMatch = recentChatString.match(locationRegex);
         const currentHierarchy = locMatch ? locMatch[1].trim() : '';
         const breadcrumb = currentHierarchy ? currentHierarchy.replace(/,\s*/g, ' :: ') : '';
 
@@ -671,7 +676,7 @@ Action: commit({"rewrite": [{"id": "Eldoria_Events::3", "content": "Compressed v
             modularPrompt = modularPrompt.replace(/\{\{formatLines\}\}/g, formatLinesStr);
 
             // Handle World engine template logic
-            const dayMatch = recentChat.match(/Day\s+(\d+)/i);
+            const dayMatch = recentChatString.match(/Day\s+(\d+)/i);
             const currentDay = dayMatch ? parseInt(dayMatch[1], 10) : 'Unknown';
             const dayStr = currentDay !== 'Unknown' ? currentDay : 'X';
             const prevDay = currentDay !== 'Unknown' ? Math.max(1, currentDay - 1) : 'X-1';
@@ -713,7 +718,7 @@ Thought: I see a new NPC named Barnaby in Khelt's Rust-Lantern District. I will 
 
             const questMatchB = settings.currentMemo?.match(/\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i);
             const questBlockB = questMatchB ? `[QUESTS]${questMatchB[1].trim()}[/QUESTS]` : 'None';
-            const basicUserPrompt = `## BUDGET STATUS\n${budgetLine}${overflowInstruction}\n\n## NEWLY ACTIVATED THIS TURN\n${newlyTriggeredFull.join('\n\n') || 'None.'}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None.'}\n\n## ARCHIVE INDEX\n${keyringText || 'Empty.'}\n\n## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlockB}\n\n## NARRATIVE\n${recentChat}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}`;
+            const basicUserPrompt = `## BUDGET STATUS\n${budgetLine}${overflowInstruction}\n\n## NEWLY ACTIVATED THIS TURN\n${newlyTriggeredFull.join('\n\n') || 'None.'}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None.'}\n\n## ARCHIVE INDEX\n${keyringText || 'Empty.'}\n\n## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlockB}\n\n## NARRATIVE\n${recentChatString}\n\n${manualPrompt ? `## INSTRUCTION\n${manualPrompt}\n\n` : ''}`;
 
             broadcastStep('thought', 'Thinking...');
             const basicResp = await sendStateRequest(routerSettings, finalBasicSystemPrompt, basicUserPrompt);
@@ -916,7 +921,7 @@ ${sharedContext}`;
 
             const questMatchA = settings.currentMemo?.match(/\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i);
             const questBlockA = questMatchA ? `[QUESTS]${questMatchA[1].trim()}[/QUESTS]` : 'None';
-            const contextMessage = `## BUDGET STATUS\n${budgetLine}${overflowInstruction}\n\n## NEWLY ACTIVATED THIS TURN\n${newlyTriggeredFull.join('\n\n') || 'None.'}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None yet.'}\n\n## ARCHIVE INDEX\n${keyringText || 'Empty.'}\n\n## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlockA}\n\n## NARRATIVE\n${recentChat}${manualPrompt ? `\n\n## INSTRUCTION\n${manualPrompt}` : ''}`;
+            const contextMessage = `## BUDGET STATUS\n${budgetLine}${overflowInstruction}\n\n## NEWLY ACTIVATED THIS TURN\n${newlyTriggeredFull.join('\n\n') || 'None.'}\n\n## ACTIVE MEMORY (Lore)\n${activeEntriesFull.join('\n\n') || 'None yet.'}\n\n## ARCHIVE INDEX\n${keyringText || 'Empty.'}\n\n## CURRENT LOCATION\n${currentHierarchy || 'Unknown'}\n\n## ACTIVE QUESTS\n${questBlockA}\n\n## NARRATIVE\n${recentChatString}${manualPrompt ? `\n\n## INSTRUCTION\n${manualPrompt}` : ''}`;
 
             /** @type {Array<{role:string, content:string|null, tool_calls?:any[], tool_call_id?:string}>} */
             const messages = [

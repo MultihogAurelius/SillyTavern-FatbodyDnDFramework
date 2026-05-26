@@ -2,6 +2,18 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.5.2] - 2026-05-26
+
+### Added
+- **Full Audit Chunking (State Tracker)**: The State Tracker's Full Audit mode now automatically splits massive chat histories into token-managed chunks and processes them sequentially. Each chunk fully commits its result to settings, updates the UI live, and saves before the next chunk begins — so users can watch the state being reconstructed in real time rather than waiting for the entire audit to finish.
+- **Full Audit Chunking (Lorebook Agent)**: Added a new "Full Audit" button (📚) to the Lorebook Agent panel header and settings drawer. When triggered, the entire chat history is chunked and each chunk is fed through a full Lorebook Agent pass. The agent writes lorebook entries per-chunk and the next chunk sees the freshly written entries, enabling massive campaign logs to be fully indexed.
+- **Full Audit Max Tokens Setting**: Added a `fullAuditMaxTokens` setting (default: 32,000) in the State Tracker's Advanced Options. This serves as a plug-and-play fallback for context limit detection, ensuring chunking works out of the box without requiring manual configuration.
+- **Full Audit Confirmation Popup**: The Lorebook Agent Full Audit button now shows a confirmation dialog before starting, warning that the process may take several minutes and advising not to send messages during the audit.
+
+### Fixed
+- **`recentChat` ReferenceError**: Fixed a `ReferenceError: recentChat is not defined` crash in `router.js` by renaming all references to `recentChatString` and adding the `overrideChatLog` parameter to `runRouterPass`.
+- **State Tracker audit not saving**: Fixed a critical bug where the State Tracker Full Audit would process all chunks internally but never commit the results to `settings.currentMemo`, causing the UI to remain unchanged after completion.
+
 ## [2.5.1] - 2026-05-26
 
 ### Fixed

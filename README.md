@@ -1,30 +1,37 @@
-**⚠️ IF THE 2.0.0+ UPDATE FAILS SOMEHOW, TRY CTRL + SHIFT + R. IF THAT FAILS, REINSTALL. YOU WILL NOT LOSE YOUR PROGRESS.**
-
-**"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
+# Fatbody D&D Framework
 
 *A D&D-lite simulation engine for SillyTavern.*
 
 What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences. Losing or dying is actually a thing. In Big Rigs, you're always WINNER. Not in Fatbody D&D! 
 
-I wasn't satisfied with any of the commercial offerings available (AI Realm, AI Dungeon, Friends & Fables, etc.,) so I made my own D&D platform inside SillyTavern. 
+I wasn't satisfied with any of the commercial offerings available (AI Realm, AI Dungeon, Friends & Fables, etc.), so I made my own D&D platform inside SillyTavern. 
 
 **Crucially, the system is input-output, not just some glorified stats collector. Your state info feeds back into the narrative AI.**
 
-### The Fatbody D&D Framework involves three core components:
+---
+
+## 🌟 What's New in 2.5.0+
+
+This fork has been significantly upgraded with powerful new features that redefine the roleplaying experience:
+
+*   🌍 **Automated World Engine**: A comprehensive simulation block in the Lorebook Agent. The agent now tracks the passage of time and automatically generates missing daily background reports for off-screen NPC actions and faction events, creating a persistent, living world that evolves independently of the player.
+*   ⚙️ **Editable Modular Agent Instructions**: All Lorebook Agent formatting rules and module-specific logic (LOC, FAC, WORLD, Custom Tags) are exposed into a single, unified text area in the settings UI. You can now fully customize or rewrite the internal logic and formatting rules of the Lorebook Agent.
+*   🔍 **Full Audit Chunking**: Both the RPG State Tracker and the Lorebook Agent can now process massive chat histories that exceed your model's context limit. The history is automatically split into token-managed chunks that are processed sequentially — each chunk fully commits its results before the next begins, with live UI updates after every chunk.
+*   💾 **Bulletproof Lorebook Agent**: Fixed a critical data loss bug where the Lorebook Agent would fail to recognize manually cloned or renamed campaign lorebooks. The agent now proactively probes the backend server before initializing a new book, completely preventing accidental overwriting and deletion of existing lorebook files.
+*   🧩 **Tag Parsing Robustness**: The generic tag parser now safely captures tags spanning across newlines, ensuring multi-paragraph entries (like the new verbose WORLD reports) are never truncated.
+*   🛡️ **Legacy Constraints**: Backported the `<world_engine>` narrative constraint to prevent NPCs from spontaneously blurting out background world events that your character shouldn't know about.
+
+---
+
+### The Core Components:
 
 1. 🖥️ **RPG State Tracker** — Extracts and maintains HP, inventory, party, buffs, XP, spells, and more via a dedicated second-pass model. Injects a rolling State Memo back into each prompt to keep the AI (and you) on track.
 2. 🎲 **Hybrid RNG System** — A dual-engine approach to tabletop physics. 
    - **RNG Queue (Combat)**: Pre-seeded deterministic dice injected into every turn for high-speed, zero-latency combat resolution, neatly within a single output. Sidesteps the unreliability and massive input token costs of tool chains.
    - **Tool Call RNG (Narrative)**: A proactive AI-driven rolling system for non-combat skill checks. Features a "Waterproof" commitment logic where the AI must declare a DC before seeing the result, preventing narrative sycophancy and cheating.
-3. 🤖 **The Lorebook Agent** — This is a fully autonomous lorebook manager that creates, updates, activates and deactivates, deactivates lorebooks for you in the background. Handles the macroscopic consistency of your adventure. Also includes cleanup tools (consolidation, rewriting entries) that can be set to automatically run periodically.
+3. 🤖 **The Lorebook Agent** — This is a fully autonomous lorebook manager that creates, updates, activates, and deactivates lorebooks for you in the background. Handles the macroscopic consistency of your adventure. Also includes cleanup tools (consolidation, rewriting entries) that can be set to automatically run periodically.
 
-Together they solve the three core problems of LLM tabletop RP: the AI forgeting your inventory/spells, the AI forgetting long-term context, and you always winning (aka. plot armor).  I have high confidence in the system's reliability—you can just play and not worry about tinkering with much of anything.
-
----
-
-⚠️ **Updating?** To stay up to date after updating the extension, especially after updating to 2.0.0+, click on the "Update Main Sysprompt" button in the extension settings.
-
-<img width="396" height="73" alt="image" src="https://github.com/user-attachments/assets/1bd13ed4-0afb-4ed4-84bc-d9bdfebc17d3" />
+Together they solve the three core problems of LLM tabletop RP: the AI forgetting your inventory/spells, the AI forgetting long-term context, and you always winning (aka. plot armor). I have high confidence in the system's reliability—you can just play and not worry about tinkering with much of anything.
 
 ---
 
@@ -83,7 +90,6 @@ You can scrap the entire system prompt and all the default fields and track your
 Your primary narrator model must support **Tool Calling** for the Hybrid RNG system to work properly. 
 
 <img width="920" height="246" alt="image" src="https://github.com/user-attachments/assets/f663cb1e-554a-40a2-a25e-f7af62c1a032" />
-
 
 I like Deepseek 4 a lot so far, though it's still a new model. Gemini 3 is a good all-rounder; very fast and cheap. Sometimes its pace can be a bit much, though. GLM 5.1 is also a solid choice, but it can tend to reason far too long, bogging things down, especially in combat. Experimentation with different models is recommended.
 

@@ -1677,21 +1677,45 @@ Rules:
             const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
 
             const { chat } = SillyTavern.getContext();
-            // overrideLookback comes from the Lookback Update menu; it wins over settings
-            const N = overrideLookback !== null ? overrideLookback
-                    : isFullContext          ? chat.length
-                    : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
-            const recentChat = chat.slice(-N);
-            const chatLog = recentChat
-                .map(m => {
+            let chunks = [];
+
+            if (isFullContext) {
+                const maxContextLimit = SillyTavern.getContext().contextSize || settings.fullAuditMaxTokens || 32000;
+                const tokenBuffer = 3000; 
+                const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
+                
+                let currentChunk = [];
+                let currentTokens = 0;
+                
+                for (const m of chat) {
                     const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    // Returns null for tool-call messages — excluded from state model context
+                    const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                    if (content === null) continue;
+                    const line = `${name}: ${content}`;
+                    const lineTokens = Math.ceil(line.length / 4);
+                    
+                    if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
+                        chunks.push(currentChunk);
+                        currentChunk = [];
+                        currentTokens = 0;
+                    }
+                    currentChunk.push(line);
+                    currentTokens += lineTokens;
+                }
+                if (currentChunk.length > 0) {
+                    chunks.push(currentChunk);
+                }
+            } else {
+                const N = overrideLookback !== null ? overrideLookback : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
+                const recentChat = chat.slice(-N);
+                const chatLogLines = recentChat.map(m => {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
                     const content = cleanToolCallMessage(m.mes || m['content'] || '');
                     if (content === null) return null;
                     return `${name}: ${content}`;
-                })
-                .filter(line => line !== null)
-                .join('\n\n');
+                }).filter(line => line !== null);
+                chunks.push(chatLogLines);
+            }
 
             let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
             const historyCount = (settings.trackerHistoryCount || 1) - 1;
@@ -1704,55 +1728,11 @@ Rules:
                 priorMemoText = historyString + '\n\n' + priorMemoText;
             }
 
-            let userPrompt = "";
-
-            if (isFullContext) {
-                userPrompt =
-                    worldLoreSection +
-                    priorMemoText +
-                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
-                    `## TASK\nAnalyze the entire narrative history provided above. Rebuild the State Memo to ensure every detail (HP, AC, Inventory, Abilities, XP, Party members) is perfectly accurate to the current moment in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
-                    `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
-            } else {
-                userPrompt =
-                    worldLoreSection +
-                    priorMemoText +
-                    `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n${chatLog}\n\n` +
-                    `## OUTPUT ONLY CHANGED SECTIONS:`;
-            }
-
-            const result = await sendStateRequest(settings, systemPrompt, userPrompt);
-            if (result && typeof result === 'string') {
-                if (settings.debugMode) console.log("[RPG Tracker] Raw Result:", result);
-
-                // ── Pre-clean: strip <memo> wrapper tags before any merge logic ──
-                // The model may wrap its output in <memo>...</memo> regardless of our prompt.
-                // We extract the last complete block's content, or strip orphaned tags.
-                let cleanedOutput = result;
-                const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
-                if (memoBlocks.length > 0) {
-                    // Take the last complete <memo>...</memo> block
-                    cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
-                } else {
-                    // Strip any orphaned <memo> / </memo> tags
-                    cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
-                }
-
-                // Also sanitize the current stored memo in case it was previously
-                // contaminated by a prior session that saved raw tags.
-                const sanitizedCurrent = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
-
-                let merged = mergeMemo(sanitizedCurrent, cleanedOutput);
-
-                if (settings.debugMode) {
-                    console.log(`[RPG Tracker] Memo ${merged !== sanitizedCurrent ? 'updated (partial merge)' : 'unchanged'}.`);
-                }
-
-                // Push snapshot to rolling history
-                const delta = computeDelta(sanitizedCurrent, merged);
-
-                // Flush any quests staged by LogQuest during this generation.
-                // We do this BEFORE pushing to history so the NEW state in history includes the quest.
+            // ── Per-chunk commit helper ──
+            // Treats each chunk result as a full "turn": commits to settings, archives history,
+            // updates UI, and saves — so the next chunk sees the committed state.
+            function commitChunkResult(merged, previousMemoSnapshot) {
+                // Flush any quests staged by LogQuest during this generation
                 if (globalThis._rpgPendingQuests && globalThis._rpgPendingQuests.length) {
                     const existingQuests = parseQuestsFromMemo(merged);
                     existingQuests.push(...globalThis._rpgPendingQuests);
@@ -1762,23 +1742,18 @@ Rules:
                     if (settings.debugMode) console.log(`[RPG Tracker] Flushed ${count} pending quest(s) into merged memo.`);
                 }
 
-                // Linear Stone History Logic:
-                // 1. If we were viewing/committed to a past state, delete the "abandoned" future.
+                const delta = computeDelta(previousMemoSnapshot, merged);
+
+                // Linear Stone History Logic
                 if (settings.historyIndex !== undefined && settings.historyIndex !== -1) {
                     if (settings.debugMode) console.log(`[RPG Tracker] Splicing history at index ${settings.historyIndex} due to new update.`);
                     settings.memoHistory = settings.memoHistory.slice(settings.historyIndex);
                 }
-
-                // 2. Archive the state BEFORE this generation to history
-                if (settings.memoHistory[0] !== sanitizedCurrent) {
-                    settings.memoHistory.unshift(sanitizedCurrent);
+                if (settings.memoHistory[0] !== previousMemoSnapshot) {
+                    settings.memoHistory.unshift(previousMemoSnapshot);
                 }
-
-                // 3. Archive the NEW state so it's always recoverable via navigation
                 settings.memoHistory.unshift(merged);
                 if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
-
-                // 4. Set pointer to the NEW state (the live stone)
                 settings.historyIndex = 0;
                 _historyViewIndex = -1;
 
@@ -1787,28 +1762,84 @@ Rules:
                 const deltaPanel = document.getElementById('rpg-tracker-delta-content');
                 if (deltaPanel) deltaPanel.innerHTML = delta;
 
-                // Rotation logic (legacy compat)
+                // Commit to settings
                 settings.prevMemo2 = settings.prevMemo1;
-                settings.prevMemo1 = sanitizedCurrent;
+                settings.prevMemo1 = previousMemoSnapshot;
                 settings.currentMemo = merged;
 
-                // Sync internal quest cache from the merged memo (legacy compat)
                 syncQuestsFromMemo(merged);
-
                 updateUIMemo(merged);
                 syncMemoView();
                 refreshRenderedView();
                 saveSettings();
 
-                if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
-                
-                // Check for Level Up
                 if (/LEVEL_UP=true/i.test(merged)) {
                     handleLevelUp();
                 }
-                
+
                 return delta;
             }
+
+            let lastDelta = '';
+
+            for (let i = 0; i < chunks.length; i++) {
+                if (signal.aborted) break;
+
+                // Snapshot the memo BEFORE this chunk processes, so delta/history is per-chunk
+                const memoBeforeThisChunk = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+
+                if (isFullContext && chunks.length > 1) {
+                    toastr.info(`Running Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "RPG Tracker", { timeOut: 5000 });
+                    updateStatusIndicator('running', `Chunk ${i + 1}/${chunks.length}`);
+                }
+
+                const chatLog = chunks[i].join('\n\n');
+                let userPrompt = "";
+
+                if (isFullContext) {
+                    // For full audit, always read the LIVE committed memo for the prior
+                    userPrompt =
+                        worldLoreSection +
+                        `## PRIOR MEMO\n${stripMemoHtml(settings.currentMemo) || '(empty)'}\n\n` +
+                        `## NARRATIVE HISTORY (Chunk ${i + 1} of ${chunks.length})\n${chatLog}\n\n` +
+                        `## TASK\nAnalyze the narrative chunk provided above. Rebuild the State Memo to ensure every detail is perfectly accurate to this point in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
+                        `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+                } else {
+                    userPrompt =
+                        worldLoreSection +
+                        priorMemoText +
+                        `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
+                        `## OUTPUT ONLY CHANGED SECTIONS:`;
+                }
+
+                const result = await sendStateRequest(settings, systemPrompt, userPrompt);
+
+                if (result && typeof result === 'string') {
+                    if (settings.debugMode) console.log(`[RPG Tracker] Raw Result (Chunk ${i + 1}):`, result);
+
+                    let cleanedOutput = result;
+                    const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
+                    if (memoBlocks.length > 0) {
+                        cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
+                    } else {
+                        cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+                    }
+
+                    const merged = mergeMemo(memoBeforeThisChunk, cleanedOutput);
+
+                    if (settings.debugMode) {
+                        console.log(`[RPG Tracker] Memo ${merged !== memoBeforeThisChunk ? 'updated' : 'unchanged'} after chunk ${i + 1}.`);
+                    }
+
+                    // ── FULL COMMIT: treat this chunk as a completed turn ──
+                    lastDelta = commitChunkResult(merged, memoBeforeThisChunk);
+
+                    if (settings.debugMode) console.log(`[RPG Tracker] Chunk ${i + 1}/${chunks.length} committed.`);
+                }
+            }
+
+            if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
+            return lastDelta;
         } catch (error) {
             if (error.name === 'AbortError') {
                 if (settings.debugMode) console.log("[RPG Tracker] State Model pass aborted by user.");
@@ -2724,6 +2755,7 @@ Rules:
                     <div class="rpg-tracker-header-center" id="rt-agent-pause-banner" style="color:#ffa500; font-size:0.7em; font-weight:bold; letter-spacing:0.04em;">${settings.routerPaused ? 'AGENT PAUSED' : ''}</div>
                     <div class="rpg-tracker-header-right">
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-manual-run" title="Run Research Now" style="color: var(--rt-accent);"><i class="fa-solid fa-play"></i></button>
+                        <button class="rpg-tracker-icon-btn" id="rt-agent-router-full-audit-panel" title="Run Full Audit (Chunked)" style="color: #ff5555;"><i class="fa-solid fa-book-journal-whills"></i></button>
                          <div id="rt-cleanup-menu-wrap" style="position:relative; display:inline-flex;">
                              <button class="rpg-tracker-icon-btn" id="rt-agent-router-cleanup" title="Cleanup Menu" style="color: #e67e22;"><i class="fa-solid fa-broom"></i></button>
                              <div id="rt-cleanup-dropdown" style="display:none; position:absolute; top:100%; right:0; z-index:9999; background:#131320; border:1px solid rgba(230,126,34,0.35); border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,0.5); min-width:200px; padding:4px 0; margin-top:2px;">
@@ -6665,6 +6697,13 @@ Rules:
                     saveSettings();
                 });
             }
+            const fullAuditMaxTokensInput = $('#rpg_tracker_full_audit_max_tokens');
+            if (fullAuditMaxTokensInput.length) {
+                fullAuditMaxTokensInput.val(settings.fullAuditMaxTokens !== undefined ? settings.fullAuditMaxTokens : 32000).on('input', function () {
+                    settings.fullAuditMaxTokens = parseInt(/** @type {string} */($(this).val())) || 32000;
+                    saveSettings();
+                });
+            }
 
             // ── Lorebook Context UI ──
             async function refreshLorebookList() {
@@ -7404,6 +7443,97 @@ Rules:
                     await cloneCampaignStack();
                 } finally {
                     btn.prop('disabled', false);
+                }
+            });
+
+            $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').on('click', async function () {
+                const { Popup } = SillyTavern.getContext();
+                const confirmHtml = `
+                    <div style="text-align: left; font-size: 0.9em; line-height: 1.5;">
+                        <p>You are about to run a <b>Full Audit</b> of the entire chat history through the Lorebook Agent.</p>
+                        <p style="margin-top: 8px;">⏳ This may take <b>several minutes</b> depending on the size of your chat. The agent will process the history in chunks, rebuilding and updating your lorebooks sequentially.</p>
+                        <p style="margin-top: 8px; color: #ffa500;">⚠️ <b>Do not send messages to the AI while the audit is running.</b></p>
+                    </div>
+                `;
+                const confirmed = await Popup.show.confirm('📚 Lorebook Agent Full Audit', confirmHtml, {
+                    okButton: 'Start Full Audit',
+                    cancelButton: 'Cancel'
+                });
+                if (!confirmed) return;
+
+                const btn = $(this);
+                btn.prop('disabled', true);
+                // Also disable the other button (settings vs panel)
+                $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', true);
+                try {
+                    const ctx = SillyTavern.getContext();
+                    const { chat } = ctx;
+                    
+                    const maxContextLimit = ctx.contextSize || settings.fullAuditMaxTokens || 32000;
+                    const tokenBuffer = 3000; 
+                    const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
+                    
+                    let chunks = [];
+                    let currentChunk = [];
+                    let currentTokens = 0;
+                    
+                    for (const m of chat) {
+                        const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                        const content = m.mes || m['content'] || '';
+                        if (!content || content.includes('```json\n[') || content.includes('```json\n{')) continue;
+                        
+                        const line = `${name}: ${content.replace(/<[^>]+>/g, '')}`;
+                        const lineTokens = Math.ceil(line.length / 4);
+                        
+                        if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
+                            chunks.push(currentChunk);
+                            currentChunk = [];
+                            currentTokens = 0;
+                        }
+                        currentChunk.push(line);
+                        currentTokens += lineTokens;
+                    }
+                    if (currentChunk.length > 0) {
+                        chunks.push(currentChunk);
+                    }
+
+                    if (chunks.length === 0) {
+                        toastr.info("No chat history to audit.");
+                        return;
+                    }
+
+                    console.log(`[RPG Tracker] Agent Full Audit: ${chunks.length} chunk(s) queued.`);
+
+                    for (let i = 0; i < chunks.length; i++) {
+                        toastr.info(`Agent Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "Lorebook Agent", { timeOut: 8000 });
+                        console.log(`[RPG Tracker] Agent Full Audit: Starting chunk ${i + 1}/${chunks.length} (${chunks[i].length} messages)`);
+
+                        // Wait for any lingering router pass to finish (e.g. auto-cleanup from prior chunk)
+                        let waitCount = 0;
+                        while (isRouterRunning() && waitCount < 60) {
+                            await new Promise(r => setTimeout(r, 500));
+                            waitCount++;
+                        }
+                        if (isRouterRunning()) {
+                            console.warn(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1} skipped — router still busy after 30s.`);
+                            toastr.warning(`Chunk ${i + 1} skipped — agent was still busy.`, "Lorebook Agent");
+                            continue;
+                        }
+
+                        const overrideChatLog = chunks[i].join('\n\n');
+                        const chunkResult = await runRouterPass(null, null, null, true, [], overrideChatLog);
+                        console.log(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1}/${chunks.length} finished. Result: ${chunkResult}`);
+
+                        // Yield to the event loop so the UI can repaint with the agent panel updates
+                        await new Promise(r => setTimeout(r, 100));
+                    }
+                    
+                    toastr.success(`Agent Full Audit complete (${chunks.length} chunk${chunks.length > 1 ? 's' : ''}).`, "Lorebook Agent");
+                } catch (e) {
+                    console.error("[RPG Tracker] Agent Full Audit failed:", e);
+                    toastr.error("Agent Full Audit failed.");
+                } finally {
+                    $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', false);
                 }
             });
 

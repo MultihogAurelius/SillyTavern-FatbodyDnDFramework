@@ -130,6 +130,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         lookbackMessages: 2,
         directPromptContext: 5,
         historyIndex: -1,
+        fullAuditMaxTokens: 32000,
         ctxWorldInfo: false,
         lorebookFilter: [],
         ollamaUrl: "http://localhost:11434",
