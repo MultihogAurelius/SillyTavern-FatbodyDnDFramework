@@ -220,7 +220,7 @@
     color: var(--rt-text);
     font-family: var(--rt-font);
     font-size: var(--rt-base-size);
-    overflow: hidden;
+    overflow: visible;
     resize: none !important;
     container-type: inline-size;
 }

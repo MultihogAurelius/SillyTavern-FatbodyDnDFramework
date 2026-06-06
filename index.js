@@ -3044,8 +3044,8 @@ function createPanel() {
                         <button class="rpg-tracker-nav-btn" id="rt-agent-nav-fwd" title="Redo lorebook pass">→</button>
                     </div>
                 </div>
-                <div class="rt-resizer-br" id="rt-agent-resizer-br" title="Resize from bottom-right" style="position:absolute;bottom:0;right:0;width:24px;height:24px;cursor:se-resize;z-index:9999;background:rgba(255,0,0,0.6);"></div>
-                <div class="rt-resizer-bl" id="rt-agent-resizer-bl" title="Resize from bottom-left" style="position:absolute;bottom:0;left:0;width:24px;height:24px;cursor:sw-resize;z-index:9999;background:rgba(0,100,255,0.6);"></div>
+                <div class="rt-resizer-br" id="rt-agent-resizer-br" title="Resize from bottom-right"></div>
+                <div class="rt-resizer-bl" id="rt-agent-resizer-bl" title="Resize from bottom-left"></div>
             </div>
             <div class="rpg-tracker-prompt-bar" id="rpg-tracker-prompt-bar" style="display:none;">
                 <textarea class="rpg-tracker-prompt-input" id="rpg-tracker-prompt-input" rows="2" placeholder="Instruct the tracker model… (Enter to send, Shift+Enter for newline)"></textarea>
@@ -3075,8 +3075,6 @@ function createPanel() {
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 0.692em; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                 </div>
             </div>
-            <div class="rt-resizer-br" id="rt-resizer-br" title="Resize from bottom-right" style="position:absolute;bottom:0;right:0;width:24px;height:24px;cursor:se-resize;z-index:9999;background:rgba(255,0,0,0.6);"></div>
-            <div class="rt-resizer-bl" id="rt-resizer-bl" title="Resize from bottom-left" style="position:absolute;bottom:0;left:0;width:24px;height:24px;cursor:sw-resize;z-index:9999;background:rgba(0,100,255,0.6);"></div>
         `;
 
     document.body.appendChild(panel);
@@ -3093,17 +3091,29 @@ function createPanel() {
         makeResizableTR(/** @type {HTMLElement} */(panel), resizerTR);
     }
 
-    // State tracker bottom-right resizer
-    const resizerBR = panel.querySelector('#rt-resizer-br');
-    if (resizerBR instanceof HTMLElement) {
-        makeResizableBR(/** @type {HTMLElement} */(panel), resizerBR);
-    }
+    // State tracker bottom-right resizer (created via JS for guaranteed rendering)
+    const resizerBR = document.createElement('div');
+    resizerBR.id = 'rt-resizer-br';
+    resizerBR.title = 'Resize from bottom-right';
+    Object.assign(resizerBR.style, {
+        position: 'absolute', bottom: '0', right: '0',
+        width: '24px', height: '24px', cursor: 'se-resize',
+        zIndex: '9999', background: 'rgba(255,0,0,0.6)'
+    });
+    panel.appendChild(resizerBR);
+    makeResizableBR(/** @type {HTMLElement} */(panel), resizerBR);
 
     // State tracker bottom-left resizer
-    const resizerBL = panel.querySelector('#rt-resizer-bl');
-    if (resizerBL instanceof HTMLElement) {
-        makeResizableBL(/** @type {HTMLElement} */(panel), resizerBL);
-    }
+    const resizerBL = document.createElement('div');
+    resizerBL.id = 'rt-resizer-bl';
+    resizerBL.title = 'Resize from bottom-left';
+    Object.assign(resizerBL.style, {
+        position: 'absolute', bottom: '0', left: '0',
+        width: '24px', height: '24px', cursor: 'sw-resize',
+        zIndex: '9999', background: 'rgba(0,100,255,0.6)'
+    });
+    panel.appendChild(resizerBL);
+    makeResizableBL(/** @type {HTMLElement} */(panel), resizerBL);
 
     // Agent panel bottom-right resizer
     const agentPanelEl = /** @type {HTMLElement} */(panel.querySelector('#rpg-tracker-agent'));
