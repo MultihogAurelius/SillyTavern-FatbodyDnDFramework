@@ -7472,7 +7472,7 @@ Return ONLY the XML section. No explanation, no other text.`;
                         <div style="display:flex; flex-direction:column; gap:10px; min-width:min(520px, 90vw);">
                             <div style="font-size:13px; font-weight:bold;">✨ Generated Section Preview</div>
                             <pre style="white-space:pre-wrap; word-break:break-word; font-size:11px; padding:12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); border-radius:8px; max-height:400px; overflow-y:auto; font-family:monospace;">${escapeHtml(section)}</pre>
-                            <div style="font-size:10px; opacity:0.6;">This section will be appended to your current system prompt (before &lt;/constraints&gt; if present, otherwise at the end).</div>
+                            <div style="font-size:10px; opacity:0.6;">This section will be appended to your current system prompt (before &lt;constraints&gt; if present, otherwise at the end).</div>
                         </div>
                     `;
 
@@ -7486,9 +7486,9 @@ Return ONLY the XML section. No explanation, no other text.`;
                 const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
                 if (mainTextarea) {
                     let currentContent = mainTextarea.value;
-                    // Try to insert before </constraints>
-                    if (currentContent.includes('</constraints>')) {
-                        currentContent = currentContent.replace('</constraints>', `${section}\n\n</constraints>`);
+                    // Try to insert before <constraints> so it stays at the end
+                    if (currentContent.includes('<constraints>')) {
+                        currentContent = currentContent.replace('<constraints>', `${section}\n\n<constraints>`);
                     } else {
                         currentContent = currentContent.trim() + '\n\n' + section;
                     }
