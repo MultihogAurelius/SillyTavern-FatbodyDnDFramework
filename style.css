@@ -1004,6 +1004,19 @@
     color: rgb(255, 80, 80);
 }
 
+.rt-pill-magic {
+    background: rgba(52, 152, 219, 0.1);
+    border-color: rgba(52, 152, 219, 0.3);
+}
+.rt-pill-magic:hover, .rt-pill-magic.active {
+    background: rgba(52, 152, 219, 0.22);
+    border-color: rgba(52, 152, 219, 0.6);
+}
+.rt-pill-magic .rt-unit-icon {
+    background: rgba(52, 152, 219, 0.2);
+    color: rgb(52, 152, 219);
+}
+
 .rt-entity-sub-line {
     font-size: 0.88em;
     opacity: 0.8;
@@ -1060,6 +1073,94 @@
     font-family: var(--rt-font);
     font-size: 1.1em;
     line-height: 1;
+}
+
+/* Inventory item worth tooltip */
+.rt-inventory-item[title] {
+    cursor: help;
+    position: relative;
+}
+
+.rt-inventory-item[title]:hover {
+    background: rgba(255, 215, 0, 0.06);
+    border-radius: 3px;
+}
+
+/* ── Universal Rendering Tags ── */
+
+/* Objective checkboxes */
+.rt-objective {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    font-size: 0.92em;
+}
+
+.rt-obj-icon {
+    font-weight: bold;
+    font-size: 1.1em;
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+}
+
+.rt-obj-pending .rt-obj-icon { color: rgba(255, 255, 255, 0.4); }
+.rt-obj-done .rt-obj-icon { color: #2ecc71; }
+.rt-obj-failed .rt-obj-icon { color: #e74c3c; }
+.rt-obj-done .rt-obj-text { opacity: 0.6; text-decoration: line-through; }
+.rt-obj-failed .rt-obj-text { opacity: 0.6; color: #e74c3c; }
+
+/* Reward chips */
+.rt-reward-chip {
+    display: inline-block;
+    background: rgba(255, 215, 0, 0.12);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #ffd700;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 0.88em;
+    font-weight: 500;
+}
+
+/* Difficulty badges */
+.rt-difficulty-badge {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 1px 10px;
+    font-size: 0.85em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Progress bar */
+.rt-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rt-progress-bar-wrap {
+    flex: 1;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.rt-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #00c88c, #00d4ff);
+    border-radius: 5px;
+    transition: width 0.4s ease;
+}
+
+.rt-progress-label {
+    font-size: 0.82em;
+    opacity: 0.85;
+    white-space: nowrap;
 }
 
 /* Abilities */

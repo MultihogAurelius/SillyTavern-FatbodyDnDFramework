@@ -81,11 +81,19 @@ Status: Effect (duration)
 You MUST output \`[COMBAT]END_COMBAT[/COMBAT]\` when the narrative ends combat. Do not put members of [PARTY] into [COMBAT].`,
     inventory: `Items, loot, equipment, and wealth. You MAY create this section if loot is found and it doesn't currently exist.
 
+MANDATORY FORMAT FOR EVERY ITEM:
+- Every item MUST have a rarity classification tag: [Common], [Uncommon], [Rare], [Epic], [Legendary], or [Artifact]
+- Every item MUST have a thematic emoji prefix before the item name
+- Every item MUST have an estimated worth in parentheses at the end: (~X currency) where currency fits the world setting (GP, SP, CP, Dollars, Caps, etc.)
+- Currency is NOT enforced — use whatever fits the setting
+
 Example:
 [INVENTORY]
-- Data-crystal
-- 1,000 GP
-- Item (Item special property)
+- 🗡️ [Rare] Flame Dagger (1d6+3 fire) (~120 GP)
+- 🧪 [Uncommon] Healing Potion (~50 GP)
+- 🛡️ [Common] Iron Buckler (AC +2) (~15 GP)
+- 🪢 [Common] Rope, 50 ft (~1 GP)
+- 💰 1,200 GP
 [/INVENTORY]`,
     abilities: `Non-spell class features and active abilities ONLY (e.g. Lay on Hands, Action Surge). NEVER mix these with spells. Format each entry as: \`Ability Name (brief description)\`.`,
     spells: "Spell slots and spells known, grouped by level. Format each line as: `Level N (avail/max): Spell1, Spell2`. For cantrips, use `Cantrips: Spell1, Spell2`. Track slot usage accurately. NEVER mix these with abilities.",
@@ -124,9 +132,15 @@ QUEST: The Missing Sheep
 - If no quests exist yet, emit [QUESTS][/QUESTS] (empty).`,
 };
 
-export const QUESTS_NARRATOR_MODERN = `When the player formally accepts a quest or task from an NPC, you MUST call the LogQuest tool. Assign an appropriate difficulty (Very Easy to Very Hard) based on the narrative stakes. If a duration is given (e.g., 'four days'), you MUST calculate the specific "Day N" timestamp based on the current in-world time. After LogQuest finishes, output *[QUEST ACCEPTED]*. Do NOT do this for rumors, casual mentions, or tasks the player has not yet agreed to. Use the MOOD field in the [QUESTS] block to guide how NPCs react to the player's progress or lack thereof.`;
+export const QUESTS_NARRATOR_MODERN = `When the player formally accepts a quest from an NPC, you MUST call the LogQuest tool. Assign an appropriate difficulty (Very Easy to Very Hard) based on the narrative stakes. State how many objectives there are (there should always be multiple — they should be obtainable immediate objectives and not long term goals). If a duration is given (e.g., 'four days'), you MUST calculate the specific "Day N" timestamp based on the current in-world time. After LogQuest finishes, output *[QUEST ACCEPTED]*. Do NOT do this for rumors, casual mentions, or tasks the player has not yet agreed to. Use the MOOD field in the [QUESTS] block to guide how NPCs react to the player's progress or lack thereof.
 
-export const QUESTS_NARRATOR_LEGACY = `When the player formally accepts a quest from an NPC, describe it clearly in the narrative and conclude with the tag [QUEST ACCEPTED]. State who gave the quest, where they are located, what the task entails, the difficulty (Very Easy to Very Hard), any time pressure, and what rewards were promised. Do NOT do this for rumors, casual requests, or tasks the player has not yet agreed to.\n\nWhen an objective is completed, mention it naturally in the narrative. When a quest concludes (success or failure), narrate the outcome.`;
+EMERGENT QUESTS: When the player pursues a clear, sustained goal through action (investigating a mystery, hunting a target, exploring a location, helping a stranger, etc.), treat it as an emergent quest. Call LogQuest with Source: "Player action/investigation", estimated Difficulty, and Reward: "???" (usually unknown). Player action IS acceptance. Do not forget to always narrate objective completion and quest completion.`;
+
+export const QUESTS_NARRATOR_LEGACY = `When the player formally accepts a quest from an NPC, describe it clearly in the narrative and conclude with the tag [QUEST ACCEPTED]. State who gave the quest, where they are located, what the task entails, how many objectives there are (there should always be multiple — they should be obtainable immediate objectives and not long term goals), the difficulty (Very Easy to Very Hard), any time pressure, and what rewards were promised. Do NOT do this for rumors, casual requests, or tasks the player has not yet agreed to.
+
+When an objective is completed, mention it naturally in the narrative. When a quest concludes (success or failure), narrate the outcome.
+
+EMERGENT QUESTS: When the player pursues a clear, sustained goal through action (investigating a mystery, hunting a target, exploring a location, helping a stranger, etc.), treat it as an emergent quest. Add it to the quest tracker with Source: "Player action/investigation", Objective: What the player is clearly pursuing, Difficulty: Estimate based on context, Reward: ??? (usually unknown). Player action IS acceptance. Do not forget to always narrate objective completion and quest completion.`;
 
 // ── Embedded sysprompts — mobile/Termux fallback (fetch preferred, this is the safety net) ──
 
@@ -180,11 +194,27 @@ OPPORTUNITY ATTACKS: Apply per D&D 5e rules when creatures leave melee reach wit
 
 SPELLCASTING IN MELEE: Casting a spell does not provoke opportunity attacks by itself. If the spell requires a ranged attack and a hostile is within 5 ft., apply disadvantage. Saving-throw spells are unaffected unless another rule says otherwise.
 
-NPC TIERS:
-Minion—Rabble, untrained | HP 8–12  | AC 10–12 | ATK +1 to +3
-Soldier—Trained | HP 18–25 | AC 13–15 | ATK +4 to +5
-Elite—Veteran/specialist | HP 30–45 | AC 15–17 | ATK +6 to +8
-Boss—Powerful individual | HP 60–90 | AC 17–19 | ATK +9 to +11
+NPC STAT SCALING — CONTEXT-AWARE:
+Enemy stats MUST be varied and contextual. They should NEVER automatically match the player's HP/level.
+
+QUEST DIFFICULTY CONTEXT:
+- Very Easy quest: Enemies well BELOW player level. Low HP, weak attacks. The player should breeze through.
+- Easy quest: Enemies close to player level or slightly below. Doable with basic competence.
+- Normal/Medium quest: Enemies roughly at player level — a level above or below. Fair fight.
+- Hard quest: Enemies can be significantly stronger OR weaker depending on context (minion vs enforcer vs boss). Winnable if the player uses moves right and gets lucky rolls, but punishing if sloppy.
+- Very Hard quest: Enemies are brutally strong. Only beatable with perfect planning, perfect execution, and optimal use of resources. Near-lethal encounters.
+
+NO ACTIVE QUEST / GENERAL ENCOUNTERS:
+When the player is not on a quest, use pure narrative context. A random bandit should NOT have 80 HP just because the player does. A dragon should have 300+ HP regardless of player level. Prioritize REALISM over balance. Do NOT babysit the player. Vary it — sometimes enemies are above the player by several levels, sometimes below. But always give the player at least a fighting chance.
+
+BASE NPC TIERS (guidelines, scale with context):
+Minion — Rabble, untrained | HP 8–15   | AC 10–12 | ATK +1 to +3
+Soldier — Trained          | HP 18–30  | AC 13–15 | ATK +4 to +5
+Elite — Veteran/specialist | HP 35–60  | AC 15–17 | ATK +6 to +8
+Boss — Powerful individual  | HP 60–120 | AC 17–19 | ATK +9 to +11
+Legendary — World-threat    | HP 150–500+ | AC 19–22 | ATK +11 to +15
+
+These are BASE ranges. Scale UP or DOWN based on quest difficulty and narrative context. A Boss in a Very Easy quest might have 40 HP. A Minion in a Very Hard quest might have 25 HP because even the cannon fodder is dangerous.
 
 NPC tiers are only a guideline; values may vary based on theme/archetype.
 </combat>
@@ -393,11 +423,27 @@ OPPORTUNITY ATTACKS: Apply per D&D 5e rules when creatures leave melee reach wit
 
 SPELLCASTING IN MELEE: Casting a spell does not provoke opportunity attacks by itself. If the spell requires a ranged attack and a hostile is within 5 ft., apply disadvantage. Saving-throw spells are unaffected unless another rule says otherwise.
 
-NPC TIERS:
-Minion—Rabble, untrained | HP 8–12  | AC 10–12 | ATK +1 to +3
-Soldier—Trained | HP 18–25 | AC 13–15 | ATK +4 to +5
-Elite—Veteran/specialist | HP 30–45 | AC 15–17 | ATK +6 to +8
-Boss—Powerful individual | HP 60–90 | AC 17–19 | ATK +9 to +11
+NPC STAT SCALING — CONTEXT-AWARE:
+Enemy stats MUST be varied and contextual. They should NEVER automatically match the player's HP/level.
+
+QUEST DIFFICULTY CONTEXT:
+- Very Easy quest: Enemies well BELOW player level. Low HP, weak attacks. The player should breeze through.
+- Easy quest: Enemies close to player level or slightly below. Doable with basic competence.
+- Normal/Medium quest: Enemies roughly at player level — a level above or below. Fair fight.
+- Hard quest: Enemies can be significantly stronger OR weaker depending on context (minion vs enforcer vs boss). Winnable if the player uses moves right and gets lucky rolls, but punishing if sloppy.
+- Very Hard quest: Enemies are brutally strong. Only beatable with perfect planning, perfect execution, and optimal use of resources. Near-lethal encounters.
+
+NO ACTIVE QUEST / GENERAL ENCOUNTERS:
+When the player is not on a quest, use pure narrative context. A random bandit should NOT have 80 HP just because the player does. A dragon should have 300+ HP regardless of player level. Prioritize REALISM over balance. Do NOT babysit the player. Vary it — sometimes enemies are above the player by several levels, sometimes below. But always give the player at least a fighting chance.
+
+BASE NPC TIERS (guidelines, scale with context):
+Minion — Rabble, untrained | HP 8–15   | AC 10–12 | ATK +1 to +3
+Soldier — Trained          | HP 18–30  | AC 13–15 | ATK +4 to +5
+Elite — Veteran/specialist | HP 35–60  | AC 15–17 | ATK +6 to +8
+Boss — Powerful individual  | HP 60–120 | AC 17–19 | ATK +9 to +11
+Legendary — World-threat    | HP 150–500+ | AC 19–22 | ATK +11 to +15
+
+These are BASE ranges. Scale UP or DOWN based on quest difficulty and narrative context. A Boss in a Very Easy quest might have 40 HP. A Minion in a Very Hard quest might have 25 HP because even the cannon fodder is dangerous.
 
 NPC tiers are only a guideline; values may vary based on theme/archetype.
 </combat>

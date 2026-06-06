@@ -291,6 +291,7 @@ CRITICAL INSTRUCTION: You MUST backfill missing World Engine day reports. Your a
 - CONTEXT MANAGEMENT: You MUST \`[[ACTIVATE: Day {{prevDay}}]]\` (and the 2 days prior if they exist). You MUST \`[[DEACTIVATE]]\` any older WORLD reports.
 {{/if_world}}`,
         categoryRenderOptions: {},
+        experimentalHalfReviewMode: false,
         experimentalFullReviewMode: false,
     };
 

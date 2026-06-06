@@ -9,994 +9,1029 @@ import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
 import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManifest, deleteLorebookEntry, updateLorebookEntry, disableManagedEntries, isRouterRunning } from './router.js';
 import { getRequestHeaders } from '../../../../script.js';
 
-    // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
-    const FOLDER_NAME = (function () {
-        try {
-            const scripts = /** @type {HTMLScriptElement[]} */ (Array.from(document.querySelectorAll('script[src]')));
-            const myScript = scripts.find(s => s.src.includes('SillyTavern-FatbodyDnDFramework') || s.src.includes('SillyTavern-RPGStateTracker'));
-            if (myScript) {
-                const match = myScript.src.match(/third-party\/([^\/]+)\//);
-                if (match) return decodeURIComponent(match[1]);
-            }
-        } catch (e) { }
-        return 'SillyTavern-FatbodyDnDFramework';
-    })();
+export const RENDERING_TAGS_LIBRARY = [
+    'Health: ((BAR)) 50/100',
+    '((BARRED)) Blood 40/100',
+    'Mana: ((BARBLUE)) 80/100',
+    '((BARGREEN)) Stamina 20/100',
+    '((BARYELLOW)) Energy 60/100',
+    'Void: ((BARPURPLE)) 90/100',
+    '((BARORANGE)) Heat 30/100',
+    'Exp: ((XPBAR)) 450/1000 Level 3',
+    'Status: ((PILLS)) Active, Focused (Concentrating)',
+    'Debuffs: ((PILLRED)) Bleeding (1d4 dmg), Poisoned',
+    '((PILLGREEN)) Buffs (Blessed)',
+    'Magic: ((PILLBLUE)) Shielded (Absorbs 10 dmg)',
+    'Standing: ((BADGE)) Neutral',
+    'Alert: ((WARNING)) Caution',
+    '((DANGER)) Hostile',
+    '((SUCCESS)) Friendly',
+    'Role: ((INFO)) Quest NPC',
+    'Wallet: ((GOLD)) 150',
+    '((SILVER)) 45',
+    'Pocket: ((BRONZE)) 12',
+    'Stash: ((DOLLAR)) 500',
+    'Kills: ((SKULL)) 12',
+    'Lives: ((HEART)) 3',
+    'Souls: ((SOUL)) 42',
+    'Main Quest: ((OBJ)) ○ Find the artifact',
+    'Side Quest: ((OBJ)) ✓ Defeat the bandit leader',
+    '((OBJ)) ✗ Save the hostage',
+    'Bounty: ((REWARD)) 500 XP',
+    'Challenge: ((DIFFICULTY)) Hard',
+    'Items: ((PROGRESS)) 3/5 collected',
+    'Attack: ((ROLL)) 1d20+5 = 18',
+    'Note: ((HIGHLIGHT)) Emphasized text'
+];
 
-    let _stateModelRunning = false;
-    let _stateController = null;   // To abort ongoing state updates
-    let _currentChatId = null;
-    let _prefixDeriveTimer = null; // Pending CHAT_CHANGED → prefix-derivation timer
-    let themeUndoStack = [];
-    let _pillDeselectHandler = null;
-    let renderRouterUI = null;
-    globalThis._rpgRenderRouterUI = () => { if (typeof renderRouterUI === 'function') renderRouterUI(); };
-    /** Rebuilds CAMPAIGN RECORDS; assigned in createPanel when the agent panel is wired. */
-    let refreshAgentManifest = async () => {};
-    globalThis._rpgRefreshAgentManifest = async () => { if (typeof refreshAgentManifest === 'function') await refreshAgentManifest(); };
-
-    /** Last lorebook /world sync diagnostics (JSON-serializable). */
-    let _loreActivationDebugLast = /** @type {Record<string, any>|null} */ (null);
-
-    /**
-     * Updates the Lorebook Agent debug <pre> if the panel exists.
-     */
-    function renderLoreActivationDebugPanel() {
-        const pre = document.getElementById('rpg_tracker_lore_activation_debug_pre');
-        if (!pre) return;
-        if (!_loreActivationDebugLast) {
-            pre.textContent = '(no data yet — use Capture now in Extension Settings > Lorebook Agent, or switch chats / Activate Books.)';
-            return;
+// Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
+const FOLDER_NAME = (function () {
+    try {
+        const scripts = /** @type {HTMLScriptElement[]} */ (Array.from(document.querySelectorAll('script[src]')));
+        const myScript = scripts.find(s => s.src.includes('SillyTavern-FatbodyDnDFramework') || s.src.includes('SillyTavern-RPGStateTracker'));
+        if (myScript) {
+            const match = myScript.src.match(/third-party\/([^\/]+)\//);
+            if (match) return decodeURIComponent(match[1]);
         }
-        try {
-            pre.textContent = JSON.stringify(_loreActivationDebugLast, null, 2);
-        } catch (_) {
-            pre.textContent = String(_loreActivationDebugLast);
-        }
+    } catch (e) { }
+    return 'SillyTavern-FatbodyDnDFramework';
+})();
+
+let _stateModelRunning = false;
+let _stateController = null;   // To abort ongoing state updates
+let _currentChatId = null;
+let _prefixDeriveTimer = null; // Pending CHAT_CHANGED → prefix-derivation timer
+let themeUndoStack = [];
+let _pillDeselectHandler = null;
+let renderRouterUI = null;
+globalThis._rpgRenderRouterUI = () => { if (typeof renderRouterUI === 'function') renderRouterUI(); };
+/** Rebuilds CAMPAIGN RECORDS; assigned in createPanel when the agent panel is wired. */
+let refreshAgentManifest = async () => { };
+globalThis._rpgRefreshAgentManifest = async () => { if (typeof refreshAgentManifest === 'function') await refreshAgentManifest(); };
+
+/** Last lorebook /world sync diagnostics (JSON-serializable). */
+let _loreActivationDebugLast = /** @type {Record<string, any>|null} */ (null);
+
+/**
+ * Updates the Lorebook Agent debug <pre> if the panel exists.
+ */
+function renderLoreActivationDebugPanel() {
+    const pre = document.getElementById('rpg_tracker_lore_activation_debug_pre');
+    if (!pre) return;
+    if (!_loreActivationDebugLast) {
+        pre.textContent = '(no data yet — use Capture now in Extension Settings > Lorebook Agent, or switch chats / Activate Books.)';
+        return;
     }
-
-    function sleepMs(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    try {
+        pre.textContent = JSON.stringify(_loreActivationDebugLast, null, 2);
+    } catch (_) {
+        pre.textContent = String(_loreActivationDebugLast);
     }
+}
 
-    /**
-     * POST /api/settings/get — returns world_names from JSON (diagnostic + fallback when ST client cache is empty).
-     */
-    async function probeSettingsWorldNamesApi() {
-        try {
-            const result = await fetch('/api/settings/get', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({}),
-            });
-            const status = result.status;
-            const ok = result.ok;
-            let names = [];
-            if (ok) {
-                try {
-                    const data = await result.json();
-                    if (Array.isArray(data?.world_names)) names = [...data.world_names];
-                } catch (_) { /* ignore */ }
-            }
-            return { ok, status, count: names.length, names };
-        } catch (e) {
-            return { ok: false, status: 0, count: 0, names: [], fetchError: String(e?.message || e) };
+function sleepMs(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * POST /api/settings/get — returns world_names from JSON (diagnostic + fallback when ST client cache is empty).
+ */
+async function probeSettingsWorldNamesApi() {
+    try {
+        const result = await fetch('/api/settings/get', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({}),
+        });
+        const status = result.status;
+        const ok = result.ok;
+        let names = [];
+        if (ok) {
+            try {
+                const data = await result.json();
+                if (Array.isArray(data?.world_names)) names = [...data.world_names];
+            } catch (_) { /* ignore */ }
         }
+        return { ok, status, count: names.length, names };
+    } catch (e) {
+        return { ok: false, status: 0, count: 0, names: [], fetchError: String(e?.message || e) };
     }
+}
 
-    /**
-     * Retries updateWorldInfoList, then compares client getWorldInfoNames vs API world_names.
-     * @param {{ maxAttempts?: number, delayMs?: number }} [opts]
-     */
-    async function refreshWorldInfoRegistry(opts = {}) {
-        const maxAttempts = opts.maxAttempts ?? 1;
-        const delayMs = opts.delayMs ?? 160;
-        const ctx = SillyTavern.getContext();
-        const attempts = [];
-        let clientCount = 0;
-        for (let i = 0; i < maxAttempts; i++) {
-            let stError = null;
-            if (typeof ctx.updateWorldInfoList === 'function') {
-                try {
-                    await ctx.updateWorldInfoList();
-                } catch (e) {
-                    stError = String(e?.message || e);
-                }
-            } else {
-                stError = 'updateWorldInfoList missing';
+/**
+ * Retries updateWorldInfoList, then compares client getWorldInfoNames vs API world_names.
+ * @param {{ maxAttempts?: number, delayMs?: number }} [opts]
+ */
+async function refreshWorldInfoRegistry(opts = {}) {
+    const maxAttempts = opts.maxAttempts ?? 1;
+    const delayMs = opts.delayMs ?? 160;
+    const ctx = SillyTavern.getContext();
+    const attempts = [];
+    let clientCount = 0;
+    for (let i = 0; i < maxAttempts; i++) {
+        let stError = null;
+        if (typeof ctx.updateWorldInfoList === 'function') {
+            try {
+                await ctx.updateWorldInfoList();
+            } catch (e) {
+                stError = String(e?.message || e);
             }
-            let lastNames = [];
-            if (typeof ctx.getWorldInfoNames === 'function') {
-                try {
-                    lastNames = ctx.getWorldInfoNames();
-                } catch (e) {
-                    stError = stError || String(e?.message || e);
-                }
-            }
-            clientCount = Array.isArray(lastNames) ? lastNames.length : 0;
-            attempts.push({ attempt: i + 1, clientWorldNameCount: clientCount, stError });
-            if (clientCount > 0) break;
-            if (i < maxAttempts - 1) await sleepMs(delayMs);
+        } else {
+            stError = 'updateWorldInfoList missing';
         }
-        const apiProbe = await probeSettingsWorldNamesApi();
-        const usedApiNameFallback = clientCount === 0 && apiProbe.ok && apiProbe.count > 0 && Array.isArray(apiProbe.names) && apiProbe.names.length > 0;
-        return {
-            clientWorldNameCount: clientCount,
-            attempts,
-            apiProbe,
-            usedApiNameFallback,
-        };
-    }
-
-    /**
-     * @param {any} ctx
-     * @param {{ clientWorldNameCount: number, apiProbe: { ok: boolean, names: string[] }, usedApiNameFallback: boolean }} reg
-     */
-    function resolveAllWorldNames(ctx, reg) {
-        if (reg.clientWorldNameCount > 0 && typeof ctx.getWorldInfoNames === 'function') {
-            const n = ctx.getWorldInfoNames();
-            return Array.isArray(n) ? [...n] : [];
-        }
-        if (reg.usedApiNameFallback && Array.isArray(reg.apiProbe.names)) return [...reg.apiProbe.names];
+        let lastNames = [];
         if (typeof ctx.getWorldInfoNames === 'function') {
-            const n = ctx.getWorldInfoNames();
-            return Array.isArray(n) ? [...n] : [];
+            try {
+                lastNames = ctx.getWorldInfoNames();
+            } catch (e) {
+                stError = stError || String(e?.message || e);
+            }
         }
-        return [];
+        clientCount = Array.isArray(lastNames) ? lastNames.length : 0;
+        attempts.push({ attempt: i + 1, clientWorldNameCount: clientCount, stError });
+        if (clientCount > 0) break;
+        if (i < maxAttempts - 1) await sleepMs(delayMs);
     }
+    const apiProbe = await probeSettingsWorldNamesApi();
+    const usedApiNameFallback = clientCount === 0 && apiProbe.ok && apiProbe.count > 0 && Array.isArray(apiProbe.names) && apiProbe.names.length > 0;
+    return {
+        clientWorldNameCount: clientCount,
+        attempts,
+        apiProbe,
+        usedApiNameFallback,
+    };
+}
 
-    /**
-     * @param {string[]} allNames
-     * @param {string} currentPrefix
-     * @param {string[]} bookNames
-     * @param {Record<string, any>} s
-     * @returns {{ toDeactivate: string[], otherPrefixes: string[], managedOffCount: number, crossChatMatchCount: number }}
-     */
-    function computeWorldsToDeactivate(allNames, currentPrefix, bookNames, s) {
-        const currentSet = new Set(bookNames);
-        const allKnownManagedBooks = new Set(
-            Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
-        );
-        const managedOff = [...allKnownManagedBooks].filter(n => !currentSet.has(n));
-
-        const otherPrefixes = [...new Set(
-            Object.keys(s.chatStates || {})
-                .map(cid => getEffectiveRouterCampaignPrefix(cid))
-                .filter(p => p && p !== currentPrefix)
-        )];
-        const otherSet = new Set(otherPrefixes);
-        const crossChatOff = allNames.filter(n =>
-            [...otherSet].some(op => bookBelongsToPrefix(n, op))
-        );
-        const combined = [...managedOff, ...crossChatOff].filter(n => !currentSet.has(n));
-        const toDeactivate = [...new Set(combined)];
-        const managedSet = new Set(managedOff);
-        const crossChatOnlyCount = crossChatOff.filter(n => !managedSet.has(n)).length;
-        return {
-            toDeactivate,
-            otherPrefixes,
-            managedOffCount: managedOff.length,
-            crossChatMatchCount: crossChatOnlyCount,
-        };
+/**
+ * @param {any} ctx
+ * @param {{ clientWorldNameCount: number, apiProbe: { ok: boolean, names: string[] }, usedApiNameFallback: boolean }} reg
+ */
+function resolveAllWorldNames(ctx, reg) {
+    if (reg.clientWorldNameCount > 0 && typeof ctx.getWorldInfoNames === 'function') {
+        const n = ctx.getWorldInfoNames();
+        return Array.isArray(n) ? [...n] : [];
     }
+    if (reg.usedApiNameFallback && Array.isArray(reg.apiProbe.names)) return [...reg.apiProbe.names];
+    if (typeof ctx.getWorldInfoNames === 'function') {
+        const n = ctx.getWorldInfoNames();
+        return Array.isArray(n) ? [...n] : [];
+    }
+    return [];
+}
 
-    /**
-     * Read-only snapshot of chat id, prefixes, ST APIs, and which books would match (no slash commands).
-     * @param {string} source
-     * @returns {Promise<Record<string, any>>}
-     */
-    async function readLoreActivationDebugSnapshot(source) {
-        const ctx = SillyTavern.getContext();
-        const s = getSettings();
-        const paramChatId = _currentChatId || ctx.chatId || '';
-        const ctxChatId = ctx.chatId || '';
-        const derivedFromChatOnly = sanitizeCampaignPrefixString(paramChatId);
-        const overrideRaw = (s.routerCampaignPrefixOverride || '').trim();
-        const effectivePrefix = getEffectiveRouterCampaignPrefix(paramChatId);
-        const storedPrefix = (s.routerCampaignPrefix || '').trim();
+/**
+ * @param {string[]} allNames
+ * @param {string} currentPrefix
+ * @param {string[]} bookNames
+ * @param {Record<string, any>} s
+ * @returns {{ toDeactivate: string[], otherPrefixes: string[], managedOffCount: number, crossChatMatchCount: number }}
+ */
+function computeWorldsToDeactivate(allNames, currentPrefix, bookNames, s) {
+    const currentSet = new Set(bookNames);
+    const allKnownManagedBooks = new Set(
+        Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
+    );
+    const managedOff = [...allKnownManagedBooks].filter(n => !currentSet.has(n));
 
-        const reg = await refreshWorldInfoRegistry();
-        const allNames = resolveAllWorldNames(ctx, reg);
+    const otherPrefixes = [...new Set(
+        Object.keys(s.chatStates || {})
+            .map(cid => getEffectiveRouterCampaignPrefix(cid))
+            .filter(p => p && p !== currentPrefix)
+    )];
+    const otherSet = new Set(otherPrefixes);
+    const crossChatOff = allNames.filter(n =>
+        [...otherSet].some(op => bookBelongsToPrefix(n, op))
+    );
+    const combined = [...managedOff, ...crossChatOff].filter(n => !currentSet.has(n));
+    const toDeactivate = [...new Set(combined)];
+    const managedSet = new Set(managedOff);
+    const crossChatOnlyCount = crossChatOff.filter(n => !managedSet.has(n)).length;
+    return {
+        toDeactivate,
+        otherPrefixes,
+        managedOffCount: managedOff.length,
+        crossChatMatchCount: crossChatOnlyCount,
+    };
+}
 
-        const matchingEffective = effectivePrefix ? allNames.filter(n => bookBelongsToPrefix(n, effectivePrefix)) : [];
-        const matchingForStored = storedPrefix ? allNames.filter(n => bookBelongsToPrefix(n, storedPrefix)) : [];
-        const matchingDerivedOnly = derivedFromChatOnly ? allNames.filter(n => bookBelongsToPrefix(n, derivedFromChatOnly)) : [];
-        const allKnownManagedBooks = new Set(
-            Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
-        );
-        const toDeactivateForStored = storedPrefix
-            ? [...allKnownManagedBooks].filter(n => !matchingForStored.includes(n))
-            : [...allKnownManagedBooks];
-        return {
+/**
+ * Read-only snapshot of chat id, prefixes, ST APIs, and which books would match (no slash commands).
+ * @param {string} source
+ * @returns {Promise<Record<string, any>>}
+ */
+async function readLoreActivationDebugSnapshot(source) {
+    const ctx = SillyTavern.getContext();
+    const s = getSettings();
+    const paramChatId = _currentChatId || ctx.chatId || '';
+    const ctxChatId = ctx.chatId || '';
+    const derivedFromChatOnly = sanitizeCampaignPrefixString(paramChatId);
+    const overrideRaw = (s.routerCampaignPrefixOverride || '').trim();
+    const effectivePrefix = getEffectiveRouterCampaignPrefix(paramChatId);
+    const storedPrefix = (s.routerCampaignPrefix || '').trim();
+
+    const reg = await refreshWorldInfoRegistry();
+    const allNames = resolveAllWorldNames(ctx, reg);
+
+    const matchingEffective = effectivePrefix ? allNames.filter(n => bookBelongsToPrefix(n, effectivePrefix)) : [];
+    const matchingForStored = storedPrefix ? allNames.filter(n => bookBelongsToPrefix(n, storedPrefix)) : [];
+    const matchingDerivedOnly = derivedFromChatOnly ? allNames.filter(n => bookBelongsToPrefix(n, derivedFromChatOnly)) : [];
+    const allKnownManagedBooks = new Set(
+        Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
+    );
+    const toDeactivateForStored = storedPrefix
+        ? [...allKnownManagedBooks].filter(n => !matchingForStored.includes(n))
+        : [...allKnownManagedBooks];
+    return {
+        ts: new Date().toISOString(),
+        source,
+        routerEnabled: !!s.routerEnabled,
+        chatLinkEnabled: !!s.chatLinkEnabled,
+        paramChatId,
+        ctxChatId,
+        chatIdMismatch: paramChatId !== ctxChatId,
+        overrideRaw: overrideRaw || '(none)',
+        derivedFromChatIdOnly: derivedFromChatOnly || '(empty)',
+        effectivePrefix: effectivePrefix || '(empty)',
+        storedPrefix: storedPrefix || '(empty)',
+        bookMatchRule: 'Book matches if name === prefix OR name === prefix + "_" + single segment (no extra underscores in suffix).',
+        apis: {
+            executeSlashCommandsWithOptions: typeof ctx.executeSlashCommandsWithOptions,
+            updateWorldInfoList: typeof ctx.updateWorldInfoList,
+            getWorldInfoNames: typeof ctx.getWorldInfoNames,
+            addPromptManagerInterceptor: typeof ctx.addPromptManagerInterceptor,
+        },
+        worldRegistry: reg,
+        allWorldNamesCount: allNames.length,
+        matchingForEffectivePrefix: matchingEffective,
+        matchingForStoredPrefix: matchingForStored,
+        matchingForDerivedFromChatOnly: matchingDerivedOnly,
+        managedBooksInChatStates: [...allKnownManagedBooks],
+        wouldDeactivateForStoredPrefix: toDeactivateForStored,
+        priorSlashLog: _loreActivationDebugLast?.slashLog ?? null,
+    };
+}
+
+/**
+ * Re-runs the same prefix + chatStates + /world pipeline as CHAT_CHANGED (debounced handler),
+ * without waiting 800ms. For troubleshooting ST worlds not toggling.
+ * @param {string} newChatId
+ * @param {string} source
+ */
+async function syncCampaignPrefixAndWorldsForChat(newChatId, source) {
+    const s2 = getSettings();
+    if (!newChatId) {
+        _loreActivationDebugLast = {
             ts: new Date().toISOString(),
             source,
-            routerEnabled: !!s.routerEnabled,
-            chatLinkEnabled: !!s.chatLinkEnabled,
-            paramChatId,
-            ctxChatId,
-            chatIdMismatch: paramChatId !== ctxChatId,
-            overrideRaw: overrideRaw || '(none)',
-            derivedFromChatIdOnly: derivedFromChatOnly || '(empty)',
-            effectivePrefix: effectivePrefix || '(empty)',
-            storedPrefix: storedPrefix || '(empty)',
-            bookMatchRule: 'Book matches if name === prefix OR name === prefix + "_" + single segment (no extra underscores in suffix).',
-            apis: {
-                executeSlashCommandsWithOptions: typeof ctx.executeSlashCommandsWithOptions,
-                updateWorldInfoList: typeof ctx.updateWorldInfoList,
-                getWorldInfoNames: typeof ctx.getWorldInfoNames,
-                addPromptManagerInterceptor: typeof ctx.addPromptManagerInterceptor,
-            },
-            worldRegistry: reg,
-            allWorldNamesCount: allNames.length,
-            matchingForEffectivePrefix: matchingEffective,
-            matchingForStoredPrefix: matchingForStored,
-            matchingForDerivedFromChatOnly: matchingDerivedOnly,
-            managedBooksInChatStates: [...allKnownManagedBooks],
-            wouldDeactivateForStoredPrefix: toDeactivateForStored,
-            priorSlashLog: _loreActivationDebugLast?.slashLog ?? null,
-        };
-    }
-
-    /**
-     * Re-runs the same prefix + chatStates + /world pipeline as CHAT_CHANGED (debounced handler),
-     * without waiting 800ms. For troubleshooting ST worlds not toggling.
-     * @param {string} newChatId
-     * @param {string} source
-     */
-    async function syncCampaignPrefixAndWorldsForChat(newChatId, source) {
-        const s2 = getSettings();
-        if (!newChatId) {
-            _loreActivationDebugLast = {
-                ts: new Date().toISOString(),
-                source,
-                stopped: 'empty chat id',
-            };
-            renderLoreActivationDebugPanel();
-            return;
-        }
-        if (!s2.routerEnabled) {
-            _loreActivationDebugLast = {
-                ts: new Date().toISOString(),
-                source,
-                newChatId,
-                stopped: 'routerDisabled (Lorebook Agent off - no prefix/world sync)',
-            };
-            renderLoreActivationDebugPanel();
-            return;
-        }
-        const prefix = getEffectiveRouterCampaignPrefix(newChatId);
-        if (!prefix) {
-            s2.routerCampaignPrefix = '';
-            syncRouterPrefixDisplays('');
-            void refreshAgentManifest().catch(() => {});
-            _loreActivationDebugLast = {
-                ts: new Date().toISOString(),
-                source,
-                newChatId,
-                stopped: 'noPrefixFromChatId (transient rename or empty derive)',
-                derivedPrefix: '',
-            };
-            renderLoreActivationDebugPanel();
-            return;
-        }
-        s2.routerCampaignPrefix = prefix;
-        syncRouterPrefixDisplays(prefix);
-
-        const ctx = SillyTavern.getContext();
-        const reg = await refreshWorldInfoRegistry();
-        const allNames = resolveAllWorldNames(ctx, reg);
-        const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, prefix));
-
-        if (!s2.chatStates) s2.chatStates = {};
-        if (!s2.chatStates[newChatId]) s2.chatStates[newChatId] = {};
-        s2.chatStates[newChatId].campaignBooks = matchingBooks;
-        saveSettings();
-        if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
-        try {
-            await activateCampaignBooks({ debugSource: source, syncMeta: { newChatId, matchingBooksCount: matchingBooks.length } });
-        } catch (e) {
-            _loreActivationDebugLast = {
-                ...(_loreActivationDebugLast || {}),
-                ts: new Date().toISOString(),
-                source,
-                syncError: String(e?.message || e),
-            };
-            renderLoreActivationDebugPanel();
-        }
-        // If ST's in-memory world list was empty but the server had names, run one silent follow-up
-        // so updateWorldInfoList can repopulate the client after our /world pass (avoids needing manual resync).
-        if (reg.usedApiNameFallback && reg.clientWorldNameCount === 0 && matchingBooks.length > 0 && !String(source).includes('registry-followup')) {
-            setTimeout(() => {
-                if (newChatId !== _currentChatId) return;
-                void syncCampaignPrefixAndWorldsForChat(newChatId, `${source}(registry-followup)`).catch(() => {});
-            }, 450);
-        }
-        void refreshAgentManifest().catch(() => {});
-    }
-
-    /**
-     * Centralized save helper that handles both global settings and
-     * the Chat-Linked State for the active chat.
-     */
-    function saveSettings() {
-        const s = getSettings();
-        const ctx = SillyTavern.getContext();
-        ctx.saveSettingsDebounced();
-        if (s.chatLinkEnabled && _currentChatId) {
-            saveChatState(_currentChatId);
-        }
-        syncOnboardingUI();
-    }
-
-    /**
-     * Synchronizes the onboarding UI elements with the current settings state.
-     * This is called whenever a setting is saved to ensure both the main sidebar
-     * and the tracker's onboarding screen stay perfectly in sync.
-     */
-    function syncOnboardingUI() {
-        const s = getSettings();
-        const onboarding = document.querySelector('.rt-empty');
-        if (!onboarding) return;
-
-        // RNG Mode Sync
-        const rngHybrid = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_hybrid'));
-        const rngLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_legacy'));
-        if (rngHybrid && rngLegacy) {
-            rngHybrid.checked = !!s.diceFunctionTool;
-            rngLegacy.checked = !s.diceFunctionTool;
-        }
-
-        // Quests Enabled Sync
-        const questsEnabled = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_enabled'));
-        if (questsEnabled) {
-            const isEnabled = s.syspromptModules?.quests !== false;
-            questsEnabled.checked = isEnabled;
-            const optionsDiv = /** @type {HTMLElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_options'));
-            if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
-        }
-
-        // Deadlines Sync
-        const deadlines = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_deadlines'));
-        if (deadlines) deadlines.checked = !!s.syspromptModules?.questsDeadlines;
-        const frustrationWrapOnb = /** @type {HTMLElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_frustration_wrap'));
-        if (frustrationWrapOnb) frustrationWrapOnb.style.display = deadlines?.checked ? '' : 'none';
-
-        // Frustration levels Sync
-        const frustration = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_frustration'));
-        if (frustration) frustration.checked = !!s.syspromptModules?.questsFrustration;
-
-        // Difficulty Sync
-        const difficulty = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_difficulty'));
-        if (difficulty) difficulty.checked = !!s.syspromptModules?.questsDifficulty;
-
-        // Quest Processing Mode Sync
-        const qmStandard = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_standard'));
-        const qmLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_legacy'));
-        if (qmStandard && qmLegacy) {
-            qmStandard.checked = !s.questLegacyMode;
-            qmLegacy.checked = !!s.questLegacyMode;
-        }
-
-        // Optional Components Sync
-        const mods = { 'loot': '#rt_onboarding_mod_loot', 'random_events': '#rt_onboarding_mod_random_events', 'resting': '#rt_onboarding_mod_resting' };
-        for (const [key, id] of Object.entries(mods)) {
-            const cb = /** @type {HTMLInputElement|null} */ (onboarding.querySelector(id));
-            if (cb) cb.checked = !!s.syspromptModules?.[key];
-        }
-
-        // Custom Sysprompt Sync
-        const customSyspromptCb = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_custom_sysprompt'));
-        if (customSyspromptCb) customSyspromptCb.checked = !!s.customSysprompt;
-    }
-    // ── Renderer / navigation state ──
-    let _historyViewIndex = -1;    // -1 = live, 0 = most recent snapshot, higher = older
-    let _renderedViewActive = false;
-    const _sectionPages = {};
-
-    // ── Lorebook Agent nav state ──
-    /** @type {Array<{prePassSnapshot: object, postPassState: object}>} */
-    let _loreRedoStack = [];  // in-memory; cleared when a new agent pass starts
-
-    /**
-     * Returns true if `bookName` belongs to the given `prefix`.
-     * A book belongs when it is EITHER the prefix itself OR exactly
-     * `prefix + '_' + <single-word suffix>` — the suffix must contain
-     * no underscores so that "Assistant" never accidentally matches
-     * "Assistant_2026_05_13_NPCs" (which belongs to a different, longer prefix).
-     * @param {string} bookName
-     * @param {string} prefix
-     */
-    function bookBelongsToPrefix(bookName, prefix) {
-        if (!prefix) return false;
-        if (bookName === prefix) return true;
-        const rest = bookName.startsWith(prefix + '_') ? bookName.slice(prefix.length + 1) : null;
-        return rest !== null && !rest.includes('_');
-    }
-
-    /**
-     * Activates every lorebook that belongs to the current campaign in SillyTavern's
-     * world-info system (equivalent to toggling them ON in the World Info panel).
-     * Uses the full ST lorebook registry filtered by campaign prefix, so keyless
-     * lorebooks that never appear in activeRouterKeys are still caught.
-     * @param {{ debugSource?: string, syncMeta?: Record<string, any> }} [opts]
-     * @returns {Promise<number>} Count of books turned on.
-     */
-    async function activateCampaignBooks(opts = {}) {
-        const debugSource = opts.debugSource || 'activateCampaignBooks';
-        const s = getSettings();
-        const ctx = SillyTavern.getContext();
-        const baseDebug = {
-            ts: new Date().toISOString(),
-            source: debugSource,
-            ctxChatId: ctx.chatId || '',
-            trackedChatId: _currentChatId,
-            routerEnabled: !!s.routerEnabled,
-            syncMeta: opts.syncMeta || null,
-        };
-
-        if (typeof ctx.executeSlashCommandsWithOptions !== 'function') {
-            _loreActivationDebugLast = {
-                ...baseDebug,
-                stopped: 'executeSlashCommandsWithOptions missing on SillyTavern context',
-                apis: {
-                    executeSlashCommandsWithOptions: 'undefined',
-                    updateWorldInfoList: typeof ctx.updateWorldInfoList,
-                    getWorldInfoNames: typeof ctx.getWorldInfoNames,
-                },
-            };
-            renderLoreActivationDebugPanel();
-            return 0;
-        }
-
-        const prefix = s.routerCampaignPrefix || '';
-        if (!prefix) {
-            _loreActivationDebugLast = {
-                ...baseDebug,
-                stopped: 'no routerCampaignPrefix (derive failed earlier or chat id empty)',
-                storedPrefix: '',
-            };
-            renderLoreActivationDebugPanel();
-            return 0;
-        }
-
-        const reg = await refreshWorldInfoRegistry();
-        const allNames = resolveAllWorldNames(ctx, reg);
-
-        const bookNames = allNames.filter(n => bookBelongsToPrefix(n, prefix));
-
-        const deact = computeWorldsToDeactivate(allNames, prefix, bookNames, s);
-        const toDeactivate = deact.toDeactivate;
-        const allKnownManagedBooks = new Set(
-            Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
-        );
-
-        /** @type {{ cmd: string, ok?: boolean, isError?: boolean, errorMessage?: string, isAborted?: boolean, abortReason?: string, thrown?: string }[]} */
-        const slashLog = [];
-
-        const runWorldCmd = async (cmd) => {
-            try {
-                const result = await ctx.executeSlashCommandsWithOptions(cmd, {
-                    handleParserErrors: true,
-                    handleExecutionErrors: true,
-                });
-                const row = { cmd };
-                if (!result) {
-                    row.ok = true;
-                    row.note = 'null result';
-                } else {
-                    row.isError = !!result.isError;
-                    row.errorMessage = result.errorMessage || undefined;
-                    row.isAborted = !!result.isAborted;
-                    row.abortReason = result.abortReason || undefined;
-                    row.ok = !result.isError && !result.isAborted;
-                }
-                slashLog.push(row);
-            } catch (e) {
-                slashLog.push({ cmd, ok: false, thrown: String(e?.message || e) });
-            }
-        };
-
-        for (const name of toDeactivate) {
-            await runWorldCmd(`/world state=off silent=true "${name}"`);
-        }
-
-        for (const name of bookNames) {
-            await runWorldCmd(`/world state=on silent=true "${name}"`);
-        }
-
-        _loreActivationDebugLast = {
-            ...baseDebug,
-            storedPrefix: prefix,
-            worldRegistry: reg,
-            allWorldNamesCount: allNames.length,
-            matchingBookNames: bookNames,
-            matchingCount: bookNames.length,
-            managedBooksUnion: [...allKnownManagedBooks],
-            deactivateDetail: {
-                otherChatPrefixes: deact.otherPrefixes,
-                managedOffCount: deact.managedOffCount,
-                crossChatMatchCount: deact.crossChatMatchCount,
-            },
-            toDeactivate,
-            slashCommandsRun: slashLog.length,
-            slashLog,
+            stopped: 'empty chat id',
         };
         renderLoreActivationDebugPanel();
-        return bookNames.length;
+        return;
+    }
+    if (!s2.routerEnabled) {
+        _loreActivationDebugLast = {
+            ts: new Date().toISOString(),
+            source,
+            newChatId,
+            stopped: 'routerDisabled (Lorebook Agent off - no prefix/world sync)',
+        };
+        renderLoreActivationDebugPanel();
+        return;
+    }
+    const prefix = getEffectiveRouterCampaignPrefix(newChatId);
+    if (!prefix) {
+        s2.routerCampaignPrefix = '';
+        syncRouterPrefixDisplays('');
+        void refreshAgentManifest().catch(() => { });
+        _loreActivationDebugLast = {
+            ts: new Date().toISOString(),
+            source,
+            newChatId,
+            stopped: 'noPrefixFromChatId (transient rename or empty derive)',
+            derivedPrefix: '',
+        };
+        renderLoreActivationDebugPanel();
+        return;
+    }
+    s2.routerCampaignPrefix = prefix;
+    syncRouterPrefixDisplays(prefix);
+
+    const ctx = SillyTavern.getContext();
+    const reg = await refreshWorldInfoRegistry();
+    const allNames = resolveAllWorldNames(ctx, reg);
+    const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, prefix));
+
+    if (!s2.chatStates) s2.chatStates = {};
+    if (!s2.chatStates[newChatId]) s2.chatStates[newChatId] = {};
+    s2.chatStates[newChatId].campaignBooks = matchingBooks;
+    saveSettings();
+    if (s2.chatLinkEnabled && _currentChatId) saveChatState(_currentChatId);
+    try {
+        await activateCampaignBooks({ debugSource: source, syncMeta: { newChatId, matchingBooksCount: matchingBooks.length } });
+    } catch (e) {
+        _loreActivationDebugLast = {
+            ...(_loreActivationDebugLast || {}),
+            ts: new Date().toISOString(),
+            source,
+            syncError: String(e?.message || e),
+        };
+        renderLoreActivationDebugPanel();
+    }
+    // If ST's in-memory world list was empty but the server had names, run one silent follow-up
+    // so updateWorldInfoList can repopulate the client after our /world pass (avoids needing manual resync).
+    if (reg.usedApiNameFallback && reg.clientWorldNameCount === 0 && matchingBooks.length > 0 && !String(source).includes('registry-followup')) {
+        setTimeout(() => {
+            if (newChatId !== _currentChatId) return;
+            void syncCampaignPrefixAndWorldsForChat(newChatId, `${source}(registry-followup)`).catch(() => { });
+        }, 450);
+    }
+    void refreshAgentManifest().catch(() => { });
+}
+
+/**
+ * Centralized save helper that handles both global settings and
+ * the Chat-Linked State for the active chat.
+ */
+function saveSettings() {
+    const s = getSettings();
+    const ctx = SillyTavern.getContext();
+    ctx.saveSettingsDebounced();
+    if (s.chatLinkEnabled && _currentChatId) {
+        saveChatState(_currentChatId);
+    }
+    syncOnboardingUI();
+}
+
+/**
+ * Synchronizes the onboarding UI elements with the current settings state.
+ * This is called whenever a setting is saved to ensure both the main sidebar
+ * and the tracker's onboarding screen stay perfectly in sync.
+ */
+function syncOnboardingUI() {
+    const s = getSettings();
+    const onboarding = document.querySelector('.rt-empty');
+    if (!onboarding) return;
+
+    // RNG Mode Sync
+    const rngHybrid = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_hybrid'));
+    const rngLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_rng_legacy'));
+    if (rngHybrid && rngLegacy) {
+        rngHybrid.checked = !!s.diceFunctionTool;
+        rngLegacy.checked = !s.diceFunctionTool;
     }
 
-    /**
-     * Duplicates every lorebook in the current campaign stack under a new prefix.
-     * Each book like `OldPrefix_NPCs` becomes `NewPrefix_NPCs`.
-     * If the book name IS the prefix (the root book), it becomes `NewPrefix`.
-     * @returns {Promise<void>}
-     */
-    async function cloneCampaignStack() {
-        const s = getSettings();
-        const ctx = SillyTavern.getContext();
+    // Quests Enabled Sync
+    const questsEnabled = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_enabled'));
+    if (questsEnabled) {
+        const isEnabled = s.syspromptModules?.quests !== false;
+        questsEnabled.checked = isEnabled;
+        const optionsDiv = /** @type {HTMLElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_options'));
+        if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
+    }
 
-        // 1. Determine current prefix
-        const currentPrefix = s.routerCampaignPrefix || '';
-        if (!currentPrefix) {
-            toastr['warning']('No campaign prefix is active. Activate the Lorebook Agent and load a chat first.', 'Clone Stack');
-            return;
-        }
+    // Deadlines Sync
+    const deadlines = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_deadlines'));
+    if (deadlines) deadlines.checked = !!s.syspromptModules?.questsDeadlines;
+    const frustrationWrapOnb = /** @type {HTMLElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_frustration_wrap'));
+    if (frustrationWrapOnb) frustrationWrapOnb.style.display = deadlines?.checked ? '' : 'none';
 
-        // 2. Ask user for the new prefix
-        let newPrefixRaw = '';
+    // Frustration levels Sync
+    const frustration = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_frustration'));
+    if (frustration) frustration.checked = !!s.syspromptModules?.questsFrustration;
+
+    // Difficulty Sync
+    const difficulty = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quests_difficulty'));
+    if (difficulty) difficulty.checked = !!s.syspromptModules?.questsDifficulty;
+
+    // Quest Processing Mode Sync
+    const qmStandard = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_standard'));
+    const qmLegacy = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_quest_legacy'));
+    if (qmStandard && qmLegacy) {
+        qmStandard.checked = !s.questLegacyMode;
+        qmLegacy.checked = !!s.questLegacyMode;
+    }
+
+    // Optional Components Sync
+    const mods = { 'loot': '#rt_onboarding_mod_loot', 'random_events': '#rt_onboarding_mod_random_events', 'resting': '#rt_onboarding_mod_resting' };
+    for (const [key, id] of Object.entries(mods)) {
+        const cb = /** @type {HTMLInputElement|null} */ (onboarding.querySelector(id));
+        if (cb) cb.checked = !!s.syspromptModules?.[key];
+    }
+
+    // Custom Sysprompt Sync
+    const customSyspromptCb = /** @type {HTMLInputElement|null} */ (onboarding.querySelector('#rt_onboarding_custom_sysprompt'));
+    if (customSyspromptCb) customSyspromptCb.checked = !!s.customSysprompt;
+}
+// ── Renderer / navigation state ──
+let _historyViewIndex = -1;    // -1 = live, 0 = most recent snapshot, higher = older
+let _renderedViewActive = false;
+const _sectionPages = {};
+
+// ── Lorebook Agent nav state ──
+/** @type {Array<{prePassSnapshot: object, postPassState: object}>} */
+let _loreRedoStack = [];  // in-memory; cleared when a new agent pass starts
+
+/**
+ * Returns true if `bookName` belongs to the given `prefix`.
+ * A book belongs when it is EITHER the prefix itself OR exactly
+ * `prefix + '_' + <single-word suffix>` — the suffix must contain
+ * no underscores so that "Assistant" never accidentally matches
+ * "Assistant_2026_05_13_NPCs" (which belongs to a different, longer prefix).
+ * @param {string} bookName
+ * @param {string} prefix
+ */
+function bookBelongsToPrefix(bookName, prefix) {
+    if (!prefix) return false;
+    if (bookName === prefix) return true;
+    const rest = bookName.startsWith(prefix + '_') ? bookName.slice(prefix.length + 1) : null;
+    return rest !== null && !rest.includes('_');
+}
+
+/**
+ * Activates every lorebook that belongs to the current campaign in SillyTavern's
+ * world-info system (equivalent to toggling them ON in the World Info panel).
+ * Uses the full ST lorebook registry filtered by campaign prefix, so keyless
+ * lorebooks that never appear in activeRouterKeys are still caught.
+ * @param {{ debugSource?: string, syncMeta?: Record<string, any> }} [opts]
+ * @returns {Promise<number>} Count of books turned on.
+ */
+async function activateCampaignBooks(opts = {}) {
+    const debugSource = opts.debugSource || 'activateCampaignBooks';
+    const s = getSettings();
+    const ctx = SillyTavern.getContext();
+    const baseDebug = {
+        ts: new Date().toISOString(),
+        source: debugSource,
+        ctxChatId: ctx.chatId || '',
+        trackedChatId: _currentChatId,
+        routerEnabled: !!s.routerEnabled,
+        syncMeta: opts.syncMeta || null,
+    };
+
+    if (typeof ctx.executeSlashCommandsWithOptions !== 'function') {
+        _loreActivationDebugLast = {
+            ...baseDebug,
+            stopped: 'executeSlashCommandsWithOptions missing on SillyTavern context',
+            apis: {
+                executeSlashCommandsWithOptions: 'undefined',
+                updateWorldInfoList: typeof ctx.updateWorldInfoList,
+                getWorldInfoNames: typeof ctx.getWorldInfoNames,
+            },
+        };
+        renderLoreActivationDebugPanel();
+        return 0;
+    }
+
+    const prefix = s.routerCampaignPrefix || '';
+    if (!prefix) {
+        _loreActivationDebugLast = {
+            ...baseDebug,
+            stopped: 'no routerCampaignPrefix (derive failed earlier or chat id empty)',
+            storedPrefix: '',
+        };
+        renderLoreActivationDebugPanel();
+        return 0;
+    }
+
+    const reg = await refreshWorldInfoRegistry();
+    const allNames = resolveAllWorldNames(ctx, reg);
+
+    const bookNames = allNames.filter(n => bookBelongsToPrefix(n, prefix));
+
+    const deact = computeWorldsToDeactivate(allNames, prefix, bookNames, s);
+    const toDeactivate = deact.toDeactivate;
+    const allKnownManagedBooks = new Set(
+        Object.values(s.chatStates || {}).flatMap(cs => cs.campaignBooks || [])
+    );
+
+    /** @type {{ cmd: string, ok?: boolean, isError?: boolean, errorMessage?: string, isAborted?: boolean, abortReason?: string, thrown?: string }[]} */
+    const slashLog = [];
+
+    const runWorldCmd = async (cmd) => {
         try {
-            newPrefixRaw = await ctx.Popup.show.input(
-                'Clone Lorebook Stack',
-                `<p>All lorebooks under prefix <strong>${currentPrefix}</strong> will be duplicated.</p>` +
-                `<p>Enter the new prefix for the cloned stack (e.g. <code>Eldoria_Branch1</code>).<br>` +
-                `<small>After cloning, create your branch chat using the same name so the framework links automatically.</small></p>`,
-                ''
-            );
-        } catch (_) {
-            // User cancelled
-            return;
-        }
-
-        if (!newPrefixRaw && newPrefixRaw !== 0) return; // cancelled
-        const newPrefix = sanitizeCampaignPrefixString(String(newPrefixRaw).trim());
-        if (!newPrefix) {
-            toastr['warning']('New prefix cannot be empty or contain only special characters.', 'Clone Stack');
-            return;
-        }
-        if (newPrefix === currentPrefix) {
-            toastr['warning']('New prefix is the same as the current prefix. Please choose a different name.', 'Clone Stack');
-            return;
-        }
-
-        // 3. Discover all books that belong to the current prefix
-        const reg = await refreshWorldInfoRegistry();
-        const allNames = resolveAllWorldNames(ctx, reg);
-        const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, currentPrefix));
-
-        if (matchingBooks.length === 0) {
-            toastr['warning'](`No lorebooks found for prefix "${currentPrefix}". Nothing to clone.`, 'Clone Stack');
-            return;
-        }
-
-        toastr['info'](`Cloning ${matchingBooks.length} lorebook(s) to prefix "${newPrefix}"…`, 'Clone Stack');
-
-        // 4. Clone each book under the new prefix name
-        let cloned = 0;
-        const errors = [];
-
-        for (const bookName of matchingBooks) {
-            // Derive new name: replace the old prefix at the start of the book name
-            let newBookName;
-            if (bookName === currentPrefix) {
-                // Root book: OldPrefix → NewPrefix
-                newBookName = newPrefix;
+            const result = await ctx.executeSlashCommandsWithOptions(cmd, {
+                handleParserErrors: true,
+                handleExecutionErrors: true,
+            });
+            const row = { cmd };
+            if (!result) {
+                row.ok = true;
+                row.note = 'null result';
             } else {
-                // Suffixed book: OldPrefix_Suffix → NewPrefix_Suffix
-                const suffix = bookName.slice(currentPrefix.length); // includes leading '_'
-                newBookName = newPrefix + suffix;
+                row.isError = !!result.isError;
+                row.errorMessage = result.errorMessage || undefined;
+                row.isAborted = !!result.isAborted;
+                row.abortReason = result.abortReason || undefined;
+                row.ok = !result.isError && !result.isAborted;
             }
-
-            // Load existing book data
-            let bookData = null;
-            try {
-                bookData = await ctx.loadWorldInfo(bookName);
-            } catch (e) {
-                errors.push(`Failed to load "${bookName}": ${e?.message || e}`);
-                continue;
-            }
-
-            if (!bookData) {
-                errors.push(`Could not read "${bookName}" — skipping.`);
-                continue;
-            }
-
-            // Deep clone and update name
-            const cloneData = JSON.parse(JSON.stringify(bookData));
-            cloneData.name = newBookName;
-
-            // Write to disk via the raw API (same pattern as router.js)
-            try {
-                const res = await fetch('/api/worldinfo/edit', {
-                    method: 'POST',
-                    headers: getRequestHeaders(),
-                    body: JSON.stringify({ name: newBookName, data: cloneData }),
-                });
-                if (!res.ok) {
-                    errors.push(`HTTP ${res.status} saving "${newBookName}"`);
-                    continue;
-                }
-                // Sync ST in-memory cache
-                if (typeof ctx.saveWorldInfo === 'function') {
-                    try { await ctx.saveWorldInfo(newBookName, cloneData); } catch (_) { /* non-fatal */ }
-                }
-                cloned++;
-            } catch (e) {
-                errors.push(`Failed to write "${newBookName}": ${e?.message || e}`);
-            }
+            slashLog.push(row);
+        } catch (e) {
+            slashLog.push({ cmd, ok: false, thrown: String(e?.message || e) });
         }
+    };
 
-        // 5. Refresh ST's world-info list so the new books appear immediately
-        if (typeof ctx.updateWorldInfoList === 'function') {
-            try { await ctx.updateWorldInfoList(); } catch (_) { /* non-fatal */ }
-        }
+    for (const name of toDeactivate) {
+        await runWorldCmd(`/world state=off silent=true "${name}"`);
+    }
 
-        // 6. Report result
-        if (errors.length === 0) {
-            toastr['success'](
-                `Cloned ${cloned} lorebook${cloned === 1 ? '' : 's'} → prefix "${newPrefix}".\n` +
-                `Now create a branch named "${newPrefix}" (or set the prefix override to "${newPrefix}") to link it.`,
-                'Clone Stack',
-                { timeOut: 8000 }
-            );
+    for (const name of bookNames) {
+        await runWorldCmd(`/world state=on silent=true "${name}"`);
+    }
+
+    _loreActivationDebugLast = {
+        ...baseDebug,
+        storedPrefix: prefix,
+        worldRegistry: reg,
+        allWorldNamesCount: allNames.length,
+        matchingBookNames: bookNames,
+        matchingCount: bookNames.length,
+        managedBooksUnion: [...allKnownManagedBooks],
+        deactivateDetail: {
+            otherChatPrefixes: deact.otherPrefixes,
+            managedOffCount: deact.managedOffCount,
+            crossChatMatchCount: deact.crossChatMatchCount,
+        },
+        toDeactivate,
+        slashCommandsRun: slashLog.length,
+        slashLog,
+    };
+    renderLoreActivationDebugPanel();
+    return bookNames.length;
+}
+
+/**
+ * Duplicates every lorebook in the current campaign stack under a new prefix.
+ * Each book like `OldPrefix_NPCs` becomes `NewPrefix_NPCs`.
+ * If the book name IS the prefix (the root book), it becomes `NewPrefix`.
+ * @returns {Promise<void>}
+ */
+async function cloneCampaignStack() {
+    const s = getSettings();
+    const ctx = SillyTavern.getContext();
+
+    // 1. Determine current prefix
+    const currentPrefix = s.routerCampaignPrefix || '';
+    if (!currentPrefix) {
+        toastr['warning']('No campaign prefix is active. Activate the Lorebook Agent and load a chat first.', 'Clone Stack');
+        return;
+    }
+
+    // 2. Ask user for the new prefix
+    let newPrefixRaw = '';
+    try {
+        newPrefixRaw = await ctx.Popup.show.input(
+            'Clone Lorebook Stack',
+            `<p>All lorebooks under prefix <strong>${currentPrefix}</strong> will be duplicated.</p>` +
+            `<p>Enter the new prefix for the cloned stack (e.g. <code>Eldoria_Branch1</code>).<br>` +
+            `<small>After cloning, create your branch chat using the same name so the framework links automatically.</small></p>`,
+            ''
+        );
+    } catch (_) {
+        // User cancelled
+        return;
+    }
+
+    if (!newPrefixRaw && newPrefixRaw !== 0) return; // cancelled
+    const newPrefix = sanitizeCampaignPrefixString(String(newPrefixRaw).trim());
+    if (!newPrefix) {
+        toastr['warning']('New prefix cannot be empty or contain only special characters.', 'Clone Stack');
+        return;
+    }
+    if (newPrefix === currentPrefix) {
+        toastr['warning']('New prefix is the same as the current prefix. Please choose a different name.', 'Clone Stack');
+        return;
+    }
+
+    // 3. Discover all books that belong to the current prefix
+    const reg = await refreshWorldInfoRegistry();
+    const allNames = resolveAllWorldNames(ctx, reg);
+    const matchingBooks = allNames.filter(n => bookBelongsToPrefix(n, currentPrefix));
+
+    if (matchingBooks.length === 0) {
+        toastr['warning'](`No lorebooks found for prefix "${currentPrefix}". Nothing to clone.`, 'Clone Stack');
+        return;
+    }
+
+    toastr['info'](`Cloning ${matchingBooks.length} lorebook(s) to prefix "${newPrefix}"…`, 'Clone Stack');
+
+    // 4. Clone each book under the new prefix name
+    let cloned = 0;
+    const errors = [];
+
+    for (const bookName of matchingBooks) {
+        // Derive new name: replace the old prefix at the start of the book name
+        let newBookName;
+        if (bookName === currentPrefix) {
+            // Root book: OldPrefix → NewPrefix
+            newBookName = newPrefix;
         } else {
-            toastr['warning'](
-                `Cloned ${cloned}/${matchingBooks.length} books. Errors:\n${errors.join('\n')}`,
-                'Clone Stack',
-                { timeOut: 10000 }
-            );
-        }
-    }
-
-
-    // ── Chat-Linked State (deferred from state-manager.js — touches DOM + _historyViewIndex) ──
-
-    function refreshQuestLegacyPrompt(s) {
-        let prompt = DEFAULT_STOCK_PROMPTS.quests_legacy;
-        if (!s.syspromptModules?.questsDeadlines && !s.syspromptModules?.questsFrustration) {
-            prompt = prompt.replace(/  DEADLINE:.*\n/g, '');
-            prompt = prompt.replace(/  FRUSTRATION_COEFF:.*\n/g, '');
-            prompt = prompt.replace(/  MOOD:.*\n/g, '');
-            prompt = prompt.replace(/- DEADLINE \/ FRUSTRATION_COEFF:.*\n/g, '');
-            prompt = prompt.replace(/- FRUSTRATION_COEFF:.*\n/g, '');
-            prompt = prompt.replace(/- The MOOD field.*\n/g, '');
-        } else {
-            if (!s.syspromptModules?.questsDeadlines) {
-                prompt = prompt.replace(/  DEADLINE:.*\n/g, '');
-                prompt = prompt.replace(/- DEADLINE.*\n/g, '');
-            }
-            if (!s.syspromptModules?.questsFrustration) {
-                prompt = prompt.replace(/  FRUSTRATION_COEFF:.*\n/g, '');
-                prompt = prompt.replace(/- FRUSTRATION_COEFF:.*\n/g, '');
-                prompt = prompt.replace(/  MOOD:.*\n/g, '');
-                prompt = prompt.replace(/- The MOOD field.*\n/g, '');
-            }
-        }
-        if (!s.syspromptModules?.questsDifficulty) {
-            prompt = prompt.replace(/  DIFFICULTY:.*\n/g, '');
-            prompt = prompt.replace(/- For difficulty, use the DIFFICULTY marker.*\n/g, '');
-        }
-        if (!s.stockPrompts) s.stockPrompts = {};
-        // Write ONLY to the legacy slot — the runtime swap in buildModulesInstructionText
-        // will read from here when questLegacyMode is active. Never touch stockPrompts.quests.
-        s.stockPrompts.quests_legacy = prompt;
-    }
-
-    /**
-     * Restore a previously saved chat state into the live settings.
-     * Returns true if a saved state was found, false if no state existed (clean slate).
-     * @param {string} chatId
-     * @returns {boolean}
-     */
-    function loadChatState(chatId) {
-        if (!chatId) return false;
-        const s = getSettings();
-        const saved = s.chatStates?.[chatId];
-        if (!saved) return false;
-
-        s.currentMemo  = saved.currentMemo  ?? '';
-        s.memoHistory  = saved.memoHistory  ?? [];
-        s.lastDelta    = saved.lastDelta    ?? '';
-        if (saved.modules)      s.modules      = { ...s.modules, ...saved.modules };
-        if (saved.blockOrder)   s.blockOrder   = JSON.parse(JSON.stringify(saved.blockOrder));
-        if (saved.stockPrompts) s.stockPrompts = JSON.parse(JSON.stringify(saved.stockPrompts));
-        if (saved.customFields) s.customFields = JSON.parse(JSON.stringify(saved.customFields));
-        // quests are derived from currentMemo, do not load independently
-        s.quests = [];
-        s.historyIndex = saved.historyIndex ?? -1;
-        
-        s.activeRouterKeys    = JSON.parse(JSON.stringify(saved.activeRouterKeys    || []));
-        s.keywordActivatedKeys = JSON.parse(JSON.stringify(saved.keywordActivatedKeys || []));
-        s.routerLog           = JSON.parse(JSON.stringify(saved.routerLog || []));
-        // Don't restore routerCampaignPrefix from per-chat saved state — the prefix
-        // is fully derivable from the chat ID and must be re-derived live by
-        // onChatChanged. Restoring a stale value (e.g. a bare "Assistant" from
-        // a previous buggy run) would cause greedy lorebook matching.
-
-        _historyViewIndex = -1;
-        
-        // currentMemo is the source of truth for quest state.
-        // Derive settings.quests FROM it rather than injecting quests BACK INTO the memo.
-        syncQuestsFromMemo(s.currentMemo);
-
-        const dp = document.getElementById('rpg-tracker-delta-content');
-        if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
-
-        refreshOrderList();
-        syncMemoView();
-        
-        // Refresh Lorebook Agent UI
-        if (typeof renderRouterUI === 'function') {
-            renderRouterUI();
-        }
-        void refreshAgentManifest().catch(() => {});
-
-        // Patch any managed entries that don't yet have disable:true so ST's
-        // native keyword scanner cannot inject them on user-message send.
-        if (s.routerEnabled) {
-            disableManagedEntries().catch(e => console.warn('[RPG Tracker] disableManagedEntries on chat change failed:', e));
+            // Suffixed book: OldPrefix_Suffix → NewPrefix_Suffix
+            const suffix = bookName.slice(currentPrefix.length); // includes leading '_'
+            newBookName = newPrefix + suffix;
         }
 
-        return true;
-    }
-
-    /**
-     * Installs a transient prompt interceptor to inject active lore keys
-     * into the main narrator's prompt. This is non-mutating and clean.
-     */
-    /**
-     * Updates the persistent SillyTavern extension prompt with the currently active lore.
-     * This is the preferred method for older/stable ST versions.
-     */
-    async function refreshExtensionPrompt() {
-        const ctx = SillyTavern.getContext();
-        const { setExtensionPrompt } = ctx;
-        if (typeof setExtensionPrompt !== 'function') return;
-
-        const s = getSettings();
-        if (!s.routerEnabled || !s.activeRouterKeys?.length) {
-            setExtensionPrompt('rpg_tracker_lore', '', 0, 0); // Clear if disabled
-            return;
-        }
-
+        // Load existing book data
+        let bookData = null;
         try {
+            bookData = await ctx.loadWorldInfo(bookName);
+        } catch (e) {
+            errors.push(`Failed to load "${bookName}": ${e?.message || e}`);
+            continue;
+        }
+
+        if (!bookData) {
+            errors.push(`Could not read "${bookName}" — skipping.`);
+            continue;
+        }
+
+        // Deep clone and update name
+        const cloneData = JSON.parse(JSON.stringify(bookData));
+        cloneData.name = newBookName;
+
+        // Write to disk via the raw API (same pattern as router.js)
+        try {
+            const res = await fetch('/api/worldinfo/edit', {
+                method: 'POST',
+                headers: getRequestHeaders(),
+                body: JSON.stringify({ name: newBookName, data: cloneData }),
+            });
+            if (!res.ok) {
+                errors.push(`HTTP ${res.status} saving "${newBookName}"`);
+                continue;
+            }
+            // Sync ST in-memory cache
+            if (typeof ctx.saveWorldInfo === 'function') {
+                try { await ctx.saveWorldInfo(newBookName, cloneData); } catch (_) { /* non-fatal */ }
+            }
+            cloned++;
+        } catch (e) {
+            errors.push(`Failed to write "${newBookName}": ${e?.message || e}`);
+        }
+    }
+
+    // 5. Refresh ST's world-info list so the new books appear immediately
+    if (typeof ctx.updateWorldInfoList === 'function') {
+        try { await ctx.updateWorldInfoList(); } catch (_) { /* non-fatal */ }
+    }
+
+    // 6. Report result
+    if (errors.length === 0) {
+        toastr['success'](
+            `Cloned ${cloned} lorebook${cloned === 1 ? '' : 's'} → prefix "${newPrefix}".\n` +
+            `Now create a branch named "${newPrefix}" (or set the prefix override to "${newPrefix}") to link it.`,
+            'Clone Stack',
+            { timeOut: 8000 }
+        );
+    } else {
+        toastr['warning'](
+            `Cloned ${cloned}/${matchingBooks.length} books. Errors:\n${errors.join('\n')}`,
+            'Clone Stack',
+            { timeOut: 10000 }
+        );
+    }
+}
+
+
+// ── Chat-Linked State (deferred from state-manager.js — touches DOM + _historyViewIndex) ──
+
+function refreshQuestLegacyPrompt(s) {
+    let prompt = DEFAULT_STOCK_PROMPTS.quests_legacy;
+    if (!s.syspromptModules?.questsDeadlines && !s.syspromptModules?.questsFrustration) {
+        prompt = prompt.replace(/  DEADLINE:.*\n/g, '');
+        prompt = prompt.replace(/  FRUSTRATION_COEFF:.*\n/g, '');
+        prompt = prompt.replace(/  MOOD:.*\n/g, '');
+        prompt = prompt.replace(/- DEADLINE \/ FRUSTRATION_COEFF:.*\n/g, '');
+        prompt = prompt.replace(/- FRUSTRATION_COEFF:.*\n/g, '');
+        prompt = prompt.replace(/- The MOOD field.*\n/g, '');
+    } else {
+        if (!s.syspromptModules?.questsDeadlines) {
+            prompt = prompt.replace(/  DEADLINE:.*\n/g, '');
+            prompt = prompt.replace(/- DEADLINE.*\n/g, '');
+        }
+        if (!s.syspromptModules?.questsFrustration) {
+            prompt = prompt.replace(/  FRUSTRATION_COEFF:.*\n/g, '');
+            prompt = prompt.replace(/- FRUSTRATION_COEFF:.*\n/g, '');
+            prompt = prompt.replace(/  MOOD:.*\n/g, '');
+            prompt = prompt.replace(/- The MOOD field.*\n/g, '');
+        }
+    }
+    if (!s.syspromptModules?.questsDifficulty) {
+        prompt = prompt.replace(/  DIFFICULTY:.*\n/g, '');
+        prompt = prompt.replace(/- For difficulty, use the DIFFICULTY marker.*\n/g, '');
+    }
+    if (!s.stockPrompts) s.stockPrompts = {};
+    // Write ONLY to the legacy slot — the runtime swap in buildModulesInstructionText
+    // will read from here when questLegacyMode is active. Never touch stockPrompts.quests.
+    s.stockPrompts.quests_legacy = prompt;
+}
+
+/**
+ * Restore a previously saved chat state into the live settings.
+ * Returns true if a saved state was found, false if no state existed (clean slate).
+ * @param {string} chatId
+ * @returns {boolean}
+ */
+function loadChatState(chatId) {
+    if (!chatId) return false;
+    const s = getSettings();
+    const saved = s.chatStates?.[chatId];
+    if (!saved) return false;
+
+    s.currentMemo = saved.currentMemo ?? '';
+    s.memoHistory = saved.memoHistory ?? [];
+    s.lastDelta = saved.lastDelta ?? '';
+    if (saved.modules) s.modules = { ...s.modules, ...saved.modules };
+    if (saved.blockOrder) s.blockOrder = JSON.parse(JSON.stringify(saved.blockOrder));
+    if (saved.stockPrompts) s.stockPrompts = JSON.parse(JSON.stringify(saved.stockPrompts));
+    if (saved.customFields) s.customFields = JSON.parse(JSON.stringify(saved.customFields));
+    // quests are derived from currentMemo, do not load independently
+    s.quests = [];
+    s.historyIndex = saved.historyIndex ?? -1;
+
+    s.activeRouterKeys = JSON.parse(JSON.stringify(saved.activeRouterKeys || []));
+    s.keywordActivatedKeys = JSON.parse(JSON.stringify(saved.keywordActivatedKeys || []));
+    s.routerLog = JSON.parse(JSON.stringify(saved.routerLog || []));
+    // Don't restore routerCampaignPrefix from per-chat saved state — the prefix
+    // is fully derivable from the chat ID and must be re-derived live by
+    // onChatChanged. Restoring a stale value (e.g. a bare "Assistant" from
+    // a previous buggy run) would cause greedy lorebook matching.
+
+    _historyViewIndex = -1;
+
+    // currentMemo is the source of truth for quest state.
+    // Derive settings.quests FROM it rather than injecting quests BACK INTO the memo.
+    syncQuestsFromMemo(s.currentMemo);
+
+    const dp = document.getElementById('rpg-tracker-delta-content');
+    if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
+
+    refreshOrderList();
+    syncMemoView();
+
+    // Refresh Lorebook Agent UI
+    if (typeof renderRouterUI === 'function') {
+        renderRouterUI();
+    }
+    void refreshAgentManifest().catch(() => { });
+
+    // Patch any managed entries that don't yet have disable:true so ST's
+    // native keyword scanner cannot inject them on user-message send.
+    if (s.routerEnabled) {
+        disableManagedEntries().catch(e => console.warn('[RPG Tracker] disableManagedEntries on chat change failed:', e));
+    }
+
+    return true;
+}
+
+/**
+ * Installs a transient prompt interceptor to inject active lore keys
+ * into the main narrator's prompt. This is non-mutating and clean.
+ */
+/**
+ * Updates the persistent SillyTavern extension prompt with the currently active lore.
+ * This is the preferred method for older/stable ST versions.
+ */
+async function refreshExtensionPrompt() {
+    const ctx = SillyTavern.getContext();
+    const { setExtensionPrompt } = ctx;
+    if (typeof setExtensionPrompt !== 'function') return;
+
+    const s = getSettings();
+    if (!s.routerEnabled || !s.activeRouterKeys?.length) {
+        setExtensionPrompt('rpg_tracker_lore', '', 0, 0); // Clear if disabled
+        return;
+    }
+
+    try {
+        let injectedContext = "";
+        const books = {};
+        for (const k of s.activeRouterKeys) {
+            const [bookName] = k.split('::');
+            if (!books[bookName]) books[bookName] = await ctx.loadWorldInfo(bookName);
+        }
+
+        for (const k of s.activeRouterKeys) {
+            const [bookName, uid] = k.split('::');
+            const entry = books[bookName]?.entries?.[uid];
+            if (entry && entry.content) {
+                injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
+            }
+        }
+
+        if (injectedContext) {
+            const routerBlock = `## ROUTER ACTIVE LORE\n${injectedContext.trim()}`;
+            // Set as an extension prompt at the end of the system block (Position 0, but ST handles placement)
+            setExtensionPrompt('rpg_tracker_lore', routerBlock, 0, 0);
+        } else {
+            setExtensionPrompt('rpg_tracker_lore', '', 0, 0);
+        }
+    } catch (e) {
+        console.error("[Router Agent] Failed to update extension prompt:", e);
+    }
+}
+
+function installRouterInterceptor() {
+    const ctx = SillyTavern.getContext();
+    const { addPromptManagerInterceptor, addChatInterceptor, addInterceptor } = ctx;
+
+    // Try modern interceptors first
+    if (typeof addPromptManagerInterceptor === 'function') {
+        addPromptManagerInterceptor(async (prompt) => {
+            const s = getSettings();
+            const t = performance.now().toFixed(1);
+            console.group(`[RPG|LORE-INJECT] promptManagerInterceptor fired @ ${t}ms`);
+            console.log('activeRouterKeys at inject time:', JSON.stringify(s.activeRouterKeys || []));
+            if (!s.routerEnabled || !s.activeRouterKeys?.length) {
+                console.log('→ Skipped (disabled or empty)');
+                console.groupEnd();
+                return;
+            }
+            // Reuse the same logic but for the prompt object
             let injectedContext = "";
             const books = {};
             for (const k of s.activeRouterKeys) {
                 const [bookName] = k.split('::');
                 if (!books[bookName]) books[bookName] = await ctx.loadWorldInfo(bookName);
             }
-
             for (const k of s.activeRouterKeys) {
                 const [bookName, uid] = k.split('::');
                 const entry = books[bookName]?.entries?.[uid];
-                if (entry && entry.content) {
-                    injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
-                }
+                if (entry && entry.content) injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
             }
-
             if (injectedContext) {
-                const routerBlock = `## ROUTER ACTIVE LORE\n${injectedContext.trim()}`;
-                // Set as an extension prompt at the end of the system block (Position 0, but ST handles placement)
-                setExtensionPrompt('rpg_tracker_lore', routerBlock, 0, 0); 
+                const routerBlock = `\n## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n`;
+                const sysPart = prompt.find(p => p.role === 'system');
+                if (sysPart) sysPart.content += routerBlock;
+                else prompt.unshift({ role: 'system', content: routerBlock });
+                console.log(`→ Injected ${s.activeRouterKeys.length} entries into prompt`);
             } else {
-                setExtensionPrompt('rpg_tracker_lore', '', 0, 0);
+                console.log('→ No content to inject (entries empty?)');
             }
-        } catch (e) {
-            console.error("[Router Agent] Failed to update extension prompt:", e);
+            console.groupEnd();
+        });
+        console.debug('[RPG Tracker] Lore injection: addPromptManagerInterceptor path active.');
+    } else {
+        // Fallback to the persistent extension prompt system
+        console.debug('[RPG Tracker] Active lore injection uses setExtensionPrompt (no addPromptManagerInterceptor in this SillyTavern build).');
+        refreshExtensionPrompt();
+
+        const { eventSource, event_types } = ctx;
+        const refresh = () => void refreshExtensionPrompt();
+        if (event_types?.CHAT_CHANGED != null) {
+            eventSource.on(event_types.CHAT_CHANGED, refresh);
+        }
+        if (event_types?.CHARACTER_PAGE_LOADED != null) {
+            eventSource.on(event_types.CHARACTER_PAGE_LOADED, refresh);
         }
     }
+}
 
-    function installRouterInterceptor() {
-        const ctx = SillyTavern.getContext();
-        const { addPromptManagerInterceptor, addChatInterceptor, addInterceptor } = ctx;
+/**
+ * Sanitizes a ST chat ID into a filesystem/lorebook-safe prefix.
+ * The chat ID is already unique per session, so it's used verbatim
+ * with only unsafe characters replaced.
+ * @param {string} chatId
+ * @returns {string}
+ */
+function derivePrefixFromChatId(chatId) {
+    return sanitizeCampaignPrefixString(chatId);
+}
 
-        // Try modern interceptors first
-        if (typeof addPromptManagerInterceptor === 'function') {
-            addPromptManagerInterceptor(async (prompt) => {
-                const s = getSettings();
-                const t = performance.now().toFixed(1);
-                console.group(`[RPG|LORE-INJECT] promptManagerInterceptor fired @ ${t}ms`);
-                console.log('activeRouterKeys at inject time:', JSON.stringify(s.activeRouterKeys || []));
-                if (!s.routerEnabled || !s.activeRouterKeys?.length) {
-                    console.log('→ Skipped (disabled or empty)');
-                    console.groupEnd();
-                    return;
-                }
-                // Reuse the same logic but for the prompt object
-                let injectedContext = "";
-                const books = {};
-                for (const k of s.activeRouterKeys) {
-                    const [bookName] = k.split('::');
-                    if (!books[bookName]) books[bookName] = await ctx.loadWorldInfo(bookName);
-                }
-                for (const k of s.activeRouterKeys) {
-                    const [bookName, uid] = k.split('::');
-                    const entry = books[bookName]?.entries?.[uid];
-                    if (entry && entry.content) injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
-                }
-                if (injectedContext) {
-                    const routerBlock = `\n## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n`;
-                    const sysPart = prompt.find(p => p.role === 'system');
-                    if (sysPart) sysPart.content += routerBlock;
-                    else prompt.unshift({ role: 'system', content: routerBlock });
-                    console.log(`→ Injected ${s.activeRouterKeys.length} entries into prompt`);
-                } else {
-                    console.log('→ No content to inject (entries empty?)');
-                }
-                console.groupEnd();
-            });
-            console.debug('[RPG Tracker] Lore injection: addPromptManagerInterceptor path active.');
-        } else {
-            // Fallback to the persistent extension prompt system
-            console.debug('[RPG Tracker] Active lore injection uses setExtensionPrompt (no addPromptManagerInterceptor in this SillyTavern build).');
-            refreshExtensionPrompt();
+/**
+ * Updates the campaign prefix readout in Extension settings and the Lorebook Agent panel.
+ * @param {string} [raw] - Prefix string, or empty / whitespace for "—".
+ */
+function syncRouterPrefixDisplays(raw) {
+    const label = (raw && String(raw).trim()) ? String(raw).trim() : '—';
+    const settingsEl = document.getElementById('rpg_tracker_router_prefix_display');
+    if (settingsEl) settingsEl.textContent = label;
+    const agentEl = document.getElementById('rt-agent-router-prefix-display');
+    if (agentEl) agentEl.textContent = label;
+}
 
-            const { eventSource, event_types } = ctx;
-            const refresh = () => void refreshExtensionPrompt();
-            if (event_types?.CHAT_CHANGED != null) {
-                eventSource.on(event_types.CHAT_CHANGED, refresh);
-            }
-            if (event_types?.CHARACTER_PAGE_LOADED != null) {
-                eventSource.on(event_types.CHARACTER_PAGE_LOADED, refresh);
-            }
+/**
+ * Called on CHAT_CHANGED. Saves the departing chat's state,
+ * then loads the arriving chat's state — or resets the memo if
+ * this is a new/unseen chat (no saved state).
+ * @param {string} newChatId
+ */
+function onChatChanged(newChatId) {
+    const s = getSettings();
+
+    const oldChatId = _currentChatId;
+    _currentChatId = newChatId || null;
+
+    // Snapshot the departing chat's state BEFORE resetRouterTick mutates shared pools.
+    // resetRouterTick(true) zeroes keywordActivatedKeys in-place; if saveChatState ran
+    // after that, the yellow-pill keyword state for the departing chat would be lost.
+    // Guard matches the later chatLinkEnabled block so we only persist when linking is on.
+    if (s.chatLinkEnabled && oldChatId) saveChatState(oldChatId);
+
+    // Reset the run-every tick so the agent fires promptly on the first generation of each chat.
+    // Only clear keyword-activated lore when actually switching to a different chat.
+    // Same-chat reloads (swipe, regenerate) must preserve the keyword pool.
+    const isActualChange = oldChatId !== newChatId;
+    resetRouterTick(isActualChange);
+
+    // Auto-activate and prefix logic run regardless of chatLinkEnabled.
+    // Always re-derive the prefix from the chat ID so stale saved data never
+    // causes the wrong session's lorebooks to activate.
+    const chatBooks = s.chatStates?.[newChatId]?.campaignBooks;
+
+    if (chatBooks?.length) {
+        // Fast Path: This chat has a linked stack already recorded.
+        // Swap stacks instantly without the 800ms delay or the slow registry scan.
+        if (typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
+            (async () => {
+                const ctx = SillyTavern.getContext();
+                // 1. Turn OFF departing chat's books
+                const oldBooks = s.chatStates?.[oldChatId]?.campaignBooks || [];
+                for (const name of oldBooks) {
+                    await ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`).catch(() => { });
+                }
+                // 2. Restore prefix and turn ON arriving chat's books
+                const prefix = getEffectiveRouterCampaignPrefix(newChatId);
+                if (prefix) {
+                    s.routerCampaignPrefix = prefix;
+                    syncRouterPrefixDisplays(prefix);
+                }
+                for (const name of chatBooks) {
+                    await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${name}"`).catch(() => { });
+                }
+            })();
         }
-    }
+    } else if (s.routerEnabled && newChatId) {
+        // No linked stack yet for the arriving chat.
+        // Capture the departing chat's book list NOW (before any async gap).
+        const _oldBooksDeferred = s.chatStates?.[oldChatId]?.campaignBooks || [];
 
-    /**
-     * Sanitizes a ST chat ID into a filesystem/lorebook-safe prefix.
-     * The chat ID is already unique per session, so it's used verbatim
-     * with only unsafe characters replaced.
-     * @param {string} chatId
-     * @returns {string}
-     */
-    function derivePrefixFromChatId(chatId) {
-        return sanitizeCampaignPrefixString(chatId);
-    }
-
-    /**
-     * Updates the campaign prefix readout in Extension settings and the Lorebook Agent panel.
-     * @param {string} [raw] - Prefix string, or empty / whitespace for "—".
-     */
-    function syncRouterPrefixDisplays(raw) {
-        const label = (raw && String(raw).trim()) ? String(raw).trim() : '—';
-        const settingsEl = document.getElementById('rpg_tracker_router_prefix_display');
-        if (settingsEl) settingsEl.textContent = label;
-        const agentEl = document.getElementById('rt-agent-router-prefix-display');
-        if (agentEl) agentEl.textContent = label;
-    }
-
-    /**
-     * Called on CHAT_CHANGED. Saves the departing chat's state,
-     * then loads the arriving chat's state — or resets the memo if
-     * this is a new/unseen chat (no saved state).
-     * @param {string} newChatId
-     */
-    function onChatChanged(newChatId) {
-        const s = getSettings();
-
-        const oldChatId = _currentChatId;
-        _currentChatId  = newChatId || null;
-
-        // Snapshot the departing chat's state BEFORE resetRouterTick mutates shared pools.
-        // resetRouterTick(true) zeroes keywordActivatedKeys in-place; if saveChatState ran
-        // after that, the yellow-pill keyword state for the departing chat would be lost.
-        // Guard matches the later chatLinkEnabled block so we only persist when linking is on.
-        if (s.chatLinkEnabled && oldChatId) saveChatState(oldChatId);
-
-        // Reset the run-every tick so the agent fires promptly on the first generation of each chat.
-        // Only clear keyword-activated lore when actually switching to a different chat.
-        // Same-chat reloads (swipe, regenerate) must preserve the keyword pool.
-        const isActualChange = oldChatId !== newChatId;
-        resetRouterTick(isActualChange);
-
-        // Auto-activate and prefix logic run regardless of chatLinkEnabled.
-        // Always re-derive the prefix from the chat ID so stale saved data never
-        // causes the wrong session's lorebooks to activate.
-        const chatBooks = s.chatStates?.[newChatId]?.campaignBooks;
-
-        if (chatBooks?.length) {
-            // Fast Path: This chat has a linked stack already recorded.
-            // Swap stacks instantly without the 800ms delay or the slow registry scan.
-            if (typeof SillyTavern.getContext().executeSlashCommandsWithOptions === 'function') {
-                (async () => {
-                    const ctx = SillyTavern.getContext();
-                    // 1. Turn OFF departing chat's books
-                    const oldBooks = s.chatStates?.[oldChatId]?.campaignBooks || [];
-                    for (const name of oldBooks) {
-                        await ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`).catch(() => {});
-                    }
-                    // 2. Restore prefix and turn ON arriving chat's books
-                    const prefix = getEffectiveRouterCampaignPrefix(newChatId);
-                    if (prefix) {
-                        s.routerCampaignPrefix = prefix;
-                        syncRouterPrefixDisplays(prefix);
-                    }
-                    for (const name of chatBooks) {
-                        await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${name}"`).catch(() => {});
-                    }
-                })();
+        // Helper: turn off the old books using only the known list — no registry scan.
+        const _deactivateOldBooks = async () => {
+            if (!_oldBooksDeferred.length) return;
+            const _ctx = SillyTavern.getContext();
+            if (typeof _ctx.executeSlashCommandsWithOptions !== 'function') return;
+            for (const name of _oldBooksDeferred) {
+                await _ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`).catch(() => { });
             }
-        } else if (s.routerEnabled && newChatId) {
-            // No linked stack yet for the arriving chat.
-            // Capture the departing chat's book list NOW (before any async gap).
-            const _oldBooksDeferred = s.chatStates?.[oldChatId]?.campaignBooks || [];
+        };
 
-            // Helper: turn off the old books using only the known list — no registry scan.
-            const _deactivateOldBooks = async () => {
-                if (!_oldBooksDeferred.length) return;
-                const _ctx = SillyTavern.getContext();
-                if (typeof _ctx.executeSlashCommandsWithOptions !== 'function') return;
-                for (const name of _oldBooksDeferred) {
-                    await _ctx.executeSlashCommandsWithOptions(`/world state=off silent=true "${name}"`).catch(() => {});
-                }
-            };
+        // Cancel any pending derivation from a previous CHAT_CHANGED.
+        if (_prefixDeriveTimer) clearTimeout(_prefixDeriveTimer);
+        _prefixDeriveTimer = setTimeout(async () => {
+            _prefixDeriveTimer = null;
+            if (newChatId !== _currentChatId) return;
 
-            // Cancel any pending derivation from a previous CHAT_CHANGED.
-            if (_prefixDeriveTimer) clearTimeout(_prefixDeriveTimer);
-            _prefixDeriveTimer = setTimeout(async () => {
-                _prefixDeriveTimer = null;
-                if (newChatId !== _currentChatId) return;
+            // Pass 1 (~800ms): deactivate before the registry scan so books vanish fast.
+            await _deactivateOldBooks();
 
-                // Pass 1 (~800ms): deactivate before the registry scan so books vanish fast.
+            // Discover if the new chat actually has any linked books (needs registry scan).
+            await syncCampaignPrefixAndWorldsForChat(newChatId, 'CHAT_CHANGED(debounced)');
+
+            // Pass 2 (~after scan): ST's deferred world-info state restoration can re-pin
+            // globally active books AFTER our first pass. A follow-up sweep catches this
+            // without needing another registry scan — just direct /world state=off commands.
+            if (newChatId === _currentChatId) {
                 await _deactivateOldBooks();
-
-                // Discover if the new chat actually has any linked books (needs registry scan).
-                await syncCampaignPrefixAndWorldsForChat(newChatId, 'CHAT_CHANGED(debounced)');
-
-                // Pass 2 (~after scan): ST's deferred world-info state restoration can re-pin
-                // globally active books AFTER our first pass. A follow-up sweep catches this
-                // without needing another registry scan — just direct /world state=off commands.
-                if (newChatId === _currentChatId) {
-                    await _deactivateOldBooks();
-                }
-            }, 800);
-        }
-
-        if (!s.chatLinkEnabled) {
-            updateChatLinkUI();
-            return;
-        }
-
-        // saveChatState(oldChatId) already called above, before resetRouterTick.
-
-        const found = loadChatState(newChatId);
-        if (!found) {
-            s.currentMemo  = '';
-            s.memoHistory  = [];
-            s.lastDelta    = '';
-            s.activeRouterKeys = [];
-            s.routerLog    = [];
-            
-            _historyViewIndex = -1;
-
-            const dp = document.getElementById('rpg-tracker-delta-content');
-            if (dp) dp.innerHTML = '<span class="delta-empty">No changes yet.</span>';
-
-            updateUIMemo('');
-            refreshRenderedView();
-            if (typeof renderRouterUI === 'function') {
-                renderRouterUI();
             }
-            void refreshAgentManifest().catch(() => {});
-        }
-
-        updateChatLinkUI();
+        }, 800);
     }
 
+    if (!s.chatLinkEnabled) {
+        updateChatLinkUI();
+        return;
+    }
 
-    async function openThemeWizard(isIteration = false) {
-        const settings = getSettings();
+    // saveChatState(oldChatId) already called above, before resetRouterTick.
 
-        const systemPrompt = `You are a CSS theme designer for a dark-UI RPG tracker panel.
+    const found = loadChatState(newChatId);
+    if (!found) {
+        s.currentMemo = '';
+        s.memoHistory = [];
+        s.lastDelta = '';
+        s.activeRouterKeys = [];
+        s.routerLog = [];
+
+        _historyViewIndex = -1;
+
+        const dp = document.getElementById('rpg-tracker-delta-content');
+        if (dp) dp.innerHTML = '<span class="delta-empty">No changes yet.</span>';
+
+        updateUIMemo('');
+        refreshRenderedView();
+        if (typeof renderRouterUI === 'function') {
+            renderRouterUI();
+        }
+        void refreshAgentManifest().catch(() => { });
+    }
+
+    updateChatLinkUI();
+}
+
+
+async function openThemeWizard(isIteration = false) {
+    const settings = getSettings();
+
+    const systemPrompt = `You are a CSS theme designer for a dark-UI RPG tracker panel.
 The user will describe a visual theme in plain language. You must output ONLY a valid JSON object with these exact keys and CSS values:
 
 {
@@ -1023,216 +1058,216 @@ Rules:
 - Make the theme visually coherent and beautiful. Lean into the user's description creatively.
 - Ensure text colors have sufficient contrast against the background for readability.`;
 
-        const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
-        const generateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_generate'));
-        const iterateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_iterate'));
+    const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+    const generateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_generate'));
+    const iterateBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg_tracker_theme_iterate'));
 
-        const setStatus = (msg, isError = false) => {
-            if (!statusEl) return;
-            statusEl.style.display = 'block';
-            statusEl.style.color = isError ? '#ff7777' : 'inherit';
-            statusEl.textContent = msg;
-        };
+    const setStatus = (msg, isError = false) => {
+        if (!statusEl) return;
+        statusEl.style.display = 'block';
+        statusEl.style.color = isError ? '#ff7777' : 'inherit';
+        statusEl.textContent = msg;
+    };
 
-        const promptText = /** @type {HTMLTextAreaElement} */ (document.getElementById('rpg_tracker_theme_prompt'))?.value?.trim();
-        if (!promptText) {
-            setStatus(isIteration ? '⚠ Please describe the changes you want.' : '⚠ Please describe a theme first.', true);
-            return;
-        }
+    const promptText = /** @type {HTMLTextAreaElement} */ (document.getElementById('rpg_tracker_theme_prompt'))?.value?.trim();
+    if (!promptText) {
+        setStatus(isIteration ? '⚠ Please describe the changes you want.' : '⚠ Please describe a theme first.', true);
+        return;
+    }
 
-        const iterationContext = (isIteration && settings.customTheme)
-            ? `\n\nCURRENT THEME STATE (JSON):\n${JSON.stringify(settings.customTheme, null, 2)}\n\nUser wants to CHANGE this theme as follows: ${promptText}`
-            : `\n\nUser description: ${promptText}`;
+    const iterationContext = (isIteration && settings.customTheme)
+        ? `\n\nCURRENT THEME STATE (JSON):\n${JSON.stringify(settings.customTheme, null, 2)}\n\nUser wants to CHANGE this theme as follows: ${promptText}`
+        : `\n\nUser description: ${promptText}`;
 
-        if (generateBtn) generateBtn.disabled = true;
-        if (iterateBtn) iterateBtn.disabled = true;
-        setStatus(isIteration ? '⚡ Refining theme.' : '⚡ Generating theme.');
+    if (generateBtn) generateBtn.disabled = true;
+    if (iterateBtn) iterateBtn.disabled = true;
+    setStatus(isIteration ? '⚡ Refining theme.' : '⚡ Generating theme.');
 
-        let raw = '';
-        try {
-            raw = await sendStateRequest(settings, systemPrompt, iterationContext);
-        } catch (err) {
-            setStatus(`❌ Request failed: ${err.message}`, true);
-            if (generateBtn) generateBtn.disabled = false;
-            if (iterateBtn) iterateBtn.disabled = false;
-            return;
-        }
-
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-            setStatus('❌ AI did not return valid JSON. Try a different prompt or model.', true);
-            if (generateBtn) generateBtn.disabled = false;
-            if (iterateBtn) iterateBtn.disabled = false;
-            return;
-        }
-
-        let vars;
-        try {
-            vars = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-            setStatus('❌ Failed to parse AI response as JSON.', true);
-            if (generateBtn) generateBtn.disabled = false;
-            if (iterateBtn) iterateBtn.disabled = false;
-            return;
-        }
-
-        const expected = [
-            '--rt-custom-bg', '--rt-custom-blur', '--rt-custom-border',
-            '--rt-custom-text', '--rt-custom-text-muted', '--rt-custom-font',
-            '--rt-custom-font-mono', '--rt-custom-accent', '--rt-custom-accent-dim',
-            '--rt-custom-accent-bg', '--rt-custom-card-border', '--rt-custom-shadow',
-            '--rt-custom-header-bg', '--rt-custom-card-bg', '--rt-custom-card-header',
-        ];
-        const missing = expected.filter(k => !vars[k]);
-        if (missing.length > 3) {
-            setStatus(`❌ AI response is missing too many theme keys: ${missing.join(', ')}`, true);
-            if (generateBtn) generateBtn.disabled = false;
-            if (iterateBtn) iterateBtn.disabled = false;
-            return;
-        }
-
-        if (settings.customTheme) {
-            themeUndoStack.push(JSON.parse(JSON.stringify(settings.customTheme)));
-            if (themeUndoStack.length > 20) themeUndoStack.shift();
-        }
-        settings.customTheme = vars;
-        settings.trackerTheme = 'rt-theme-custom';
-        saveSettings();
-        applyCustomTheme(vars);
-
-        document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
-            p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
-        });
-
-        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
-        if (sel) sel.value = 'rt-theme-custom';
-
-        setStatus(isIteration ? '✅ Theme refined!' : '✅ Theme generated!');
+    let raw = '';
+    try {
+        raw = await sendStateRequest(settings, systemPrompt, iterationContext);
+    } catch (err) {
+        setStatus(`❌ Request failed: ${err.message}`, true);
         if (generateBtn) generateBtn.disabled = false;
         if (iterateBtn) iterateBtn.disabled = false;
-        toastr['success'](isIteration ? 'Theme refined successfully!' : 'New theme generated and applied!', 'Theme Wizard');
-        refreshSavedThemesList();
+        return;
     }
 
-    function refreshSavedThemesList() {
-        const settings = getSettings();
-        const container = document.getElementById('rpg_tracker_saved_themes_container');
-        const list = document.getElementById('rpg_tracker_saved_themes_list');
-        if (!container || !list) return;
-
-        const entries = Object.entries(settings.savedThemes || {});
-        if (entries.length === 0) {
-            container.style.display = 'none';
-            return;
-        }
-
-        container.style.display = 'block';
-        list.innerHTML = '';
-
-        entries.forEach(([name, vars]) => {
-            const row = document.createElement('div');
-            row.className = 'flex-container alignitemscenter gap-1';
-            row.style.background = 'rgba(255,255,255,0.05)';
-            row.style.padding = '4px 8px';
-            row.style.borderRadius = '4px';
-
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = name;
-            nameSpan.style.flex = '1';
-            nameSpan.style.fontSize = '0.85em';
-            nameSpan.style.cursor = 'pointer';
-            nameSpan.className = 'interactable';
-            nameSpan.title = 'Click to load this theme';
-            nameSpan.addEventListener('click', () => {
-                settings.customTheme = JSON.parse(JSON.stringify(vars));
-                settings.trackerTheme = 'rt-theme-custom';
-                saveSettings();
-                applyCustomTheme(settings.customTheme);
-                
-                // Update UI
-                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
-                if (sel) sel.value = 'rt-theme-custom';
-                document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
-                    p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
-                });
-                
-                const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
-                if (statusEl) {
-                    statusEl.style.display = 'block';
-                    statusEl.style.color = 'inherit';
-                    statusEl.textContent = `⚡ Loaded library theme: ${name}`;
-                }
-            });
-
-            const delBtn = document.createElement('i');
-            delBtn.className = 'fa-solid fa-trash-can interactable';
-            delBtn.style.fontSize = '0.8em';
-            delBtn.style.opacity = '0.5';
-            delBtn.title = 'Delete theme';
-            delBtn.addEventListener('click', () => {
-                if (confirm(`Are you sure you want to delete the theme "${name}"?`)) {
-                    delete settings.savedThemes[name];
-                    saveSettings();
-                    refreshSavedThemesList();
-                    toastr['info'](`Deleted theme: ${name}`, 'Theme Library');
-                }
-            });
-
-            row.appendChild(nameSpan);
-            row.appendChild(delBtn);
-            list.appendChild(row);
-        });
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        setStatus('❌ AI did not return valid JSON. Try a different prompt or model.', true);
+        if (generateBtn) generateBtn.disabled = false;
+        if (iterateBtn) iterateBtn.disabled = false;
+        return;
     }
 
-    function handleRecolor(barId, currentBg, targetEl) {
-        if (!barId) return;
+    let vars;
+    try {
+        vars = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+        setStatus('❌ Failed to parse AI response as JSON.', true);
+        if (generateBtn) generateBtn.disabled = false;
+        if (iterateBtn) iterateBtn.disabled = false;
+        return;
+    }
 
-        document.getElementById('rt-recolor-popup')?.remove();
+    const expected = [
+        '--rt-custom-bg', '--rt-custom-blur', '--rt-custom-border',
+        '--rt-custom-text', '--rt-custom-text-muted', '--rt-custom-font',
+        '--rt-custom-font-mono', '--rt-custom-accent', '--rt-custom-accent-dim',
+        '--rt-custom-accent-bg', '--rt-custom-card-border', '--rt-custom-shadow',
+        '--rt-custom-header-bg', '--rt-custom-card-bg', '--rt-custom-card-header',
+    ];
+    const missing = expected.filter(k => !vars[k]);
+    if (missing.length > 3) {
+        setStatus(`❌ AI response is missing too many theme keys: ${missing.join(', ')}`, true);
+        if (generateBtn) generateBtn.disabled = false;
+        if (iterateBtn) iterateBtn.disabled = false;
+        return;
+    }
 
-        const s = getSettings();
-        const initialCfg = s.barColors?.[barId] ? JSON.parse(JSON.stringify(s.barColors[barId])) : null;
-        
-        let cfg = s.barColors?.[barId];
-        if (!cfg) {
-            const isHP = barId.endsWith(':HP') || barId.includes(':HPBAR') || barId.endsWith(':HP');
-            let color = "#ff0000";
-            const hexMatch = currentBg.match(/#[0-9a-fA-F]{3,8}/);
-            if (hexMatch) color = hexMatch[0];
-            
-            if (isHP) {
-                cfg = { mode: 'dynamic', color: '#00ffaa', color2: '#ff5555' };
-            } else {
-                cfg = { mode: 'solid', color: color };
-            }
-        } else if (typeof cfg === 'string') {
-            cfg = { mode: 'solid', color: cfg };
-        }
+    if (settings.customTheme) {
+        themeUndoStack.push(JSON.parse(JSON.stringify(settings.customTheme)));
+        if (themeUndoStack.length > 20) themeUndoStack.shift();
+    }
+    settings.customTheme = vars;
+    settings.trackerTheme = 'rt-theme-custom';
+    saveSettings();
+    applyCustomTheme(vars);
 
-        const applyLive = () => {
-            const ss = getSettings();
-            if (!ss.barColors) ss.barColors = {};
-            ss.barColors[barId] = { ...cfg };
+    document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+        p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+    });
+
+    const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+    if (sel) sel.value = 'rt-theme-custom';
+
+    setStatus(isIteration ? '✅ Theme refined!' : '✅ Theme generated!');
+    if (generateBtn) generateBtn.disabled = false;
+    if (iterateBtn) iterateBtn.disabled = false;
+    toastr['success'](isIteration ? 'Theme refined successfully!' : 'New theme generated and applied!', 'Theme Wizard');
+    refreshSavedThemesList();
+}
+
+function refreshSavedThemesList() {
+    const settings = getSettings();
+    const container = document.getElementById('rpg_tracker_saved_themes_container');
+    const list = document.getElementById('rpg_tracker_saved_themes_list');
+    if (!container || !list) return;
+
+    const entries = Object.entries(settings.savedThemes || {});
+    if (entries.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+    list.innerHTML = '';
+
+    entries.forEach(([name, vars]) => {
+        const row = document.createElement('div');
+        row.className = 'flex-container alignitemscenter gap-1';
+        row.style.background = 'rgba(255,255,255,0.05)';
+        row.style.padding = '4px 8px';
+        row.style.borderRadius = '4px';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = name;
+        nameSpan.style.flex = '1';
+        nameSpan.style.fontSize = '0.85em';
+        nameSpan.style.cursor = 'pointer';
+        nameSpan.className = 'interactable';
+        nameSpan.title = 'Click to load this theme';
+        nameSpan.addEventListener('click', () => {
+            settings.customTheme = JSON.parse(JSON.stringify(vars));
+            settings.trackerTheme = 'rt-theme-custom';
             saveSettings();
-            refreshRenderedView();
-        };
+            applyCustomTheme(settings.customTheme);
 
-        const popup = document.createElement('div');
-        popup.id = 'rt-recolor-popup';
-        popup.style.cssText = `
+            // Update UI
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_theme_select'));
+            if (sel) sel.value = 'rt-theme-custom';
+            document.querySelectorAll('.rpg-tracker-panel').forEach(p => {
+                p.className = p.className.replace(/rt-theme-\S+/g, '').trim() + ' rt-theme-custom';
+            });
+
+            const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.style.color = 'inherit';
+                statusEl.textContent = `⚡ Loaded library theme: ${name}`;
+            }
+        });
+
+        const delBtn = document.createElement('i');
+        delBtn.className = 'fa-solid fa-trash-can interactable';
+        delBtn.style.fontSize = '0.8em';
+        delBtn.style.opacity = '0.5';
+        delBtn.title = 'Delete theme';
+        delBtn.addEventListener('click', () => {
+            if (confirm(`Are you sure you want to delete the theme "${name}"?`)) {
+                delete settings.savedThemes[name];
+                saveSettings();
+                refreshSavedThemesList();
+                toastr['info'](`Deleted theme: ${name}`, 'Theme Library');
+            }
+        });
+
+        row.appendChild(nameSpan);
+        row.appendChild(delBtn);
+        list.appendChild(row);
+    });
+}
+
+function handleRecolor(barId, currentBg, targetEl) {
+    if (!barId) return;
+
+    document.getElementById('rt-recolor-popup')?.remove();
+
+    const s = getSettings();
+    const initialCfg = s.barColors?.[barId] ? JSON.parse(JSON.stringify(s.barColors[barId])) : null;
+
+    let cfg = s.barColors?.[barId];
+    if (!cfg) {
+        const isHP = barId.endsWith(':HP') || barId.includes(':HPBAR') || barId.endsWith(':HP');
+        let color = "#ff0000";
+        const hexMatch = currentBg.match(/#[0-9a-fA-F]{3,8}/);
+        if (hexMatch) color = hexMatch[0];
+
+        if (isHP) {
+            cfg = { mode: 'dynamic', color: '#00ffaa', color2: '#ff5555' };
+        } else {
+            cfg = { mode: 'solid', color: color };
+        }
+    } else if (typeof cfg === 'string') {
+        cfg = { mode: 'solid', color: cfg };
+    }
+
+    const applyLive = () => {
+        const ss = getSettings();
+        if (!ss.barColors) ss.barColors = {};
+        ss.barColors[barId] = { ...cfg };
+        saveSettings();
+        refreshRenderedView();
+    };
+
+    const popup = document.createElement('div');
+    popup.id = 'rt-recolor-popup';
+    popup.style.cssText = `
             position: fixed; z-index: 999999; background: #252535; border: 1px solid rgba(255,255,255,0.3);
             border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.75);
             backdrop-filter: blur(16px); color: #ffffff !important; font-family: sans-serif; width: 240px;
         `;
 
-        const renderContent = () => {
-            popup.innerHTML = `
+    const renderContent = () => {
+        popup.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
                     <div style="font-size:0.85em; font-weight:bold; opacity:0.8; letter-spacing:0.05em; text-transform:uppercase;">Recolor Bar</div>
                     
                     <div style="display:flex; background:rgba(0,0,0,0.3); border-radius:6px; padding:2px;">
-                        <button class="mode-btn" data-mode="solid" style="flex:1; border:none; background:${cfg.mode==='solid'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Solid</button>
-                        <button class="mode-btn" data-mode="gradient" style="flex:1; border:none; background:${cfg.mode==='gradient'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Gradient</button>
-                        <button class="mode-btn" data-mode="dynamic" style="flex:1; border:none; background:${cfg.mode==='dynamic'?'rgba(255,255,255,0.15)':'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Dynamic</button>
+                        <button class="mode-btn" data-mode="solid" style="flex:1; border:none; background:${cfg.mode === 'solid' ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Solid</button>
+                        <button class="mode-btn" data-mode="gradient" style="flex:1; border:none; background:${cfg.mode === 'gradient' ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Gradient</button>
+                        <button class="mode-btn" data-mode="dynamic" style="flex:1; border:none; background:${cfg.mode === 'dynamic' ? 'rgba(255,255,255,0.15)' : 'transparent'}; color:white; font-size:0.75em; padding:4px; border-radius:4px; cursor:pointer;">Dynamic</button>
                     </div>
 
                     <div id="recolor-controls" style="display:flex; align-items:center; gap:10px; min-height:40px;">
@@ -1255,117 +1290,117 @@ Rules:
                 </div>
             `;
 
-            popup.querySelectorAll('.mode-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    cfg.mode = /** @type {HTMLElement} */ (btn).dataset.mode;
-                    if (cfg.mode === 'gradient' && !cfg.color2) cfg.color2 = cfg.color;
-                    applyLive();
-                    renderContent();
-                });
-            });
-
-            const c1 = popup.querySelector('#color1');
-            const c2 = popup.querySelector('#color2');
-            if (c1) c1.addEventListener('input', (e) => { cfg.color = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
-            if (c2) c2.addEventListener('input', (e) => { cfg.color2 = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
-
-            popup.querySelector('#recolor-ok').addEventListener('click', () => {
+        popup.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                cfg.mode = /** @type {HTMLElement} */ (btn).dataset.mode;
+                if (cfg.mode === 'gradient' && !cfg.color2) cfg.color2 = cfg.color;
                 applyLive();
-                popup.remove();
+                renderContent();
             });
+        });
 
-            popup.querySelector('#recolor-cancel').addEventListener('click', () => {
-                const ss = getSettings();
-                if (initialCfg) ss.barColors[barId] = initialCfg;
-                else delete ss.barColors[barId];
-                saveSettings();
-                refreshRenderedView();
-                popup.remove();
-            });
+        const c1 = popup.querySelector('#color1');
+        const c2 = popup.querySelector('#color2');
+        if (c1) c1.addEventListener('input', (e) => { cfg.color = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
+        if (c2) c2.addEventListener('input', (e) => { cfg.color2 = /** @type {HTMLInputElement} */ (e.target).value; applyLive(); });
 
-            popup.querySelector('#recolor-reset').addEventListener('click', () => {
-                const ss = getSettings();
-                if (ss.barColors) delete ss.barColors[barId];
-                saveSettings();
-                refreshRenderedView();
-                popup.remove();
-            });
-        };
+        popup.querySelector('#recolor-ok').addEventListener('click', () => {
+            applyLive();
+            popup.remove();
+        });
 
-        renderContent();
-        document.body.appendChild(popup);
-        
-        const rect = targetEl.getBoundingClientRect();
-        let left = rect.left + rect.width / 2 - 120;
-        let top = rect.top - popup.offsetHeight - 12;
-        left = Math.max(8, Math.min(left, window.innerWidth - 248));
-        if (top < 8) top = rect.bottom + 12;
-        popup.style.left = left + 'px';
-        popup.style.top = top + 'px';
+        popup.querySelector('#recolor-cancel').addEventListener('click', () => {
+            const ss = getSettings();
+            if (initialCfg) ss.barColors[barId] = initialCfg;
+            else delete ss.barColors[barId];
+            saveSettings();
+            refreshRenderedView();
+            popup.remove();
+        });
 
-        const onOutside = (e) => {
-            if (!popup.contains(e.target)) {
-                popup.remove();
-                document.removeEventListener('mousedown', onOutside);
-            }
-        };
+        popup.querySelector('#recolor-reset').addEventListener('click', () => {
+            const ss = getSettings();
+            if (ss.barColors) delete ss.barColors[barId];
+            saveSettings();
+            refreshRenderedView();
+            popup.remove();
+        });
+    };
 
-        setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+    renderContent();
+    document.body.appendChild(popup);
+
+    const rect = targetEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - 120;
+    let top = rect.top - popup.offsetHeight - 12;
+    left = Math.max(8, Math.min(left, window.innerWidth - 248));
+    if (top < 8) top = rect.bottom + 12;
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+
+    const onOutside = (e) => {
+        if (!popup.contains(e.target)) {
+            popup.remove();
+            document.removeEventListener('mousedown', onOutside);
+        }
+    };
+
+    setTimeout(() => document.addEventListener('mousedown', onOutside), 50);
+}
+
+function handleCategorySettings(tag, targetEl) {
+    const existing = document.getElementById('rt-cat-settings-popup');
+    if (existing) {
+        const oldTag = existing.getAttribute('data-tag');
+        existing.remove();
+        if (oldTag === tag) return;
     }
-
-    function handleCategorySettings(tag, targetEl) {
-        const existing = document.getElementById('rt-cat-settings-popup');
-        if (existing) {
-            const oldTag = existing.getAttribute('data-tag');
-            existing.remove();
-            if (oldTag === tag) return;
-        }
-        const s = getSettings();
-        if (!s.categoryRenderOptions) s.categoryRenderOptions = {};
-        if (!s.categoryRenderOptions[tag]) {
-            const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
-            s.categoryRenderOptions[tag] = {
-                fontSize: (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13,
-                italic: false,
-                bold: false,
-                bullets: !noBullets,
-                bulletStyle: tag === 'INVENTORY' ? '▪' : '•',
-                bulletColor: 'inherit',
-                fontFamily: 'inherit',
-                textColor: 'inherit'
-            };
-        } else if (s.categoryRenderOptions[tag].bullets === undefined) {
-            // Migration for existing settings: default specific categories to no bullets
-            if (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES') {
-                s.categoryRenderOptions[tag].bullets = false;
-            } else {
-                s.categoryRenderOptions[tag].bullets = true;
-            }
-        }
-        const cfg = s.categoryRenderOptions[tag];
-        const initialCfg = JSON.stringify(cfg);
-
-        let applyTimeout = null;
-        const applyLive = () => {
-            if (applyTimeout) clearTimeout(applyTimeout);
-            applyTimeout = setTimeout(() => {
-                saveSettings();
-                refreshRenderedView();
-            }, 50);
+    const s = getSettings();
+    if (!s.categoryRenderOptions) s.categoryRenderOptions = {};
+    if (!s.categoryRenderOptions[tag]) {
+        const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
+        s.categoryRenderOptions[tag] = {
+            fontSize: (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13,
+            italic: false,
+            bold: false,
+            bullets: !noBullets,
+            bulletStyle: tag === 'INVENTORY' ? '▪' : '•',
+            bulletColor: 'inherit',
+            fontFamily: 'inherit',
+            textColor: 'inherit'
         };
+    } else if (s.categoryRenderOptions[tag].bullets === undefined) {
+        // Migration for existing settings: default specific categories to no bullets
+        if (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES') {
+            s.categoryRenderOptions[tag].bullets = false;
+        } else {
+            s.categoryRenderOptions[tag].bullets = true;
+        }
+    }
+    const cfg = s.categoryRenderOptions[tag];
+    const initialCfg = JSON.stringify(cfg);
 
-        const popup = document.createElement('div');
-        popup.id = 'rt-cat-settings-popup';
-        popup.setAttribute('data-tag', tag);
-        popup.style.cssText = `
+    let applyTimeout = null;
+    const applyLive = () => {
+        if (applyTimeout) clearTimeout(applyTimeout);
+        applyTimeout = setTimeout(() => {
+            saveSettings();
+            refreshRenderedView();
+        }, 50);
+    };
+
+    const popup = document.createElement('div');
+    popup.id = 'rt-cat-settings-popup';
+    popup.setAttribute('data-tag', tag);
+    popup.style.cssText = `
             position: fixed; z-index: 999999; background: #252535; border: 1px solid rgba(255,255,255,0.3);
             border-radius: 12px; padding: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.75);
             backdrop-filter: blur(16px); color: #ffffff !important; font-family: sans-serif; width: 280px;
         `;
 
-        const renderContent = () => {
-            const symbols = ['•', '○', '●', '▪', '▫', '▶', '➤', '—', '*', '>', '✓', '⚡'];
-            popup.innerHTML = `
+    const renderContent = () => {
+        const symbols = ['•', '○', '●', '▪', '▫', '▶', '➤', '—', '*', '>', '✓', '⚡'];
+        popup.innerHTML = `
                 <div style="display:flex; flex-direction:column; gap:12px;">
                     <div style="font-size:0.85em; font-weight:bold; opacity:0.8; letter-spacing:0.05em; text-transform:uppercase;">${tag} Settings</div>
                     
@@ -1422,532 +1457,478 @@ Rules:
                 </div>
             `;
 
-            popup.querySelector('#rt-cat-fs').addEventListener('mousedown', (e) => e.stopPropagation());
-            popup.querySelector('#rt-cat-fs').addEventListener('input', (e) => {
+        popup.querySelector('#rt-cat-fs').addEventListener('mousedown', (e) => e.stopPropagation());
+        popup.querySelector('#rt-cat-fs').addEventListener('input', (e) => {
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            const val = parseInt(target.value);
+            cfg.fontSize = val;
+            const display = popup.querySelector('#rt-cat-fs-val');
+            if (display) display.textContent = val.toString() + 'px';
+            applyLive();
+        });
+
+        popup.querySelector('#rt-cat-bold').addEventListener('click', () => {
+            cfg.bold = !cfg.bold;
+            applyLive();
+            renderContent();
+        });
+
+        popup.querySelector('#rt-cat-italic').addEventListener('click', () => {
+            cfg.italic = !cfg.italic;
+            applyLive();
+            renderContent();
+        });
+
+        const bulletsBtn = popup.querySelector('#rt-cat-bullets');
+        if (bulletsBtn) {
+            bulletsBtn.addEventListener('click', () => {
+                cfg.bullets = !cfg.bullets;
+                applyLive();
+                renderContent();
+            });
+        }
+
+        popup.querySelectorAll('.symbol-btn').forEach(btn => {
+            const el = /** @type {HTMLElement} */ (btn);
+            el.addEventListener('click', () => {
+                cfg.bulletStyle = el.dataset.symbol;
+                applyLive();
+                renderContent();
+            });
+        });
+
+        const colorInp = popup.querySelector('#rt-cat-bullet-color');
+        if (colorInp) {
+            colorInp.addEventListener('mousedown', (e) => e.stopPropagation());
+            colorInp.addEventListener('input', (e) => {
                 const target = /** @type {HTMLInputElement} */ (e.target);
-                const val = parseInt(target.value);
-                cfg.fontSize = val;
-                const display = popup.querySelector('#rt-cat-fs-val');
-                if (display) display.textContent = val.toString() + 'px';
+                cfg.bulletColor = target.value;
                 applyLive();
             });
+        }
 
-            popup.querySelector('#rt-cat-bold').addEventListener('click', () => {
-                cfg.bold = !cfg.bold;
-                applyLive();
-                renderContent();
-            });
+        popup.querySelector('#rt-cat-family').addEventListener('change', (e) => {
+            const target = /** @type {HTMLSelectElement} */ (e.target);
+            cfg.fontFamily = target.value;
+            applyLive();
+        });
 
-            popup.querySelector('#rt-cat-italic').addEventListener('click', () => {
-                cfg.italic = !cfg.italic;
-                applyLive();
-                renderContent();
-            });
-
-            const bulletsBtn = popup.querySelector('#rt-cat-bullets');
-            if (bulletsBtn) {
-                bulletsBtn.addEventListener('click', () => {
-                    cfg.bullets = !cfg.bullets;
-                    applyLive();
-                    renderContent();
-                });
-            }
-
-            popup.querySelectorAll('.symbol-btn').forEach(btn => {
-                const el = /** @type {HTMLElement} */ (btn);
-                el.addEventListener('click', () => {
-                    cfg.bulletStyle = el.dataset.symbol;
-                    applyLive();
-                    renderContent();
-                });
-            });
-
-            const colorInp = popup.querySelector('#rt-cat-bullet-color');
-            if (colorInp) {
-                colorInp.addEventListener('mousedown', (e) => e.stopPropagation());
-                colorInp.addEventListener('input', (e) => {
-                    const target = /** @type {HTMLInputElement} */ (e.target);
-                    cfg.bulletColor = target.value;
-                    applyLive();
-                });
-            }
-
-            popup.querySelector('#rt-cat-family').addEventListener('change', (e) => {
-                const target = /** @type {HTMLSelectElement} */ (e.target);
-                cfg.fontFamily = target.value;
+        const textColorInp = popup.querySelector('#rt-cat-text-color');
+        if (textColorInp) {
+            textColorInp.addEventListener('mousedown', (e) => e.stopPropagation());
+            textColorInp.addEventListener('input', (e) => {
+                const target = /** @type {HTMLInputElement} */ (e.target);
+                cfg.textColor = target.value;
                 applyLive();
             });
+        }
 
-            const textColorInp = popup.querySelector('#rt-cat-text-color');
-            if (textColorInp) {
-                textColorInp.addEventListener('mousedown', (e) => e.stopPropagation());
-                textColorInp.addEventListener('input', (e) => {
-                    const target = /** @type {HTMLInputElement} */ (e.target);
-                    cfg.textColor = target.value;
-                    applyLive();
-                });
-            }
+        popup.querySelector('#rt-cat-color-reset').addEventListener('click', () => {
+            cfg.textColor = 'inherit';
+            applyLive();
+            renderContent();
+        });
 
-            popup.querySelector('#rt-cat-color-reset').addEventListener('click', () => {
-                cfg.textColor = 'inherit';
-                applyLive();
-                renderContent();
-            });
+        popup.querySelector('#rt-cat-ok').addEventListener('click', () => {
+            popup.remove();
+        });
 
-            popup.querySelector('#rt-cat-ok').addEventListener('click', () => {
-                popup.remove();
-            });
+        popup.querySelector('#rt-cat-reset').addEventListener('click', () => {
+            const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
+            cfg.fontSize = (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13;
+            cfg.italic = false;
+            cfg.bold = false;
+            cfg.bullets = !noBullets;
+            cfg.bulletStyle = tag === 'INVENTORY' ? '▪' : '•';
+            cfg.bulletColor = 'inherit';
+            cfg.fontFamily = 'inherit';
+            cfg.textColor = 'inherit';
+            applyLive();
+            renderContent();
+        });
+    };
 
-            popup.querySelector('#rt-cat-reset').addEventListener('click', () => {
-                const noBullets = (tag === 'TIME' || tag === 'XP' || tag === 'QUESTS' || tag === 'SPELLS' || tag === 'CHARACTER' || tag === 'PARTY' || tag === 'COMBAT' || tag === 'ABILITIES');
-                cfg.fontSize = (tag === 'TIME' || tag === 'INVENTORY') ? 12 : 13;
-                cfg.italic = false;
-                cfg.bold = false;
-                cfg.bullets = !noBullets;
-                cfg.bulletStyle = tag === 'INVENTORY' ? '▪' : '•';
-                cfg.bulletColor = 'inherit';
-                cfg.fontFamily = 'inherit';
-                cfg.textColor = 'inherit';
-                applyLive();
-                renderContent();
-            });
-        };
+    renderContent();
+    document.body.appendChild(popup);
 
-        renderContent();
-        document.body.appendChild(popup);
+    const rect = targetEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - 140;
+    let top = rect.bottom + 10;
+    left = Math.max(8, Math.min(left, window.innerWidth - 288));
+    if (top + 300 > window.innerHeight) top = rect.top - 300;
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
 
-        const rect = targetEl.getBoundingClientRect();
-        let left = rect.left + rect.width / 2 - 140;
-        let top = rect.bottom + 10;
-        left = Math.max(8, Math.min(left, window.innerWidth - 288));
-        if (top + 300 > window.innerHeight) top = rect.top - 300;
-        popup.style.left = left + 'px';
-        popup.style.top = top + 'px';
+    const onOutside = (e) => {
+        if (!popup.contains(e.target) && !targetEl.contains(e.target)) {
+            popup.remove();
+            document.removeEventListener('mouseup', onOutside);
+        }
+    };
+    setTimeout(() => document.addEventListener('mouseup', onOutside), 50);
+}
 
-        const onOutside = (e) => {
-            if (!popup.contains(e.target) && !targetEl.contains(e.target)) {
-                popup.remove();
-                document.removeEventListener('mouseup', onOutside);
-            }
-        };
-        setTimeout(() => document.addEventListener('mouseup', onOutside), 50);
+/**
+ * Injects/updates the <style id="rt-custom-theme-style"> tag in <head>
+ * to set the --rt-custom-* variables on :root.
+ * @param {Record<string,string>|null} vars
+ */
+function applyCustomTheme(vars) {
+    let tag = document.getElementById('rt-custom-theme-style');
+    if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'rt-custom-theme-style';
+        document.head.appendChild(tag);
     }
 
-    /**
-     * Injects/updates the <style id="rt-custom-theme-style"> tag in <head>
-     * to set the --rt-custom-* variables on :root.
-     * @param {Record<string,string>|null} vars
-     */
-    function applyCustomTheme(vars) {
-        let tag = document.getElementById('rt-custom-theme-style');
-        if (!tag) {
-            tag = document.createElement('style');
-            tag.id = 'rt-custom-theme-style';
-            document.head.appendChild(tag);
-        }
-
-        if (!vars) {
-            tag.textContent = '';
-            return;
-        }
-
-        let css = ':root {\n';
-        for (const [key, val] of Object.entries(vars)) {
-            if (val) css += `  ${key}: ${val} !important;\n`;
-        }
-        css += '}';
-        tag.textContent = css;
+    if (!vars) {
+        tag.textContent = '';
+        return;
     }
 
-    /**
-     * Syncs the 🔗/🔓 icon in the panel header and the settings checkbox
-     * to reflect the current chatLinkEnabled state.
-     */
-    function updateChatLinkUI() {
-        const s = getSettings();
-        const on = s.chatLinkEnabled;
+    let css = ':root {\n';
+    for (const [key, val] of Object.entries(vars)) {
+        if (val) css += `  ${key}: ${val} !important;\n`;
+    }
+    css += '}';
+    tag.textContent = css;
+}
 
-        const btn = document.getElementById('rpg-tracker-chat-link-btn');
-        if (btn) {
-            btn.textContent = on ? '🔗' : '🔓';
-            btn.title = on
-                ? `Chat Link ON — state is bound to the active chat\n(Click to unlock / use global state)`
-                : `Chat Link OFF — using global state\n(Click to re-lock to current chat)`;
-        }
+/**
+ * Syncs the 🔗/🔓 icon in the panel header and the settings checkbox
+ * to reflect the current chatLinkEnabled state.
+ */
+function updateChatLinkUI() {
+    const s = getSettings();
+    const on = s.chatLinkEnabled;
 
-        const cb = document.getElementById('rpg_tracker_chat_link_enabled');
-        if (cb instanceof HTMLInputElement) cb.checked = on;
+    const btn = document.getElementById('rpg-tracker-chat-link-btn');
+    if (btn) {
+        btn.textContent = on ? '🔗' : '🔓';
+        btn.title = on
+            ? `Chat Link ON — state is bound to the active chat\n(Click to unlock / use global state)`
+            : `Chat Link OFF — using global state\n(Click to re-lock to current chat)`;
     }
 
-    /**
-     * Update the visual status of the panel (active, running, paused, disabled)
-     */
-    function updatePanelStatus() {
-        const settings = getSettings();
-        const panel = document.getElementById('rpg-tracker-panel');
-        const indicator = document.getElementById('rpg-tracker-status');
-        const pauseBtn = document.getElementById('rpg-tracker-pause-btn');
-        const pauseBanner = document.getElementById('rpg-tracker-pause-banner');
-        const enableBtn = /** @type {HTMLElement|null} */ (document.getElementById('rpg-tracker-enable-btn'));
+    const cb = document.getElementById('rpg_tracker_chat_link_enabled');
+    if (cb instanceof HTMLInputElement) cb.checked = on;
+}
 
-        if (!panel || !indicator || !pauseBtn) return;
+/**
+ * Update the visual status of the panel (active, running, paused, disabled)
+ */
+function updatePanelStatus() {
+    const settings = getSettings();
+    const panel = document.getElementById('rpg-tracker-panel');
+    const indicator = document.getElementById('rpg-tracker-status');
+    const pauseBtn = document.getElementById('rpg-tracker-pause-btn');
+    const pauseBanner = document.getElementById('rpg-tracker-pause-banner');
+    const enableBtn = /** @type {HTMLElement|null} */ (document.getElementById('rpg-tracker-enable-btn'));
 
-        // Keep in-panel power button in sync
-        if (enableBtn) {
-            enableBtn.style.opacity = settings.enabled ? '' : '0.35';
-            enableBtn.title = settings.enabled ? 'Disable RPG Tracker' : 'Enable RPG Tracker';
-        }
-        // Keep settings sidebar checkbox in sync
-        const sidebarEnableCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_enabled'));
-        if (sidebarEnableCheck) sidebarEnableCheck.checked = !!settings.enabled;
+    if (!panel || !indicator || !pauseBtn) return;
 
-        if (!settings.enabled) {
-            // Fully disabled — transparent panel, no banner
-            panel.classList.add('is-disabled');
-            panel.classList.remove('is-paused');
-            indicator.classList.remove('active');
-            // Always keep the header clickable so the user can re-enable (belt-and-suspenders over the CSS rule)
-            const header = panel.querySelector('.rpg-tracker-header');
-            if (header) /** @type {HTMLElement} */ (header).style.pointerEvents = 'auto';
-            pauseBtn.textContent = '▶';
-            pauseBtn.title = 'Resume Tracker';
-            if (pauseBanner) pauseBanner.textContent = '';
-        } else if (settings.paused) {
-            // Paused — visible panel, pause banner shown
-            panel.classList.remove('is-disabled');
-            panel.classList.add('is-paused');
-            indicator.classList.add('active');
-            pauseBtn.textContent = '▶';
-            pauseBtn.title = 'Resume Tracker';
-            if (pauseBanner) pauseBanner.textContent = 'TRACKER UPDATES PAUSED';
-        } else {
-            // Active
-            panel.classList.remove('is-disabled');
-            panel.classList.remove('is-paused');
-            indicator.classList.add('active');
-            pauseBtn.textContent = '⏸';
-            pauseBtn.title = 'Pause Tracker';
-            if (pauseBanner) pauseBanner.textContent = '';
-        }
+    // Keep in-panel power button in sync
+    if (enableBtn) {
+        enableBtn.style.opacity = settings.enabled ? '' : '0.35';
+        enableBtn.title = settings.enabled ? 'Disable RPG Tracker' : 'Enable RPG Tracker';
+    }
+    // Keep settings sidebar checkbox in sync
+    const sidebarEnableCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_enabled'));
+    if (sidebarEnableCheck) sidebarEnableCheck.checked = !!settings.enabled;
 
-        if (_stateModelRunning) {
-            indicator.classList.add('running');
-        } else {
-            indicator.classList.remove('running');
-        }
+    if (!settings.enabled) {
+        // Fully disabled — transparent panel, no banner
+        panel.classList.add('is-disabled');
+        panel.classList.remove('is-paused');
+        indicator.classList.remove('active');
+        // Always keep the header clickable so the user can re-enable (belt-and-suspenders over the CSS rule)
+        const header = panel.querySelector('.rpg-tracker-header');
+        if (header) /** @type {HTMLElement} */ (header).style.pointerEvents = 'auto';
+        pauseBtn.textContent = '▶';
+        pauseBtn.title = 'Resume Tracker';
+        if (pauseBanner) pauseBanner.textContent = '';
+    } else if (settings.paused) {
+        // Paused — visible panel, pause banner shown
+        panel.classList.remove('is-disabled');
+        panel.classList.add('is-paused');
+        indicator.classList.add('active');
+        pauseBtn.textContent = '▶';
+        pauseBtn.title = 'Resume Tracker';
+        if (pauseBanner) pauseBanner.textContent = 'TRACKER UPDATES PAUSED';
+    } else {
+        // Active
+        panel.classList.remove('is-disabled');
+        panel.classList.remove('is-paused');
+        indicator.classList.add('active');
+        pauseBtn.textContent = '⏸';
+        pauseBtn.title = 'Pause Tracker';
+        if (pauseBanner) pauseBanner.textContent = '';
     }
 
-    /**
-     * The State Model pass: Extract state changes from the narrative.
-     * @param {string} narrativeOutput The last narrative message to parse.
-     * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
-     */
-    async function runStateModelPass(narrativeOutput, isFullContext = false, overrideLookback = null) {
-        const settings = getSettings();
-        
-        // Deterministic logic: Auto-fail quests past deadline (if not using frustration)
-        checkQuestDeadlines();
+    if (_stateModelRunning) {
+        indicator.classList.add('running');
+    } else {
+        indicator.classList.remove('running');
+    }
+}
 
-        const { generateRaw } = SillyTavern.getContext();
+/**
+ * The State Model pass: Extract state changes from the narrative.
+ * @param {string} narrativeOutput The last narrative message to parse.
+ * @param {boolean} isFullContext Whether to perform a long-horizon audit of the entire chat.
+ */
+async function runStateModelPass(narrativeOutput, isFullContext = false, overrideLookback = null) {
+    const settings = getSettings();
 
-        if (!generateRaw) {
-            console.error("[RPG Tracker] generateRaw not found in context.");
-            return;
-        }
+    // Deterministic logic: Auto-fail quests past deadline (if not using frustration)
+    checkQuestDeadlines();
 
-        try {
-            _stateModelRunning = true;
-            updateStatusIndicator('running');
+    const { generateRaw } = SillyTavern.getContext();
 
-            // Abort previous if any
-            if (_stateController) _stateController.abort();
-            _stateController = new AbortController();
-            const signal = _stateController.signal;
+    if (!generateRaw) {
+        console.error("[RPG Tracker] generateRaw not found in context.");
+        return;
+    }
 
-            const modulesText = buildModulesInstructionText(settings);
+    try {
+        _stateModelRunning = true;
+        updateStatusIndicator('running');
 
-            let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
-            const useFullReview = !isFullContext && !!settings.experimentalFullReviewMode;
-            if (isFullContext) {
-                systemPrompt = systemPrompt
-                    .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
-                    .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
-            } else if (useFullReview) {
-                // Experimental Full Review Mode: rewrite the rules to request complete state output
-                systemPrompt = systemPrompt
-                    .replace(/Determine which sections changed\. Only output sections that actually changed\./gi,
-                        'Review every section against the narrative. Output ALL sections with their current verified state.')
-                    .replace(/Omit unchanged sections entirely\. Do NOT output a section if its contents did not change\./gi,
-                        'Output EVERY section, even if unchanged. Verify each field is accurate and up-to-date.')
-                    .replace(/If there are absolutely NO CHANGES to any section, you MUST output exactly: `NO_CHANGES_DETECTED`/gi,
-                        'Always output the complete state memo. Never output NO_CHANGES_DETECTED in full review mode.')
-                    .replace(/Output ONLY the changed sections \(or NO_CHANGES_DETECTED\)\. No preamble, no explanation, no commentary\./gi,
-                        'Output the COMPLETE state memo for all enabled modules. No preamble, no explanation, no commentary.');
-                if (settings.debugMode) console.log('[RPG Tracker] Full Review Mode active — system prompt rewritten for complete state output.');
+        // Abort previous if any
+        if (_stateController) _stateController.abort();
+        _stateController = new AbortController();
+        const signal = _stateController.signal;
+
+        const modulesText = buildModulesInstructionText(settings);
+
+        let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
+        const useHalfReview = !isFullContext && !!settings.experimentalHalfReviewMode;
+        const useFullReview = !isFullContext && !!settings.experimentalFullReviewMode;
+        if (isFullContext) {
+            systemPrompt = systemPrompt
+                .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
+                .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
+        } else if (useFullReview) {
+            // AGGRESSIVE Full Review Mode: completely rewrite the system prompt to force total state output
+            const enabledModuleTags = [];
+            const moduleMap = { character: 'CHARACTER', party: 'PARTY', combat: 'COMBAT', inventory: 'INVENTORY', abilities: 'ABILITIES', spells: 'SPELLS', time: 'TIME', xp: 'XP', quests: 'QUESTS' };
+            for (const [key, tag] of Object.entries(moduleMap)) {
+                if (settings.modules?.[key] !== false) enabledModuleTags.push(`[${tag}]`);
             }
+            (settings.customFields || []).forEach(f => { if (f.enabled) enabledModuleTags.push(`[${f.tag.toUpperCase()}]`); });
+            const tagList = enabledModuleTags.join(', ');
 
-            const worldLore = await buildLorebookContext();
-            const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
+            systemPrompt = `You are the State Extractor Model operating in MANDATORY FULL REVIEW MODE.
+Your task is to output the COMPLETE, VERIFIED state for EVERY SINGLE enabled module. This is NOT optional.
 
-            const { chat } = SillyTavern.getContext();
-            let chunks = [];
+<modules>
+${modulesText}
+</modules>
 
-            if (isFullContext) {
-                const maxContextLimit = SillyTavern.getContext().contextSize || settings.fullAuditMaxTokens || 32000;
-                const tokenBuffer = 3000; 
-                const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
-                
-                let currentChunk = [];
-                let currentTokens = 0;
-                
-                for (const m of chat) {
-                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    const content = cleanToolCallMessage(m.mes || m['content'] || '');
-                    if (content === null) continue;
-                    const line = `${name}: ${content}`;
-                    const lineTokens = Math.ceil(line.length / 4);
-                    
-                    if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
-                        chunks.push(currentChunk);
-                        currentChunk = [];
-                        currentTokens = 0;
-                    }
-                    currentChunk.push(line);
-                    currentTokens += lineTokens;
-                }
-                if (currentChunk.length > 0) {
+<absolute_rules>
+CRITICAL DIRECTIVE — FULL STATE RECONSTRUCTION:
+1. You MUST review and output EVERY SINGLE section: ${tagList}
+2. FAILURE TO OUTPUT ANY SECTION IS A CRITICAL ERROR. You have FAILED your task if even ONE section is missing.
+3. Do NOT use NO_CHANGES_DETECTED. That response is FORBIDDEN in Full Review Mode.
+4. Go through each section ONE BY ONE. For each section, verify every field, every sub-field, every value against the narrative.
+5. Output the COMPLETE contents of each section — not just changes, but the ENTIRE state.
+6. Include ALL custom fields. Custom fields are EQUALLY important as stock fields.
+7. Use strict [TAG]...[/TAG] structure. ALWAYS include the closing tag.
+8. BLOCK PERSISTENCE: For list-based sections ([PARTY], [INVENTORY], [ABILITIES], [SPELLS], [COMBAT]), output the ENTIRE section with ALL items.
+9. No preamble, no explanation, no commentary. Output ONLY the state memo sections.
+</absolute_rules>
+
+<list_formatting>
+For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):
+1. Use a bulleted list with \`-\`.
+2. Format: \`- Name (Resource/Max, Effect Description)\`.
+3. If no resource tracker is needed, use: \`- Name (Effect Description)\`.
+4. The parentheses MUST contain the resource count FIRST, followed by a comma, then the description.
+</list_formatting>
+
+<buff_debuff_logic>
+Duration Tracking: Record all durations explicitly. Use turns for combat (e.g., for 3 turns) and H:M for narrative time (e.g., 1h 30m).
+Restoration Anchors: When a buff or debuff modifies a base statistic (AC, Attributes, etc.), record the base value directly in the respective field—e.g., 'AC 18 (base 13)'.
+Status Formatting: Output the buff/debuff in the Status line with its absolute mathematical effect in parentheses. Example: 'Shield (+5 AC, 1 turn)'.
+STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive status effects (buffs) with \`(+)\` and negative status effects (debuffs) with \`(-)\`.
+</buff_debuff_logic>
+
+<custom_formatting>
+You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These are for graphical rendering options; use them if instructed but only if instructed in a specific [MODULE].
+</custom_formatting>`;
+            if (settings.debugMode) console.log('[RPG Tracker] AGGRESSIVE Full Review Mode active — system prompt completely rewritten for mandatory full state output.');
+        } else if (useHalfReview) {
+            // Half Review Mode: regex-based tweaks to request complete state output (medium intensity)
+            systemPrompt = systemPrompt
+                .replace(/Determine which sections changed\. Only output sections that actually changed\./gi,
+                    'Review every section against the narrative. Output ALL sections with their current verified state.')
+                .replace(/Omit unchanged sections entirely\. Do NOT output a section if its contents did not change\./gi,
+                    'Output EVERY section, even if unchanged. Verify each field is accurate and up-to-date.')
+                .replace(/If there are absolutely NO CHANGES to any section, you MUST output exactly: `NO_CHANGES_DETECTED`/gi,
+                    'Always output the complete state memo. Never output NO_CHANGES_DETECTED in half review mode.')
+                .replace(/Output ONLY the changed sections \(or NO_CHANGES_DETECTED\)\. No preamble, no explanation, no commentary\./gi,
+                    'Output the COMPLETE state memo for all enabled modules. No preamble, no explanation, no commentary.');
+            if (settings.debugMode) console.log('[RPG Tracker] Half Review Mode active — system prompt tweaked for complete state output.');
+        }
+
+        const worldLore = await buildLorebookContext();
+        const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
+
+        const { chat } = SillyTavern.getContext();
+        let chunks = [];
+
+        if (isFullContext) {
+            const maxContextLimit = SillyTavern.getContext().contextSize || settings.fullAuditMaxTokens || 32000;
+            const tokenBuffer = 3000;
+            const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
+
+            let currentChunk = [];
+            let currentTokens = 0;
+
+            for (const m of chat) {
+                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                if (content === null) continue;
+                const line = `${name}: ${content}`;
+                const lineTokens = Math.ceil(line.length / 4);
+
+                if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
                     chunks.push(currentChunk);
+                    currentChunk = [];
+                    currentTokens = 0;
                 }
+                currentChunk.push(line);
+                currentTokens += lineTokens;
+            }
+            if (currentChunk.length > 0) {
+                chunks.push(currentChunk);
+            }
+        } else {
+            const N = overrideLookback !== null ? overrideLookback : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
+            const recentChat = chat.slice(-N);
+            const chatLogLines = recentChat.map(m => {
+                const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                if (content === null) return null;
+                return `${name}: ${content}`;
+            }).filter(line => line !== null);
+            chunks.push(chatLogLines);
+        }
+
+        let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
+        const historyCount = (settings.trackerHistoryCount || 1) - 1;
+        if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
+            const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse();
+            const historyString = historyToInclude.map((memo, i) => {
+                const offset = -(historyToInclude.length - i);
+                return `## TRACKER STATE ${offset}\n${stripMemoHtml(memo)}`;
+            }).join('\n\n');
+            priorMemoText = historyString + '\n\n' + priorMemoText;
+        }
+
+        // ── Per-chunk commit helper ──
+        // Treats each chunk result as a full "turn": commits to settings, archives history,
+        // updates UI, and saves — so the next chunk sees the committed state.
+        function commitChunkResult(merged, previousMemoSnapshot) {
+            // Flush any quests staged by LogQuest during this generation
+            if (globalThis._rpgPendingQuests && globalThis._rpgPendingQuests.length) {
+                const existingQuests = parseQuestsFromMemo(merged);
+                existingQuests.push(...globalThis._rpgPendingQuests);
+                merged = writeQuestsToMemo(existingQuests, merged);
+                const count = globalThis._rpgPendingQuests.length;
+                globalThis._rpgPendingQuests = [];
+                if (settings.debugMode) console.log(`[RPG Tracker] Flushed ${count} pending quest(s) into merged memo.`);
+            }
+
+            const delta = computeDelta(previousMemoSnapshot, merged);
+
+            // Linear Stone History Logic
+            if (settings.historyIndex !== undefined && settings.historyIndex !== -1) {
+                if (settings.debugMode) console.log(`[RPG Tracker] Splicing history at index ${settings.historyIndex} due to new update.`);
+                settings.memoHistory = settings.memoHistory.slice(settings.historyIndex);
+            }
+            if (settings.memoHistory[0] !== previousMemoSnapshot) {
+                settings.memoHistory.unshift(previousMemoSnapshot);
+            }
+            settings.memoHistory.unshift(merged);
+            if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
+            settings.historyIndex = 0;
+            _historyViewIndex = -1;
+
+            // Persist delta and update panel
+            settings.lastDelta = delta;
+            const deltaPanel = document.getElementById('rpg-tracker-delta-content');
+            if (deltaPanel) deltaPanel.innerHTML = delta;
+
+            // Commit to settings
+            settings.prevMemo2 = settings.prevMemo1;
+            settings.prevMemo1 = previousMemoSnapshot;
+            settings.currentMemo = merged;
+
+            syncQuestsFromMemo(merged);
+            updateUIMemo(merged);
+            syncMemoView();
+            refreshRenderedView();
+            saveSettings();
+
+            if (/LEVEL_UP=true/i.test(merged)) {
+                handleLevelUp();
+            }
+
+            return delta;
+        }
+
+        let lastDelta = '';
+
+        for (let i = 0; i < chunks.length; i++) {
+            if (signal.aborted) break;
+
+            // Snapshot the memo BEFORE this chunk processes, so delta/history is per-chunk
+            const memoBeforeThisChunk = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
+
+            if (isFullContext && chunks.length > 1) {
+                toastr.info(`Running Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "RPG Tracker", { timeOut: 5000 });
+                updateStatusIndicator('running', `Chunk ${i + 1}/${chunks.length}`);
+            }
+
+            const chatLog = chunks[i].join('\n\n');
+            let userPrompt = "";
+
+            if (isFullContext) {
+                // For full audit, always read the LIVE committed memo for the prior
+                userPrompt =
+                    worldLoreSection +
+                    `## PRIOR MEMO\n${stripMemoHtml(settings.currentMemo) || '(empty)'}\n\n` +
+                    `## NARRATIVE HISTORY (Chunk ${i + 1} of ${chunks.length})\n${chatLog}\n\n` +
+                    `## TASK\nAnalyze the narrative chunk provided above. Rebuild the State Memo to ensure every detail is perfectly accurate to this point in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
+                    `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+            } else if (useFullReview) {
+                // AGGRESSIVE Full Review Mode: forceful mandatory full state reconstruction
+                userPrompt =
+                    worldLoreSection +
+                    priorMemoText +
+                    `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
+                    `## MANDATORY FULL STATE RECONSTRUCTION — OUTPUT EVERY SECTION NOW:`;
+            } else if (useHalfReview) {
+                // Half Review Mode: ask the model to review and output the entire state (medium intensity)
+                userPrompt =
+                    worldLoreSection +
+                    priorMemoText +
+                    `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
+                    `## REVIEW AND OUTPUT THE COMPLETE UPDATED STATE:`;
             } else {
-                const N = overrideLookback !== null ? overrideLookback : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
-                const recentChat = chat.slice(-N);
-                const chatLogLines = recentChat.map(m => {
-                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                    const content = cleanToolCallMessage(m.mes || m['content'] || '');
-                    if (content === null) return null;
-                    return `${name}: ${content}`;
-                }).filter(line => line !== null);
-                chunks.push(chatLogLines);
+                userPrompt =
+                    worldLoreSection +
+                    priorMemoText +
+                    `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
+                    `## OUTPUT ONLY CHANGED SECTIONS:`;
             }
-
-            let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
-            const historyCount = (settings.trackerHistoryCount || 1) - 1;
-            if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
-                const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse();
-                const historyString = historyToInclude.map((memo, i) => {
-                    const offset = -(historyToInclude.length - i);
-                    return `## TRACKER STATE ${offset}\n${stripMemoHtml(memo)}`;
-                }).join('\n\n');
-                priorMemoText = historyString + '\n\n' + priorMemoText;
-            }
-
-            // ── Per-chunk commit helper ──
-            // Treats each chunk result as a full "turn": commits to settings, archives history,
-            // updates UI, and saves — so the next chunk sees the committed state.
-            function commitChunkResult(merged, previousMemoSnapshot) {
-                // Flush any quests staged by LogQuest during this generation
-                if (globalThis._rpgPendingQuests && globalThis._rpgPendingQuests.length) {
-                    const existingQuests = parseQuestsFromMemo(merged);
-                    existingQuests.push(...globalThis._rpgPendingQuests);
-                    merged = writeQuestsToMemo(existingQuests, merged);
-                    const count = globalThis._rpgPendingQuests.length;
-                    globalThis._rpgPendingQuests = [];
-                    if (settings.debugMode) console.log(`[RPG Tracker] Flushed ${count} pending quest(s) into merged memo.`);
-                }
-
-                const delta = computeDelta(previousMemoSnapshot, merged);
-
-                // Linear Stone History Logic
-                if (settings.historyIndex !== undefined && settings.historyIndex !== -1) {
-                    if (settings.debugMode) console.log(`[RPG Tracker] Splicing history at index ${settings.historyIndex} due to new update.`);
-                    settings.memoHistory = settings.memoHistory.slice(settings.historyIndex);
-                }
-                if (settings.memoHistory[0] !== previousMemoSnapshot) {
-                    settings.memoHistory.unshift(previousMemoSnapshot);
-                }
-                settings.memoHistory.unshift(merged);
-                if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
-                settings.historyIndex = 0;
-                _historyViewIndex = -1;
-
-                // Persist delta and update panel
-                settings.lastDelta = delta;
-                const deltaPanel = document.getElementById('rpg-tracker-delta-content');
-                if (deltaPanel) deltaPanel.innerHTML = delta;
-
-                // Commit to settings
-                settings.prevMemo2 = settings.prevMemo1;
-                settings.prevMemo1 = previousMemoSnapshot;
-                settings.currentMemo = merged;
-
-                syncQuestsFromMemo(merged);
-                updateUIMemo(merged);
-                syncMemoView();
-                refreshRenderedView();
-                saveSettings();
-
-                if (/LEVEL_UP=true/i.test(merged)) {
-                    handleLevelUp();
-                }
-
-                return delta;
-            }
-
-            let lastDelta = '';
-
-            for (let i = 0; i < chunks.length; i++) {
-                if (signal.aborted) break;
-
-                // Snapshot the memo BEFORE this chunk processes, so delta/history is per-chunk
-                const memoBeforeThisChunk = settings.currentMemo.replace(/<\/?memo>/gi, '').trim();
-
-                if (isFullContext && chunks.length > 1) {
-                    toastr.info(`Running Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "RPG Tracker", { timeOut: 5000 });
-                    updateStatusIndicator('running', `Chunk ${i + 1}/${chunks.length}`);
-                }
-
-                const chatLog = chunks[i].join('\n\n');
-                let userPrompt = "";
-
-                if (isFullContext) {
-                    // For full audit, always read the LIVE committed memo for the prior
-                    userPrompt =
-                        worldLoreSection +
-                        `## PRIOR MEMO\n${stripMemoHtml(settings.currentMemo) || '(empty)'}\n\n` +
-                        `## NARRATIVE HISTORY (Chunk ${i + 1} of ${chunks.length})\n${chatLog}\n\n` +
-                        `## TASK\nAnalyze the narrative chunk provided above. Rebuild the State Memo to ensure every detail is perfectly accurate to this point in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
-                        `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
-                } else if (useFullReview) {
-                    // Experimental Full Review Mode: ask the model to review and output the entire state
-                    userPrompt =
-                        worldLoreSection +
-                        priorMemoText +
-                        `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
-                        `## REVIEW AND OUTPUT THE COMPLETE UPDATED STATE:`;
-                } else {
-                    userPrompt =
-                        worldLoreSection +
-                        priorMemoText +
-                        `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
-                        `## OUTPUT ONLY CHANGED SECTIONS:`;
-                }
-
-                const result = await sendStateRequest(settings, systemPrompt, userPrompt);
-
-                if (result && typeof result === 'string') {
-                    if (settings.debugMode) console.log(`[RPG Tracker] Raw Result (Chunk ${i + 1}):`, result);
-
-                    let cleanedOutput = result;
-                    const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
-                    if (memoBlocks.length > 0) {
-                        cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
-                    } else {
-                        cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
-                    }
-
-                    const merged = mergeMemo(memoBeforeThisChunk, cleanedOutput);
-
-                    if (settings.debugMode) {
-                        console.log(`[RPG Tracker] Memo ${merged !== memoBeforeThisChunk ? 'updated' : 'unchanged'} after chunk ${i + 1}.`);
-                    }
-
-                    // ── FULL COMMIT: treat this chunk as a completed turn ──
-                    lastDelta = commitChunkResult(merged, memoBeforeThisChunk);
-
-                    if (settings.debugMode) console.log(`[RPG Tracker] Chunk ${i + 1}/${chunks.length} committed.`);
-                }
-            }
-
-            if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
-            return lastDelta;
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                if (settings.debugMode) console.log("[RPG Tracker] State Model pass aborted by user.");
-                return;
-            }
-            console.error("[RPG Tracker] State Model pass failed:", error);
-        } finally {
-            _stateModelRunning = false;
-            _stateController = null;
-            updateStatusIndicator('active');
-        }
-    }
-
-    // ── Phase-5 bridge: exposes runStateModelPass for narrative-hooks.js/onGenerationEnded ──
-    // Removed when memo-processor.js is created in Phase 5.
-    globalThis._rpgRunStateModelPass = runStateModelPass;
-    globalThis._rpgStateModelRunning = () => _stateModelRunning;
-    globalThis._rpgCurrentChatId = () => _currentChatId;
-    // Expose live prefix derivation for any module that needs the current prefix.
-    globalThis._rpgGetCurrentPrefix = () => getEffectiveRouterCampaignPrefix(SillyTavern.getContext().chatId || '');
-
-    function handleLevelUp() {
-        const { sendSystemMessage } = SillyTavern.getContext();
-        toastr['success']("Level Up Detected! System prompt injected.", "RPG Tracker");
-
-        if (sendSystemMessage) {
-            sendSystemMessage('generic', "SYSTEM: Level Up Detected! The character has gained a level. Acknowledge this immediately and prompt the user to make their level-up choices or grant them their logical boons.");
-        }
-    }
-
-    /**
-     * Send a direct instruction to the State Model bypassing the narrative pipeline.
-     * Used for initial character setup and manual corrections.
-     */
-    async function sendDirectPrompt(message) {
-        if (_stateModelRunning) {
-            toastr['info']('State Model is already running. Please wait.', 'RPG Tracker');
-            return;
-        }
-
-        const settings = getSettings();
-        const { generateRaw } = SillyTavern.getContext();
-        if (!generateRaw) return;
-
-        try {
-            _stateModelRunning = true;
-            updateStatusIndicator('running');
-
-            // Abort previous if any
-            if (_stateController) _stateController.abort();
-            _stateController = new AbortController();
-            const signal = _stateController.signal;
-            const worldLore = await buildLorebookContext();
-            const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
-
-            const modulesText = buildModulesInstructionText(settings);
-            const systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
-
-            const sanitizedCurrent = stripMemoHtml(settings.currentMemo.replace(/<\/?memo>/gi, '').trim());
-
-            const { chat } = SillyTavern.getContext();
-            const N = settings.directPromptContext !== undefined ? settings.directPromptContext : 5;
-            let chatLog = '';
-            if (N > 0 && chat && chat.length > 0) {
-                const recentChat = chat.slice(-N);
-                chatLog = `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n` +
-                    recentChat
-                        .map(m => {
-                            const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                            // Returns null for tool-call messages — excluded from state model context
-                            const content = cleanToolCallMessage(m.mes || m['content'] || '');
-                            if (content === null) return null;
-                            return `${name}: ${content}`;
-                        })
-                        .filter(line => line !== null)
-                        .join('\n\n') + '\n\n';
-            }
-
-            const userPrompt =
-                worldLoreSection +
-                chatLog +
-                `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
-                `## USER INSTRUCTION\n${message}\n\n` +
-                `## OUTPUT ONLY CHANGED OR NEW SECTIONS:`;
 
             const result = await sendStateRequest(settings, systemPrompt, userPrompt);
 
             if (result && typeof result === 'string') {
+                if (settings.debugMode) console.log(`[RPG Tracker] Raw Result (Chunk ${i + 1}):`, result);
+
                 let cleanedOutput = result;
                 const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
                 if (memoBlocks.length > 0) {
@@ -1956,673 +1937,782 @@ Rules:
                     cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
                 }
 
-                const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+                const merged = mergeMemo(memoBeforeThisChunk, cleanedOutput);
 
-                if (merged !== sanitizedCurrent) {
-                    const delta = computeDelta(sanitizedCurrent, merged);
-                    settings.lastDelta = delta;
-
-                    // Linear Stone History Logic
-                    if (settings.historyIndex !== undefined && settings.historyIndex !== -1) {
-                        settings.memoHistory = settings.memoHistory.slice(settings.historyIndex);
-                    }
-                    if (settings.memoHistory[0] !== sanitizedCurrent) {
-                        settings.memoHistory.unshift(sanitizedCurrent);
-                    }
-                    settings.memoHistory.unshift(merged);
-                    if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
-                    settings.historyIndex = 0;
-                    _historyViewIndex = -1;
-
-                    const dp = document.getElementById('rpg-tracker-delta-content');
-                    if (dp) dp.innerHTML = delta;
-
-                    settings.prevMemo2 = settings.prevMemo1;
-                    settings.prevMemo1 = sanitizedCurrent;
-                    settings.currentMemo = merged;
-
-                    updateUIMemo(merged);
-                    syncMemoView();
-                    refreshRenderedView();
-                    saveSettings();
-                    toastr['success']('Tracker updated.', 'RPG Tracker');
-                } else {
-                    toastr['info']('No changes were made.', 'RPG Tracker');
+                if (settings.debugMode) {
+                    console.log(`[RPG Tracker] Memo ${merged !== memoBeforeThisChunk ? 'updated' : 'unchanged'} after chunk ${i + 1}.`);
                 }
+
+                // ── FULL COMMIT: treat this chunk as a completed turn ──
+                lastDelta = commitChunkResult(merged, memoBeforeThisChunk);
+
+                if (settings.debugMode) console.log(`[RPG Tracker] Chunk ${i + 1}/${chunks.length} committed.`);
             }
-        } catch (err) {
-            if (err.name === 'AbortError') {
-                if (settings.debugMode) console.log("[RPG Tracker] Direct prompt aborted by user.");
-                return;
-            }
-            console.error('[RPG Tracker] Direct prompt failed:', err);
-            toastr['error']('Direct prompt failed. Check console.', 'RPG Tracker');
-        } finally {
-            _stateModelRunning = false;
-            _stateController = null;
-            updateStatusIndicator('active');
         }
+
+        if (settings.debugMode) console.log("[RPG Tracker] State Model pass complete.");
+        return lastDelta;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            if (settings.debugMode) console.log("[RPG Tracker] State Model pass aborted by user.");
+            return;
+        }
+        console.error("[RPG Tracker] State Model pass failed:", error);
+    } finally {
+        _stateModelRunning = false;
+        _stateController = null;
+        updateStatusIndicator('active');
+    }
+}
+
+// ── Phase-5 bridge: exposes runStateModelPass for narrative-hooks.js/onGenerationEnded ──
+// Removed when memo-processor.js is created in Phase 5.
+globalThis._rpgRunStateModelPass = runStateModelPass;
+globalThis._rpgStateModelRunning = () => _stateModelRunning;
+globalThis._rpgCurrentChatId = () => _currentChatId;
+// Expose live prefix derivation for any module that needs the current prefix.
+globalThis._rpgGetCurrentPrefix = () => getEffectiveRouterCampaignPrefix(SillyTavern.getContext().chatId || '');
+
+function handleLevelUp() {
+    const { sendSystemMessage } = SillyTavern.getContext();
+    toastr['success']("Level Up Detected! System prompt injected.", "RPG Tracker");
+
+    if (sendSystemMessage) {
+        sendSystemMessage('generic', "SYSTEM: Level Up Detected! The character has gained a level. Acknowledge this immediately and prompt the user to make their level-up choices or grant them their logical boons.");
+    }
+}
+
+/**
+ * Send a direct instruction to the State Model bypassing the narrative pipeline.
+ * Used for initial character setup and manual corrections.
+ */
+async function sendDirectPrompt(message) {
+    if (_stateModelRunning) {
+        toastr['info']('State Model is already running. Please wait.', 'RPG Tracker');
+        return;
     }
 
+    const settings = getSettings();
+    const { generateRaw } = SillyTavern.getContext();
+    if (!generateRaw) return;
 
+    try {
+        _stateModelRunning = true;
+        updateStatusIndicator('running');
 
-    /**
-     * Panel geometry persistence
-     */
-    const GEOMETRY_KEY = 'rpg_tracker_geometry';
+        // Abort previous if any
+        if (_stateController) _stateController.abort();
+        _stateController = new AbortController();
+        const signal = _stateController.signal;
+        const worldLore = await buildLorebookContext();
+        const worldLoreSection = worldLore ? worldLore + '\n\n' : '';
 
-    /**
-     * @param {HTMLElement} panel
-     */
-    function savePanelGeometry(panel) {
-        const rect = panel.getBoundingClientRect();
-        const isCollapsed = panel.classList.contains('rt-panel-collapsed');
-        let savedGeo = {};
-        try {
-            const savedStr = localStorage.getItem(GEOMETRY_KEY);
-            if (savedStr) savedGeo = JSON.parse(savedStr) || {};
-        } catch {}
+        const modulesText = buildModulesInstructionText(settings);
+        const systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
 
-        localStorage.setItem(GEOMETRY_KEY, JSON.stringify({
-            left: rect.left, top: rect.top,
-            width: rect.width,
-            height: isCollapsed ? (savedGeo.height || rect.height) : rect.height
-        }));
+        const sanitizedCurrent = stripMemoHtml(settings.currentMemo.replace(/<\/?memo>/gi, '').trim());
+
+        const { chat } = SillyTavern.getContext();
+        const N = settings.directPromptContext !== undefined ? settings.directPromptContext : 5;
+        let chatLog = '';
+        if (N > 0 && chat && chat.length > 0) {
+            const recentChat = chat.slice(-N);
+            chatLog = `## NARRATIVE HISTORY (Last ${recentChat.length} messages)\n` +
+                recentChat
+                    .map(m => {
+                        const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                        // Returns null for tool-call messages — excluded from state model context
+                        const content = cleanToolCallMessage(m.mes || m['content'] || '');
+                        if (content === null) return null;
+                        return `${name}: ${content}`;
+                    })
+                    .filter(line => line !== null)
+                    .join('\n\n') + '\n\n';
+        }
+
+        const userPrompt =
+            worldLoreSection +
+            chatLog +
+            `## PRIOR MEMO\n${sanitizedCurrent || '(empty — this is the initial setup)'}\n\n` +
+            `## USER INSTRUCTION\n${message}\n\n` +
+            `## OUTPUT ONLY CHANGED OR NEW SECTIONS:`;
+
+        const result = await sendStateRequest(settings, systemPrompt, userPrompt);
+
+        if (result && typeof result === 'string') {
+            let cleanedOutput = result;
+            const memoBlocks = [...result.matchAll(/<memo>([\s\S]*?)<\/memo>/gi)];
+            if (memoBlocks.length > 0) {
+                cleanedOutput = memoBlocks[memoBlocks.length - 1][1].trim();
+            } else {
+                cleanedOutput = result.replace(/<\/?memo>/gi, '').trim();
+            }
+
+            const merged = mergeMemo(sanitizedCurrent, cleanedOutput);
+
+            if (merged !== sanitizedCurrent) {
+                const delta = computeDelta(sanitizedCurrent, merged);
+                settings.lastDelta = delta;
+
+                // Linear Stone History Logic
+                if (settings.historyIndex !== undefined && settings.historyIndex !== -1) {
+                    settings.memoHistory = settings.memoHistory.slice(settings.historyIndex);
+                }
+                if (settings.memoHistory[0] !== sanitizedCurrent) {
+                    settings.memoHistory.unshift(sanitizedCurrent);
+                }
+                settings.memoHistory.unshift(merged);
+                if (settings.memoHistory.length > 1000) settings.memoHistory.length = 1000;
+                settings.historyIndex = 0;
+                _historyViewIndex = -1;
+
+                const dp = document.getElementById('rpg-tracker-delta-content');
+                if (dp) dp.innerHTML = delta;
+
+                settings.prevMemo2 = settings.prevMemo1;
+                settings.prevMemo1 = sanitizedCurrent;
+                settings.currentMemo = merged;
+
+                updateUIMemo(merged);
+                syncMemoView();
+                refreshRenderedView();
+                saveSettings();
+                toastr['success']('Tracker updated.', 'RPG Tracker');
+            } else {
+                toastr['info']('No changes were made.', 'RPG Tracker');
+            }
+        }
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            if (settings.debugMode) console.log("[RPG Tracker] Direct prompt aborted by user.");
+            return;
+        }
+        console.error('[RPG Tracker] Direct prompt failed:', err);
+        toastr['error']('Direct prompt failed. Check console.', 'RPG Tracker');
+    } finally {
+        _stateModelRunning = false;
+        _stateController = null;
+        updateStatusIndicator('active');
     }
+}
 
-    /**
-     * @param {HTMLElement} panel
-     */
-    function loadPanelGeometry(panel) {
-        try {
-            const saved = JSON.parse(localStorage.getItem(GEOMETRY_KEY));
-            if (!saved) return;
 
-            // Sanitize coordinates to prevent "bricking" off-screen
-            const left = saved.left !== undefined ? Math.max(0, Math.min(window.innerWidth - 50, saved.left)) : undefined;
-            const top = saved.top !== undefined ? Math.max(0, Math.min(window.innerHeight - 50, saved.top)) : undefined;
 
-            if (left !== undefined) { panel.style.left = left + 'px'; panel.style.right = 'auto'; }
-            if (top !== undefined) { panel.style.top = top + 'px'; panel.style.bottom = 'auto'; }
-            if (saved.width) panel.style.width = saved.width + 'px';
-            // Guard: ignore saved heights that are smaller than a reasonable minimum (e.g. a stale
-            // header-only save from before the collapse feature existed). 80px ≈ header + tiny content.
-            if (saved.height && saved.height > 80) panel.style.height = saved.height + 'px';
-        } catch { /* ignore */ }
-    }
+/**
+ * Panel geometry persistence
+ */
+const GEOMETRY_KEY = 'rpg_tracker_geometry';
 
-    const DELTA_HEIGHT_KEY = 'rpg_tracker_delta_height';
+/**
+ * @param {HTMLElement} panel
+ */
+function savePanelGeometry(panel) {
+    const rect = panel.getBoundingClientRect();
+    const isCollapsed = panel.classList.contains('rt-panel-collapsed');
+    let savedGeo = {};
+    try {
+        const savedStr = localStorage.getItem(GEOMETRY_KEY);
+        if (savedStr) savedGeo = JSON.parse(savedStr) || {};
+    } catch { }
 
-    function saveDeltaHeight(height) {
-        localStorage.setItem(DELTA_HEIGHT_KEY, String(height));
-    }
+    localStorage.setItem(GEOMETRY_KEY, JSON.stringify({
+        left: rect.left, top: rect.top,
+        width: isCollapsed ? (savedGeo.width || rect.width) : rect.width,
+        height: isCollapsed ? (savedGeo.height || rect.height) : rect.height
+    }));
+}
 
-    function loadDeltaHeight() {
-        const v = parseInt(localStorage.getItem(DELTA_HEIGHT_KEY) || '');
-        return isNaN(v) ? 120 : Math.max(40, v);
-    }
+/**
+ * @param {HTMLElement} panel
+ */
+function loadPanelGeometry(panel) {
+    try {
+        const saved = JSON.parse(localStorage.getItem(GEOMETRY_KEY));
+        if (!saved) return;
 
-    /** Profile system — load a named profile into live settings. */
-    function loadProfile(name) {
-        const s = getSettings();
-        const p = s.profiles?.[name];
-        if (!p) return;
-        s.currentMemo = p.currentMemo ?? '';
-        s.memoHistory = p.memoHistory ?? [];
-        s.modules = { ...s.modules, ...p.modules };
-        s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
-        s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
-        s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
-        // quests are always derived from currentMemo — never from the profile snapshot
-        s.quests = [];
-        syncQuestsFromMemo(s.currentMemo);
-        s.lastDelta = p.lastDelta ?? '';
-        s.activeProfile = name;
-        _historyViewIndex = -1;
-        
-        saveSettings();
-        // Refresh UI
-        refreshOrderList();
-        // Refresh delta panel
-        const dp = document.getElementById('rpg-tracker-delta-content');
-        if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
-        syncMemoView();
-    }
+        // Sanitize coordinates to prevent "bricking" off-screen
+        const left = saved.left !== undefined ? Math.max(0, Math.min(window.innerWidth - 50, saved.left)) : undefined;
+        const top = saved.top !== undefined ? Math.max(0, Math.min(window.innerHeight - 50, saved.top)) : undefined;
 
-    function refreshProfileDropdown() {
-        const s = getSettings();
-        const sel = document.getElementById('rpg_tracker_profile_select');
-        if (!sel) return;
-        const names = Object.keys(s.profiles || {});
-        sel.innerHTML = '<option value="">-- No Profile --</option>' +
-            names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
-    }
+        if (left !== undefined) { panel.style.left = left + 'px'; panel.style.right = 'auto'; }
+        if (top !== undefined) { panel.style.top = top + 'px'; panel.style.bottom = 'auto'; }
+        if (saved.width) panel.style.width = saved.width + 'px';
+        // Guard: ignore saved heights that are smaller than a reasonable minimum (e.g. a stale
+        // header-only save from before the collapse feature existed). 80px ≈ header + tiny content.
+        if (saved.height && saved.height > 80) panel.style.height = saved.height + 'px';
+    } catch { /* ignore */ }
+}
 
-    async function showRngExplanation() {
-        const { Popup } = SillyTavern.getContext();
-        const card = (icon, title, body) => `
+const DELTA_HEIGHT_KEY = 'rpg_tracker_delta_height';
+
+function saveDeltaHeight(height) {
+    localStorage.setItem(DELTA_HEIGHT_KEY, String(height));
+}
+
+function loadDeltaHeight() {
+    const v = parseInt(localStorage.getItem(DELTA_HEIGHT_KEY) || '');
+    return isNaN(v) ? 120 : Math.max(40, v);
+}
+
+/** Profile system — load a named profile into live settings. */
+function loadProfile(name) {
+    const s = getSettings();
+    const p = s.profiles?.[name];
+    if (!p) return;
+    s.currentMemo = p.currentMemo ?? '';
+    s.memoHistory = p.memoHistory ?? [];
+    s.modules = { ...s.modules, ...p.modules };
+    s.blockOrder = p.blockOrder ? JSON.parse(JSON.stringify(p.blockOrder)) : s.blockOrder;
+    s.stockPrompts = p.stockPrompts ? JSON.parse(JSON.stringify(p.stockPrompts)) : { ...DEFAULT_STOCK_PROMPTS };
+    s.customFields = p.customFields ? JSON.parse(JSON.stringify(p.customFields)) : [];
+    // quests are always derived from currentMemo — never from the profile snapshot
+    s.quests = [];
+    syncQuestsFromMemo(s.currentMemo);
+    s.lastDelta = p.lastDelta ?? '';
+    s.activeProfile = name;
+    _historyViewIndex = -1;
+
+    saveSettings();
+    // Refresh UI
+    refreshOrderList();
+    // Refresh delta panel
+    const dp = document.getElementById('rpg-tracker-delta-content');
+    if (dp) dp.innerHTML = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
+    syncMemoView();
+}
+
+function refreshProfileDropdown() {
+    const s = getSettings();
+    const sel = document.getElementById('rpg_tracker_profile_select');
+    if (!sel) return;
+    const names = Object.keys(s.profiles || {});
+    sel.innerHTML = '<option value="">-- No Profile --</option>' +
+        names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
+}
+
+async function showRngExplanation() {
+    const { Popup } = SillyTavern.getContext();
+    const card = (icon, title, body) => `
             <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; text-align: left;">
                 <div style="font-size: 1em; font-weight: bold; margin-bottom: 6px;">${icon} ${title}</div>
                 <div style="font-size: 0.9em; line-height: 1.5; opacity: 0.88;">${body}</div>
             </div>`;
-        const popupBody = `
+    const popupBody = `
             <div style="font-size: 0.9em; line-height: 1.5; max-width: 480px; text-align: left;">
                 ${card('🎲', 'RNG Queue <span style="font-weight:normal;opacity:0.6;">(Combat)</span>',
-                    `Generates a list of pre-rolled dice and injects them directly into the story context. The AI uses the next roll in the queue until it reaches the last one, then wraps about to the start again. Each input injects a fresh set of numbers.<br><br>
+        `Generates a list of pre-rolled dice and injects them directly into the story context. The AI uses the next roll in the queue until it reaches the last one, then wraps about to the start again. Each input injects a fresh set of numbers.<br><br>
                     Ideal for combat because initiative creates a deterministic "grid," removing any opportunity for the AI to game the outcome. This is why it's the default method for combat—it reduces token costs massively, minimizes latency, and is more reliable due to its reduced structural complexity.`
-                )}
+    )}
                 ${card('🔧', 'Tool Call RNG <span style="font-weight:normal;opacity:0.6;">(Narrative)</span>',
-                    `A reactive system where the AI proactively calls a dice tool for a specific narrative action (e.g., picking a lock, persuading a guard). The AI must declare a <b>Difficulty Class (DC)</b> before seeing the result. This ensures it can't "game the system" by lowering the DC to fit a roll or skipping the roll entirely. While I haven't personally observed this "gaming" behavior with the Queue-only method, Tool Calls ensure that it remains technically impossible.`
-                )}
+        `A reactive system where the AI proactively calls a dice tool for a specific narrative action (e.g., picking a lock, persuading a guard). The AI must declare a <b>Difficulty Class (DC)</b> before seeing the result. This ensures it can't "game the system" by lowering the DC to fit a roll or skipping the roll entirely. While I haven't personally observed this "gaming" behavior with the Queue-only method, Tool Calls ensure that it remains technically impossible.`
+    )}
                 <div style="background: rgba(255,200,50,0.08); border: 1px solid rgba(255,200,50,0.25); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.88em; text-align: left;">
                     <b style="color: #ffcc33;">⚠ Important:</b> Tool Call RNG requires <b>"Enable function calling"</b> to be enabled in SillyTavern's AI Response Configuration.
                 </div>
                 ${card('📋', 'Which system should I use?',
-                    `<ul style="margin: 4px 0 0 0; padding-left: 20px; text-align: left; list-style-position: outside;">
+        `<ul style="margin: 4px 0 0 0; padding-left: 20px; text-align: left; list-style-position: outside;">
                         <li style="margin-bottom: 4px;"><b>Hybrid RNG (recommended):</b> Enables both systems. A more "waterproof" system.</li>
                         <li><b>Legacy RNG:</b> Queue-only. Use if your model doesn't support tool calling or you prefer the simpler setup for any other reason.</li>
                     </ul>`
-                )}
+    )}
             </div>`;
-        await Popup.show.confirm('🎲 RNG Systems Explained', popupBody, { okButton: 'Got it', cancelButton: false });
-    }
+    await Popup.show.confirm('🎲 RNG Systems Explained', popupBody, { okButton: 'Got it', cancelButton: false });
+}
 
-    /**
-     * Renders and shows the Quests Hardcore systems explanation popup.
-     */
-    async function showQuestsHardcoreExplanation() {
-        const { Popup } = SillyTavern.getContext();
-        const card = (icon, title, body, sub = false) => `
+/**
+ * Renders and shows the Quests Hardcore systems explanation popup.
+ */
+async function showQuestsHardcoreExplanation() {
+    const { Popup } = SillyTavern.getContext();
+    const card = (icon, title, body, sub = false) => `
             <div style="background: rgba(255,255,255,${sub ? '0.03' : '0.05'}); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; text-align: left; ${sub ? 'margin-left: 16px;' : ''}">
                 <div style="font-size: 1em; font-weight: bold; margin-bottom: 6px;">${icon} ${title}</div>
                 <div style="font-size: 0.9em; line-height: 1.5; opacity: 0.88;">${body}</div>
             </div>`;
-        const popupBody = `
+    const popupBody = `
             <div style="font-size: 0.9em; line-height: 1.5; max-width: 480px; text-align: left;">
                 ${card('⏳', 'Deadlines',
-                    `Adds time-sensitive constraints to quests. The system prompt instructs NPCs to attach deadlines to tasks they give you. If the deadline passes without turning in the quest, it auto-fails. Forces you to prioritise — you can't just accept every task and grind at your leisure.`
-                )}
+        `Adds time-sensitive constraints to quests. The system prompt instructs NPCs to attach deadlines to tasks they give you. If the deadline passes without turning in the quest, it auto-fails. Forces you to prioritise — you can't just accept every task and grind at your leisure.`
+    )}
                 ${card('🎭', 'Frustration', `Requires Deadlines. A sub-mode where quests <em>don't</em> auto-fail at the deadline. Instead, each quest giver has an NPC happiness level that starts high and quickly drops the longer you leave it past due. The rate of decline depends on the NPC's personality, which the model infers from their archetype and tone. You can still turn the quest in late — but the reception won't be warm.`, true)}
                 ${card('⚔️', 'Difficulty',
-                    `The model assigns an explicit difficulty rating to each quest (e.g. Easy / Hard / Deadly) rather than leaving it vague. Useful for planning and for AI consistency when calculating rewards or consequences.`
-                )}
+        `The model assigns an explicit difficulty rating to each quest (e.g. Easy / Hard / Deadly) rather than leaving it vague. Useful for planning and for AI consistency when calculating rewards or consequences.`
+    )}
             </div>`;
-        await Popup.show.confirm('📋 Quest Mechanics Explained', popupBody, { okButton: 'Got it', cancelButton: false });
-    }
+    await Popup.show.confirm('📋 Quest Mechanics Explained', popupBody, { okButton: 'Got it', cancelButton: false });
+}
 
-    async function showComponentsExplanation() {
-        const { Popup } = SillyTavern.getContext();
-        const card = (icon, title, body) => `
+async function showComponentsExplanation() {
+    const { Popup } = SillyTavern.getContext();
+    const card = (icon, title, body) => `
             <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; text-align: left;">
                 <div style="font-size: 1em; font-weight: bold; margin-bottom: 6px;">${icon} ${title}</div>
                 <div style="font-size: 0.9em; line-height: 1.5; opacity: 0.88;">${body}</div>
             </div>`;
-        const popupBody = `
+    const popupBody = `
             <div style="font-size: 0.9em; line-height: 1.5; max-width: 480px; text-align: left;">
                 ${card('🎲', 'Loot',
-                    `When loot is received, dice rolls are made to determine its quality — whether something is a battered common item or a rare find. Adds meaningful variance to rewards.`
-                )}
+        `When loot is received, dice rolls are made to determine its quality — whether something is a battered common item or a rare find. Adds meaningful variance to rewards.`
+    )}
                 ${card('🌍', 'Events',
-                    `Random events are rolled when time skips or travel occurs. A chance encounter, a weather shift, an ambush — things that happen without the player initiating them. Keeps the world feeling alive.`
-                )}
+        `Random events are rolled when time skips or travel occurs. A chance encounter, a weather shift, an ambush — things that happen without the player initiating them. Keeps the world feeling alive.`
+    )}
                 ${card('💤', 'Resting',
-                    `Resting is limited to once every 9 hours of in-game time. Prevents exploiting rest as a free heal between every fight, and reflects the reality that you can't just nap on demand.`
-                )}
+        `Resting is limited to once every 9 hours of in-game time. Prevents exploiting rest as a free heal between every fight, and reflects the reality that you can't just nap on demand.`
+    )}
             </div>`;
-        await Popup.show.confirm('🧩 Components Explained', popupBody, { okButton: 'Got it', cancelButton: false });
-    }
+    await Popup.show.confirm('🧩 Components Explained', popupBody, { okButton: 'Got it', cancelButton: false });
+}
 
-    function bindRenderedCardEvents(el, memo, isDetachedContext = false, onRefresh = null) {
-        const refresh = onRefresh || refreshRenderedView;
-        el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const archetype = btn.dataset.archetype;
-                const level = el.querySelector('#rt-starting-level')?.value || 1;
-                const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...', persona: '🎭 Embodying...' };
-                const prompts = {
-                    magic: `Generate a random Level ${level} D&D Magic User (Wizard, Sorcerer, or Warlock). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes consistent with Level ${level}.`,
-                    melee: `Generate a random Level ${level} D&D Melee Fighter (Fighter, Barbarian, or Paladin). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons consistent with Level ${level}.`,
-                    rogue: `Generate a random Level ${level} D&D Rogue or Thief-style character. Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack consistent with Level ${level}.`
-                };
+function bindRenderedCardEvents(el, memo, isDetachedContext = false, onRefresh = null) {
+    const refresh = onRefresh || refreshRenderedView;
+    el.querySelectorAll('.rt-random-char-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const archetype = btn.dataset.archetype;
+            const level = el.querySelector('#rt-starting-level')?.value || 1;
+            const labels = { magic: '✨ Casting...', melee: '⚔️ Training...', rogue: '🗡️ Sneaking...', persona: '🎭 Embodying...' };
+            const prompts = {
+                magic: `Generate a random Level ${level} D&D Magic User (Wizard, Sorcerer, or Warlock). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [SPELLS], [INVENTORY], and [ABILITIES] blocks. Include appropriate spells (using 'Cantrips:' for level 0 spells), items, and attributes consistent with Level ${level}.`,
+                melee: `Generate a random Level ${level} D&D Melee Fighter (Fighter, Barbarian, or Paladin). Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high physical attributes, heavy armor, and signature weapons consistent with Level ${level}.`,
+                rogue: `Generate a random Level ${level} D&D Rogue or Thief-style character. Give them a random fantasy name (do NOT use {{user}}). Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks. Focus on high Dexterity, stealth-related equipment (thieves' tools, daggers), and class features like Sneak Attack consistent with Level ${level}.`
+            };
 
-                // ── Persona archetype: derive character from the active SillyTavern persona ──
-                if (archetype === 'persona') {
-                    const { substituteParams } = SillyTavern.getContext();
-                    const resolvedPersona = substituteParams ? substituteParams('{{persona}}').trim() : '';
-                    if (!resolvedPersona || resolvedPersona === '{{persona}}') {
-                        toastr['warning'](
-                            'No persona is set. Set a persona in SillyTavern (User Settings → Personas) and try again.',
-                            'RPG Tracker'
-                        );
-                        return;
-                    }
-                    el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
-                    btn.textContent = labels.persona;
-                    const personaPrompt = `Using the following persona description as the basis for the player character, create a Level ${level} D&D character that faithfully embodies this persona. Translate the personality, background, and traits into appropriate D&D stats, class, race, and equipment. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks (and [SPELLS] if the class is a spellcaster, using 'Cantrips:' for level 0 spells). All attributes and gear should be consistent with Level ${level}.\n\nPersona:\n${resolvedPersona}`;
-                    await sendDirectPrompt(personaPrompt);
+            // ── Persona archetype: derive character from the active SillyTavern persona ──
+            if (archetype === 'persona') {
+                const { substituteParams } = SillyTavern.getContext();
+                const resolvedPersona = substituteParams ? substituteParams('{{persona}}').trim() : '';
+                if (!resolvedPersona || resolvedPersona === '{{persona}}') {
+                    toastr['warning'](
+                        'No persona is set. Set a persona in SillyTavern (User Settings → Personas) and try again.',
+                        'RPG Tracker'
+                    );
                     return;
                 }
-
                 el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
-                btn.textContent = labels[archetype] || '🎲 Rolling...';
-                await sendDirectPrompt(prompts[archetype]);
-            });
-        });
-
-        el.querySelectorAll('.rt-hp-bar-wrap[data-recolor-id], .rt-xp-bar-wrap[data-recolor-id]').forEach(wrap => {
-            wrap.addEventListener('click', (e) => {
-                e.stopPropagation();
-                handleRecolor(wrap.dataset.recolorId, wrap.dataset.recolorCurrent, wrap);
-            });
-        });
-
-        // RNG Help Popup Trigger
-        el.querySelectorAll('.rt-rng-help-icon').forEach(icon => {
-            icon.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showRngExplanation();
-            });
-        });
-
-        // Hardcore Help Popup Triggers
-        el.querySelectorAll('.rt-quests-hardcore-help').forEach(icon => {
-            icon.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showQuestsHardcoreExplanation();
-            });
-        });
-
-        // --- Onboarding Narrator Configuration (Salad Bar Sync) ---
-        const s = getSettings();
-        
-        /**
-         * Helper to update a setting, save it, and sync the UIs.
-         * This avoids the 'ghost click' problem where onboarding UI tries to
-         * trigger changes on non-existent settings panel elements.
-         */
-        const syncSettingsAndUI = (updateFn) => {
-            const fresh = getSettings();
-            updateFn(fresh);
-            
-            // Sync the main settings panel if it exists
-            const rngHybrid = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_rng_hybrid'));
-            const rngLegacy = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_rng_legacy'));
-            const questsCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_sysprompt_mod_quests'));
-            const deadlinesCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_deadlines'));
-            const frustrationCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_frustration'));
-            const qmStandard = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quest_standard'));
-            const qmLegacy = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quest_legacy'));
-
-            if (rngHybrid && rngLegacy) {
-                rngHybrid.checked = !!fresh.diceFunctionTool;
-                rngLegacy.checked = !fresh.diceFunctionTool;
-            }
-            if (questsCb) questsCb.checked = fresh.syspromptModules?.quests !== false;
-            if (deadlinesCb) deadlinesCb.checked = !!fresh.syspromptModules?.questsDeadlines;
-            if (frustrationCb) frustrationCb.checked = !!fresh.syspromptModules?.questsFrustration;
-            const frustrationWrapEl = /** @type {HTMLElement|null} */ (document.getElementById('rpg_quests_frustration_wrap'));
-            if (frustrationWrapEl) frustrationWrapEl.style.display = !!fresh.syspromptModules?.questsDeadlines ? '' : 'none';
-            const difficultyCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_difficulty'));
-            if (difficultyCb) difficultyCb.checked = !!fresh.syspromptModules?.questsDifficulty;
-            if (qmStandard && qmLegacy) {
-                qmStandard.checked = !fresh.questLegacyMode;
-                qmLegacy.checked = !!fresh.questLegacyMode;
-            }
-            
-            // Optional components
-            const mods = { 'loot': '#rpg_sysprompt_mod_loot', 'random_events': '#rpg_sysprompt_mod_random_events', 'resting': '#rpg_sysprompt_mod_resting' };
-            for (const [key, id] of Object.entries(mods)) {
-                const cb = /** @type {HTMLInputElement|null} */ (document.getElementById(id.replace('#','')));
-                if (cb) cb.checked = !!fresh.syspromptModules?.[key];
+                btn.textContent = labels.persona;
+                const personaPrompt = `Using the following persona description as the basis for the player character, create a Level ${level} D&D character that faithfully embodies this persona. Translate the personality, background, and traits into appropriate D&D stats, class, race, and equipment. Output [CHARACTER], [INVENTORY], and [ABILITIES] blocks (and [SPELLS] if the class is a spellcaster, using 'Cantrips:' for level 0 spells). All attributes and gear should be consistent with Level ${level}.\n\nPersona:\n${resolvedPersona}`;
+                await sendDirectPrompt(personaPrompt);
+                return;
             }
 
-            // Custom Sysprompt
-            const customSyspromptEl = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_custom_sysprompt'));
-            if (customSyspromptEl) customSyspromptEl.checked = !!fresh.customSysprompt;
-            const narratorBlockEl = document.getElementById('rpg_narrator_config_block');
-            if (narratorBlockEl) narratorBlockEl.style.display = !!fresh.customSysprompt ? 'none' : '';
-
-            // Save and sync the onboarding view
-            saveSettings();
-            
-            // Handle specific logic like tool registration
-            if (fresh.questLegacyMode) {
-                refreshQuestLegacyPrompt(fresh);
-            } else {
-                // Ensure modern prompt is in the quests slot
-                if (!fresh.stockPrompts) fresh.stockPrompts = {};
-                fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
-                registerLogQuestTool();
-            }
-            refreshOrderList();
-            saveSettings();
-            scheduleAutoApply();
-        };
-
-        // RNG Mode Sync
-        const onboardingRngInputs = el.querySelectorAll('input[name="rt_onboarding_rng_mode"]');
-        onboardingRngInputs.forEach(input => {
-            input.checked = (input.value === (s.diceFunctionTool ? 'hybrid' : 'legacy'));
-            input.addEventListener('change', () => {
-                syncSettingsAndUI(settings => {
-                    settings.diceFunctionTool = (input.value === 'hybrid');
-                });
-            });
+            el.querySelectorAll('.rt-random-char-btn').forEach(b => b.disabled = true);
+            btn.textContent = labels[archetype] || '🎲 Rolling...';
+            await sendDirectPrompt(prompts[archetype]);
         });
+    });
 
-        // Quests Enabled Sync
-        const onboardingQuestsCb = el.querySelector('#rt_onboarding_quests_enabled');
-        if (onboardingQuestsCb) {
-            onboardingQuestsCb.checked = s.syspromptModules?.quests !== false;
-            const optionsDiv = el.querySelector('#rt_onboarding_quest_options');
-            if (optionsDiv) optionsDiv.style.display = onboardingQuestsCb.checked ? 'flex' : 'none';
-            
-            onboardingQuestsCb.addEventListener('change', () => {
-                const isEnabled = !!onboardingQuestsCb.checked;
-                if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
-                syncSettingsAndUI(settings => {
-                    if (!settings.syspromptModules) settings.syspromptModules = {};
-                    settings.syspromptModules.quests = isEnabled;
-                });
-            });
+    el.querySelectorAll('.rt-hp-bar-wrap[data-recolor-id], .rt-xp-bar-wrap[data-recolor-id]').forEach(wrap => {
+        wrap.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleRecolor(wrap.dataset.recolorId, wrap.dataset.recolorCurrent, wrap);
+        });
+    });
+
+    // RNG Help Popup Trigger
+    el.querySelectorAll('.rt-rng-help-icon').forEach(icon => {
+        icon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showRngExplanation();
+        });
+    });
+
+    // Hardcore Help Popup Triggers
+    el.querySelectorAll('.rt-quests-hardcore-help').forEach(icon => {
+        icon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showQuestsHardcoreExplanation();
+        });
+    });
+
+    // --- Onboarding Narrator Configuration (Salad Bar Sync) ---
+    const s = getSettings();
+
+    /**
+     * Helper to update a setting, save it, and sync the UIs.
+     * This avoids the 'ghost click' problem where onboarding UI tries to
+     * trigger changes on non-existent settings panel elements.
+     */
+    const syncSettingsAndUI = (updateFn) => {
+        const fresh = getSettings();
+        updateFn(fresh);
+
+        // Sync the main settings panel if it exists
+        const rngHybrid = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_rng_hybrid'));
+        const rngLegacy = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_rng_legacy'));
+        const questsCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_sysprompt_mod_quests'));
+        const deadlinesCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_deadlines'));
+        const frustrationCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_frustration'));
+        const qmStandard = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quest_standard'));
+        const qmLegacy = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quest_legacy'));
+
+        if (rngHybrid && rngLegacy) {
+            rngHybrid.checked = !!fresh.diceFunctionTool;
+            rngLegacy.checked = !fresh.diceFunctionTool;
+        }
+        if (questsCb) questsCb.checked = fresh.syspromptModules?.quests !== false;
+        if (deadlinesCb) deadlinesCb.checked = !!fresh.syspromptModules?.questsDeadlines;
+        if (frustrationCb) frustrationCb.checked = !!fresh.syspromptModules?.questsFrustration;
+        const frustrationWrapEl = /** @type {HTMLElement|null} */ (document.getElementById('rpg_quests_frustration_wrap'));
+        if (frustrationWrapEl) frustrationWrapEl.style.display = !!fresh.syspromptModules?.questsDeadlines ? '' : 'none';
+        const difficultyCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_difficulty'));
+        if (difficultyCb) difficultyCb.checked = !!fresh.syspromptModules?.questsDifficulty;
+        if (qmStandard && qmLegacy) {
+            qmStandard.checked = !fresh.questLegacyMode;
+            qmLegacy.checked = !!fresh.questLegacyMode;
         }
 
-        // Deadlines Sync
-        const onboardingDeadlinesCb = el.querySelector('#rt_onboarding_quests_deadlines');
-        const onboardingFrustrationWrap = el.querySelector('#rt_onboarding_quests_frustration_wrap');
-        const syncOnboardingFrustrationVisibility = () => {
-            if (onboardingFrustrationWrap) onboardingFrustrationWrap.style.display = onboardingDeadlinesCb?.checked ? '' : 'none';
-        };
-        if (onboardingDeadlinesCb) {
-            onboardingDeadlinesCb.checked = !!s.syspromptModules?.questsDeadlines;
+        // Optional components
+        const mods = { 'loot': '#rpg_sysprompt_mod_loot', 'random_events': '#rpg_sysprompt_mod_random_events', 'resting': '#rpg_sysprompt_mod_resting' };
+        for (const [key, id] of Object.entries(mods)) {
+            const cb = /** @type {HTMLInputElement|null} */ (document.getElementById(id.replace('#', '')));
+            if (cb) cb.checked = !!fresh.syspromptModules?.[key];
+        }
+
+        // Custom Sysprompt
+        const customSyspromptEl = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_custom_sysprompt'));
+        if (customSyspromptEl) customSyspromptEl.checked = !!fresh.customSysprompt;
+        const narratorBlockEl = document.getElementById('rpg_narrator_config_block');
+        if (narratorBlockEl) narratorBlockEl.style.display = !!fresh.customSysprompt ? 'none' : '';
+
+        // Save and sync the onboarding view
+        saveSettings();
+
+        // Handle specific logic like tool registration
+        if (fresh.questLegacyMode) {
+            refreshQuestLegacyPrompt(fresh);
+        } else {
+            // Ensure modern prompt is in the quests slot
+            if (!fresh.stockPrompts) fresh.stockPrompts = {};
+            fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
+            registerLogQuestTool();
+        }
+        refreshOrderList();
+        saveSettings();
+        scheduleAutoApply();
+    };
+
+    // RNG Mode Sync
+    const onboardingRngInputs = el.querySelectorAll('input[name="rt_onboarding_rng_mode"]');
+    onboardingRngInputs.forEach(input => {
+        input.checked = (input.value === (s.diceFunctionTool ? 'hybrid' : 'legacy'));
+        input.addEventListener('change', () => {
+            syncSettingsAndUI(settings => {
+                settings.diceFunctionTool = (input.value === 'hybrid');
+            });
+        });
+    });
+
+    // Quests Enabled Sync
+    const onboardingQuestsCb = el.querySelector('#rt_onboarding_quests_enabled');
+    if (onboardingQuestsCb) {
+        onboardingQuestsCb.checked = s.syspromptModules?.quests !== false;
+        const optionsDiv = el.querySelector('#rt_onboarding_quest_options');
+        if (optionsDiv) optionsDiv.style.display = onboardingQuestsCb.checked ? 'flex' : 'none';
+
+        onboardingQuestsCb.addEventListener('change', () => {
+            const isEnabled = !!onboardingQuestsCb.checked;
+            if (optionsDiv) optionsDiv.style.display = isEnabled ? 'flex' : 'none';
+            syncSettingsAndUI(settings => {
+                if (!settings.syspromptModules) settings.syspromptModules = {};
+                settings.syspromptModules.quests = isEnabled;
+            });
+        });
+    }
+
+    // Deadlines Sync
+    const onboardingDeadlinesCb = el.querySelector('#rt_onboarding_quests_deadlines');
+    const onboardingFrustrationWrap = el.querySelector('#rt_onboarding_quests_frustration_wrap');
+    const syncOnboardingFrustrationVisibility = () => {
+        if (onboardingFrustrationWrap) onboardingFrustrationWrap.style.display = onboardingDeadlinesCb?.checked ? '' : 'none';
+    };
+    if (onboardingDeadlinesCb) {
+        onboardingDeadlinesCb.checked = !!s.syspromptModules?.questsDeadlines;
+        syncOnboardingFrustrationVisibility();
+        onboardingDeadlinesCb.addEventListener('change', () => {
+            if (!onboardingDeadlinesCb.checked) {
+                const fCb = el.querySelector('#rt_onboarding_quests_frustration');
+                if (fCb) fCb.checked = false;
+                syncSettingsAndUI(settings => {
+                    if (!settings.syspromptModules) settings.syspromptModules = {};
+                    settings.syspromptModules.questsDeadlines = false;
+                    settings.syspromptModules.questsFrustration = false;
+                });
+            } else {
+                syncSettingsAndUI(settings => {
+                    if (!settings.syspromptModules) settings.syspromptModules = {};
+                    settings.syspromptModules.questsDeadlines = true;
+                });
+            }
             syncOnboardingFrustrationVisibility();
-            onboardingDeadlinesCb.addEventListener('change', () => {
-                if (!onboardingDeadlinesCb.checked) {
-                    const fCb = el.querySelector('#rt_onboarding_quests_frustration');
-                    if (fCb) fCb.checked = false;
-                    syncSettingsAndUI(settings => {
-                        if (!settings.syspromptModules) settings.syspromptModules = {};
-                        settings.syspromptModules.questsDeadlines = false;
-                        settings.syspromptModules.questsFrustration = false;
-                    });
-                } else {
-                    syncSettingsAndUI(settings => {
-                        if (!settings.syspromptModules) settings.syspromptModules = {};
-                        settings.syspromptModules.questsDeadlines = true;
-                    });
-                }
-                syncOnboardingFrustrationVisibility();
-            });
-        }
+        });
+    }
 
-        // Frustration Levels Sync
-        const onboardingFrustrationCb = el.querySelector('#rt_onboarding_quests_frustration');
-        if (onboardingFrustrationCb) {
-            onboardingFrustrationCb.checked = !!s.syspromptModules?.questsFrustration;
-            onboardingFrustrationCb.addEventListener('change', () => {
+    // Frustration Levels Sync
+    const onboardingFrustrationCb = el.querySelector('#rt_onboarding_quests_frustration');
+    if (onboardingFrustrationCb) {
+        onboardingFrustrationCb.checked = !!s.syspromptModules?.questsFrustration;
+        onboardingFrustrationCb.addEventListener('change', () => {
+            syncSettingsAndUI(settings => {
+                if (!settings.syspromptModules) settings.syspromptModules = {};
+                settings.syspromptModules.questsFrustration = !!onboardingFrustrationCb.checked;
+            });
+        });
+    }
+
+    // Difficulty Sync
+    const onboardingDifficultyCb = el.querySelector('#rt_onboarding_quests_difficulty');
+    if (onboardingDifficultyCb) {
+        onboardingDifficultyCb.checked = !!s.syspromptModules?.questsDifficulty;
+        onboardingDifficultyCb.addEventListener('change', () => {
+            syncSettingsAndUI(settings => {
+                if (!settings.syspromptModules) settings.syspromptModules = {};
+                settings.syspromptModules.questsDifficulty = !!onboardingDifficultyCb.checked;
+            });
+        });
+    }
+
+    // Quest Mode Sync
+    const onboardingQuestModeInputs = el.querySelectorAll('input[name="rt_onboarding_quest_mode"]');
+    onboardingQuestModeInputs.forEach(input => {
+        const isLegacy = s.questLegacyMode;
+        input.checked = (input.value === (isLegacy ? 'legacy' : 'standard'));
+        input.addEventListener('change', () => {
+            syncSettingsAndUI(settings => {
+                settings.questLegacyMode = (input.value === 'legacy');
+            });
+        });
+    });
+
+    // Optional Components Sync
+    const syncOptionalMod = (onboardingId, settingKey) => {
+        const cb = el.querySelector(onboardingId);
+        if (cb) {
+            cb.checked = !!s.syspromptModules?.[settingKey];
+            cb.addEventListener('change', () => {
                 syncSettingsAndUI(settings => {
                     if (!settings.syspromptModules) settings.syspromptModules = {};
-                    settings.syspromptModules.questsFrustration = !!onboardingFrustrationCb.checked;
+                    settings.syspromptModules[settingKey] = !!cb.checked;
                 });
             });
         }
+    };
+    syncOptionalMod('#rt_onboarding_mod_loot', 'loot');
+    syncOptionalMod('#rt_onboarding_mod_random_events', 'random_events');
+    syncOptionalMod('#rt_onboarding_mod_resting', 'resting');
 
-        // Difficulty Sync
-        const onboardingDifficultyCb = el.querySelector('#rt_onboarding_quests_difficulty');
-        if (onboardingDifficultyCb) {
-            onboardingDifficultyCb.checked = !!s.syspromptModules?.questsDifficulty;
-            onboardingDifficultyCb.addEventListener('change', () => {
-                syncSettingsAndUI(settings => {
-                    if (!settings.syspromptModules) settings.syspromptModules = {};
-                    settings.syspromptModules.questsDifficulty = !!onboardingDifficultyCb.checked;
-                });
-            });
-        }
+    // Custom Sysprompt toggle (onboarding)
+    const onboardingCustomSyspromptCb = el.querySelector('#rt_onboarding_custom_sysprompt');
+    if (onboardingCustomSyspromptCb) {
+        onboardingCustomSyspromptCb.checked = !!getSettings().customSysprompt;
+        onboardingCustomSyspromptCb.addEventListener('change', () => {
+            syncSettingsAndUI(s => { s.customSysprompt = !!onboardingCustomSyspromptCb.checked; });
+        });
+    }
 
-        // Quest Mode Sync
-        const onboardingQuestModeInputs = el.querySelectorAll('input[name="rt_onboarding_quest_mode"]');
-        onboardingQuestModeInputs.forEach(input => {
-            const isLegacy = s.questLegacyMode;
-            input.checked = (input.value === (isLegacy ? 'legacy' : 'standard'));
-            input.addEventListener('change', () => {
-                syncSettingsAndUI(settings => {
-                    settings.questLegacyMode = (input.value === 'legacy');
-                });
+    // Apply System Prompt button (onboarding) — same logic as settings panel "Update Main Sysprompt"
+    const onboardingBtnApply = el.querySelector('#rt_onboarding_btn_update_sysprompt');
+    if (onboardingBtnApply) {
+        onboardingBtnApply.addEventListener('click', async () => {
+            await autoApplySysprompt();
+            toastr['success']('System prompt applied! \u2705', 'RPG Tracker');
+        });
+    }
+
+    el.querySelectorAll('.rt-section-header').forEach(header => {
+        // Unbind to prevent duplicate listeners
+        const oldHeader = header;
+        const newHeader = oldHeader.cloneNode(true);
+        oldHeader.parentNode.replaceChild(newHeader, oldHeader);
+
+        newHeader.addEventListener('click', (e) => {
+            // Prevent toggle if clicking on a button
+            if (e.target.closest('button')) return;
+            const tag = newHeader.dataset.tag;
+            if (!tag) return;
+            const col = loadCollapsed();
+            if (col.has(tag)) col.delete(tag); else col.add(tag);
+            saveCollapsed(col);
+            refresh();
+        });
+    });
+
+    el.querySelectorAll('.rt-page-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tag = btn.dataset.tag;
+            const dir = parseInt(btn.dataset.dir);
+            if (!tag) return;
+            const curBlocks = parseMemoBlocks(memo);
+            const items = blockToItems(tag, curBlocks[tag] ?? '');
+
+            const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+            const renderType = customField?.renderType || tag;
+            const localPageSize = getPageSize(renderType);
+
+            const totalPages = Math.ceil(items.length / localPageSize);
+            const cur = _sectionPages[tag] ?? 0;
+            _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
+            refresh();
+        });
+    });
+
+    el.querySelectorAll('.rt-fullview-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tag = btn.dataset.tag;
+            if (!tag) return;
+            const s = getSettings();
+            const idx = s.fullViewSections.indexOf(tag);
+            if (idx === -1) s.fullViewSections.push(tag);
+            else s.fullViewSections.splice(idx, 1);
+            saveSettings();
+            refresh();
+        });
+    });
+
+    if (!isDetachedContext) {
+        el.querySelectorAll('.rt-detach-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tag = btn.dataset.tag;
+                if (!tag) return;
+                const detached = loadDetached();
+                detached.add(tag);
+                saveDetached(detached);
+                createDetachedPanel(tag);
+                refresh();
             });
         });
 
-        // Optional Components Sync
-        const syncOptionalMod = (onboardingId, settingKey) => {
-            const cb = el.querySelector(onboardingId);
-            if (cb) {
-                cb.checked = !!s.syspromptModules?.[settingKey];
-                cb.addEventListener('change', () => {
-                    syncSettingsAndUI(settings => {
-                        if (!settings.syspromptModules) settings.syspromptModules = {};
-                        settings.syspromptModules[settingKey] = !!cb.checked;
-                    });
-                });
+        el.querySelectorAll('.rt-reattach-btn-inline').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tag = btn.dataset.tag;
+                if (!tag) return;
+                const detached = loadDetached();
+                detached.delete(tag);
+                saveDetached(detached);
+                const panel = document.getElementById(`rt-detached-panel-${tag}`);
+                if (panel) panel.remove();
+                refresh();
+            });
+        });
+    }
+
+    el.querySelectorAll('.rt-category-settings-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleCategorySettings(btn.dataset.tag, btn);
+        });
+    });
+
+    // Add toggle behavior for Unit Pills (Traits/Abilities)
+    el.querySelectorAll('.rt-unit-pill').forEach(unit => {
+        unit.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Toggle active class to show/hide description
+            const wasActive = unit.classList.contains('active');
+            // Close others first for a clean experience
+            el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+            if (!wasActive) unit.classList.add('active');
+        });
+    });
+
+    // Global deselect when clicking anything else
+    if (!_pillDeselectHandler) {
+        _pillDeselectHandler = (e) => {
+            if (!e.target.closest('.rt-unit-pill')) {
+                document.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
             }
         };
-        syncOptionalMod('#rt_onboarding_mod_loot', 'loot');
-        syncOptionalMod('#rt_onboarding_mod_random_events', 'random_events');
-        syncOptionalMod('#rt_onboarding_mod_resting', 'resting');
+        document.addEventListener('click', _pillDeselectHandler);
+    }
+}
 
-        // Custom Sysprompt toggle (onboarding)
-        const onboardingCustomSyspromptCb = el.querySelector('#rt_onboarding_custom_sysprompt');
-        if (onboardingCustomSyspromptCb) {
-            onboardingCustomSyspromptCb.checked = !!getSettings().customSysprompt;
-            onboardingCustomSyspromptCb.addEventListener('change', () => {
-                syncSettingsAndUI(s => { s.customSysprompt = !!onboardingCustomSyspromptCb.checked; });
-            });
+function refreshRenderedView() {
+    if (!_renderedViewActive) return;
+    const s = getSettings();
+    const memo = _historyViewIndex === -1
+        ? s.currentMemo
+        : (s.memoHistory[_historyViewIndex] ?? '');
+
+    const collapsed = loadCollapsed();
+    const detached = loadDetached();
+
+    // Extract world time from THIS snapshot for frustration computation
+    const timeMatch = (memo || '').match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
+    const currentTime = timeMatch ? timeMatch[1].split('\n').filter(Boolean)[0]?.trim() || '' : '';
+
+    const el = document.getElementById('rpg-tracker-render');
+    if (el) {
+        let html = renderMemoAsCards(memo, null, _sectionPages);
+
+        // Append quest log section if module is enabled (always render, even when empty)
+        if (s.modules?.quests) {
+            const snapshotQuests = parseQuestsFromMemo(memo);
+            html += renderQuestLog(snapshotQuests, currentTime, collapsed, detached);
         }
 
-        // Apply System Prompt button (onboarding) — same logic as settings panel "Update Main Sysprompt"
-        const onboardingBtnApply = el.querySelector('#rt_onboarding_btn_update_sysprompt');
-        if (onboardingBtnApply) {
-            onboardingBtnApply.addEventListener('click', async () => {
-                await autoApplySysprompt();
-                toastr['success']('System prompt applied! \u2705', 'RPG Tracker');
-            });
-        }
+        el.innerHTML = html;
+        bindRenderedCardEvents(el, memo, false);
 
-        el.querySelectorAll('.rt-section-header').forEach(header => {
-            // Unbind to prevent duplicate listeners
-            const oldHeader = header;
-            const newHeader = oldHeader.cloneNode(true);
-            oldHeader.parentNode.replaceChild(newHeader, oldHeader);
-
-            newHeader.addEventListener('click', (e) => {
-                // Prevent toggle if clicking on a button
-                if (e.target.closest('button')) return;
-                const tag = newHeader.dataset.tag;
-                if (!tag) return;
-                const col = loadCollapsed();
-                if (col.has(tag)) col.delete(tag); else col.add(tag);
-                saveCollapsed(col);
-                refresh();
-            });
-        });
-
-        el.querySelectorAll('.rt-page-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tag = btn.dataset.tag;
-                const dir = parseInt(btn.dataset.dir);
-                if (!tag) return;
-                const curBlocks = parseMemoBlocks(memo);
-                const items = blockToItems(tag, curBlocks[tag] ?? '');
-
-                const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-                const renderType = customField?.renderType || tag;
-                const localPageSize = getPageSize(renderType);
-
-                const totalPages = Math.ceil(items.length / localPageSize);
-                const cur = _sectionPages[tag] ?? 0;
-                _sectionPages[tag] = Math.max(0, Math.min(totalPages - 1, cur + dir));
-                refresh();
-            });
-        });
-
-        el.querySelectorAll('.rt-fullview-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tag = btn.dataset.tag;
-                if (!tag) return;
-                const s = getSettings();
-                const idx = s.fullViewSections.indexOf(tag);
-                if (idx === -1) s.fullViewSections.push(tag);
-                else s.fullViewSections.splice(idx, 1);
-                saveSettings();
-                refresh();
-            });
-        });
-
-        if (!isDetachedContext) {
-            el.querySelectorAll('.rt-detach-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const tag = btn.dataset.tag;
-                    if (!tag) return;
-                    const detached = loadDetached();
-                    detached.add(tag);
-                    saveDetached(detached);
-                    createDetachedPanel(tag);
-                    refresh();
-                });
-            });
-
-            el.querySelectorAll('.rt-reattach-btn-inline').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const tag = btn.dataset.tag;
-                    if (!tag) return;
-                    const detached = loadDetached();
-                    detached.delete(tag);
-                    saveDetached(detached);
-                    const panel = document.getElementById(`rt-detached-panel-${tag}`);
-                    if (panel) panel.remove();
-                    refresh();
-                });
-            });
-        }
-
-        el.querySelectorAll('.rt-category-settings-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                handleCategorySettings(btn.dataset.tag, btn);
-            });
-        });
-
-        // Add toggle behavior for Unit Pills (Traits/Abilities)
-        el.querySelectorAll('.rt-unit-pill').forEach(unit => {
-            unit.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // Toggle active class to show/hide description
-                const wasActive = unit.classList.contains('active');
-                // Close others first for a clean experience
-                el.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
-                if (!wasActive) unit.classList.add('active');
-            });
-        });
-
-        // Global deselect when clicking anything else
-        if (!_pillDeselectHandler) {
-            _pillDeselectHandler = (e) => {
-                if (!e.target.closest('.rt-unit-pill')) {
-                    document.querySelectorAll('.rt-unit-pill.active').forEach(u => u.classList.remove('active'));
+        // Update footer location: try parsing from recent chat status footer first, fallback to memo
+        let locText = '';
+        const ctx = SillyTavern.getContext();
+        if (ctx && ctx.chat && ctx.chat.length) {
+            for (let i = ctx.chat.length - 1; i >= 0; i--) {
+                const msgContent = ctx.chat[i]?.mes || ctx.chat[i]?.['content'] || '';
+                const m = msgContent.match(/\(Location:\s*([^)]+)\)/i);
+                if (m) {
+                    locText = m[1].trim();
+                    break;
                 }
-            };
-            document.addEventListener('click', _pillDeselectHandler);
+            }
+        }
+        if (!locText) {
+            const locMatch = (memo || '').match(/Location:\s*([^)\n]+)/i);
+            if (locMatch) locText = locMatch[1].trim();
+        }
+        const footerLoc = document.getElementById('rt-footer-location');
+        if (footerLoc) {
+            footerLoc.textContent = locText || 'Unknown Location';
+            footerLoc.title = locText ? `Location: ${locText}` : 'Unknown Location';
         }
     }
 
-    function refreshRenderedView() {
-        if (!_renderedViewActive) return;
-        const s = getSettings();
-        const memo = _historyViewIndex === -1
-            ? s.currentMemo
-            : (s.memoHistory[_historyViewIndex] ?? '');
-            
-        const collapsed = loadCollapsed();
-        const detached  = loadDetached();
-
-        // Extract world time from THIS snapshot for frustration computation
-        const timeMatch = (memo || '').match(/\[TIME\]([\s\S]*?)\[\/TIME\]/i);
-        const currentTime = timeMatch ? timeMatch[1].split('\n').filter(Boolean)[0]?.trim() || '' : '';
-
-        const el = document.getElementById('rpg-tracker-render');
-        if (el) {
-            let html = renderMemoAsCards(memo, null, _sectionPages);
-
-            // Append quest log section if module is enabled (always render, even when empty)
-            if (s.modules?.quests) {
-                const snapshotQuests = parseQuestsFromMemo(memo);
-                html += renderQuestLog(snapshotQuests, currentTime, collapsed, detached);
-            }
-
-            el.innerHTML = html;
-            bindRenderedCardEvents(el, memo, false);
-
-            // Update footer location: try parsing from recent chat status footer first, fallback to memo
-            let locText = '';
-            const ctx = SillyTavern.getContext();
-            if (ctx && ctx.chat && ctx.chat.length) {
-                for (let i = ctx.chat.length - 1; i >= 0; i--) {
-                    const msgContent = ctx.chat[i]?.mes || ctx.chat[i]?.['content'] || '';
-                    const m = msgContent.match(/\(Location:\s*([^)]+)\)/i);
-                    if (m) {
-                        locText = m[1].trim();
-                        break;
-                    }
+    // Update any detached panels
+    detached.forEach(tag => {
+        const panel = document.getElementById(`rt-detached-panel-${tag}`);
+        if (panel) {
+            const body = panel.querySelector('.rpg-tracker-detached-body');
+            if (body) {
+                if (tag === 'QUESTS') {
+                    const snapshotQuests = parseQuestsFromMemo(memo);
+                    body.innerHTML = renderQuestLog(snapshotQuests, currentTime, collapsed, detached, 'QUESTS');
+                } else {
+                    body.innerHTML = renderMemoAsCards(memo, tag, _sectionPages);
                 }
+                bindRenderedCardEvents(body, memo, true);
             }
-            if (!locText) {
-                const locMatch = (memo || '').match(/Location:\s*([^)\n]+)/i);
-                if (locMatch) locText = locMatch[1].trim();
-            }
-            const footerLoc = document.getElementById('rt-footer-location');
-            if (footerLoc) {
-                footerLoc.textContent = locText || 'Unknown Location';
-                footerLoc.title = locText ? `Location: ${locText}` : 'Unknown Location';
-            }
+        } else {
+            // Panel missing, recreate it
+            createDetachedPanel(tag);
         }
+    });
+}
 
-        // Update any detached panels
-        detached.forEach(tag => {
-            const panel = document.getElementById(`rt-detached-panel-${tag}`);
-            if (panel) {
-                const body = panel.querySelector('.rpg-tracker-detached-body');
-                if (body) {
-                    if (tag === 'QUESTS') {
-                        const snapshotQuests = parseQuestsFromMemo(memo);
-                        body.innerHTML = renderQuestLog(snapshotQuests, currentTime, collapsed, detached, 'QUESTS');
-                    } else {
-                        body.innerHTML = renderMemoAsCards(memo, tag, _sectionPages);
-                    }
-                    bindRenderedCardEvents(body, memo, true);
-                }
-            } else {
-                // Panel missing, recreate it
-                createDetachedPanel(tag);
-            }
-        });
-    }
+function createDetachedPanel(tag) {
+    if (document.getElementById(`rt-detached-panel-${tag}`)) return;
 
-    function createDetachedPanel(tag) {
-        if (document.getElementById(`rt-detached-panel-${tag}`)) return;
+    const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
+    const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
+    const displayName = customField?.label || tag;
 
-        const customField = (getSettings().customFields || []).find(f => f.tag.toUpperCase() === tag);
-        const icon = customField?.icon || BLOCK_ICONS[tag] || '📄';
-        const displayName = customField?.label || tag;
-
-        const settings = getSettings();
-        const panel = document.createElement('div');
-        panel.id = `rt-detached-panel-${tag}`;
-        panel.className = `rpg-tracker-panel rpg-tracker-detached-panel ${settings.trackerTheme || 'rt-theme-native'}`;
-        panel.innerHTML = `
-            <div class="rt-resizer-tr" id="rt-detached-resizer-tr-${tag}" title="Resize from top-right"></div>
-            <div class="rt-resizer-br" id="rt-detached-resizer-br-${tag}" title="Resize from bottom-right"></div>
+    const settings = getSettings();
+    const panel = document.createElement('div');
+    panel.id = `rt-detached-panel-${tag}`;
+    panel.className = `rpg-tracker-panel rpg-tracker-detached-panel ${settings.trackerTheme || 'rt-theme-native'}`;
+    panel.innerHTML = `
             <div class="rpg-tracker-header rt-detached-header">
                 <div class="rpg-tracker-header-left">
                     <span>${icon} ${displayName}</span>
@@ -2636,104 +2726,88 @@ Rules:
             </div>
         `;
 
-        document.body.appendChild(panel);
+    document.body.appendChild(panel);
 
-        const header = panel.querySelector('.rt-detached-header');
-        if (header instanceof HTMLElement) {
-            makeDraggable(panel, header, `rpg_tracker_geometry_${tag}`);
+    const header = panel.querySelector('.rt-detached-header');
+    if (header instanceof HTMLElement) {
+        makeDraggable(panel, header, `rpg_tracker_geometry_${tag}`);
+    }
+
+    // Setup specialized geometry keys
+    const geoKey = `rpg_tracker_geometry_${tag}`;
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(geoKey));
+        if (saved && saved.left !== undefined) {
+            // Sanitize coordinates
+            const left = Math.max(0, Math.min(window.innerWidth - 50, saved.left));
+            const top = Math.max(0, Math.min(window.innerHeight - 50, saved.top));
+
+            panel.style.left = left + 'px'; panel.style.right = 'auto';
+            panel.style.top = top + 'px'; panel.style.bottom = 'auto';
+            if (saved.width) panel.style.width = saved.width + 'px';
+            if (saved.height) panel.style.height = saved.height + 'px';
+        } else {
+            const mainPanel = document.getElementById('rpg-tracker-panel');
+            if (mainPanel) {
+                const rect = mainPanel.getBoundingClientRect();
+                // spawn adjacent to the main panel if no stored position
+                let spawnLeft = rect.left - 270;
+                if (spawnLeft < 0) spawnLeft = rect.right + 10;
+                panel.style.left = Math.max(10, spawnLeft) + 'px';
+                panel.style.top = rect.top + 'px';
+                panel.style.right = 'auto';
+                panel.style.bottom = 'auto';
+            }
         }
+    } catch { /* ignore */ }
 
-        const geoKey = `rpg_tracker_geometry_${tag}`;
-        const saveDetachedGeo = (p) => {
-            const rect = p.getBoundingClientRect();
+    // Debounced save geometry
+    let _resizeTimer;
+    const ro = new ResizeObserver(() => {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(() => {
+            const rect = panel.getBoundingClientRect();
             localStorage.setItem(geoKey, JSON.stringify({
                 left: rect.left, top: rect.top,
                 width: rect.width, height: rect.height
             }));
-        };
+        }, 300);
+    });
+    ro.observe(panel);
 
-        const resizerTR = panel.querySelector(`#rt-detached-resizer-tr-${tag}`);
-        if (resizerTR instanceof HTMLElement) {
-            makeResizableTR(panel, resizerTR, saveDetachedGeo);
-        }
-        const resizerBR = panel.querySelector(`#rt-detached-resizer-br-${tag}`);
-        if (resizerBR instanceof HTMLElement) {
-            makeResizableBR(panel, resizerBR, saveDetachedGeo);
-        }
-
-        try {
-            const saved = JSON.parse(localStorage.getItem(geoKey));
-            if (saved && saved.left !== undefined) {
-                // Sanitize coordinates
-                const left = Math.max(0, Math.min(window.innerWidth - 50, saved.left));
-                const top = Math.max(0, Math.min(window.innerHeight - 50, saved.top));
-
-                panel.style.left = left + 'px'; panel.style.right = 'auto';
-                panel.style.top = top + 'px'; panel.style.bottom = 'auto';
-                if (saved.width) panel.style.width = saved.width + 'px';
-                if (saved.height) panel.style.height = saved.height + 'px';
-            } else {
-                const mainPanel = document.getElementById('rpg-tracker-panel');
-                if (mainPanel) {
-                    const rect = mainPanel.getBoundingClientRect();
-                    // spawn adjacent to the main panel if no stored position
-                    let spawnLeft = rect.left - 270;
-                    if (spawnLeft < 0) spawnLeft = rect.right + 10;
-                    panel.style.left = Math.max(10, spawnLeft) + 'px';
-                    panel.style.top = rect.top + 'px';
-                    panel.style.right = 'auto';
-                    panel.style.bottom = 'auto';
-                }
-            }
-        } catch { /* ignore */ }
-
-        // Debounced save geometry
-        let _resizeTimer;
-        const ro = new ResizeObserver(() => {
-            clearTimeout(_resizeTimer);
-            _resizeTimer = setTimeout(() => {
-                const rect = panel.getBoundingClientRect();
-                localStorage.setItem(geoKey, JSON.stringify({
-                    left: rect.left, top: rect.top,
-                    width: rect.width, height: rect.height
-                }));
-            }, 300);
-        });
-        ro.observe(panel);
-
-        panel.querySelector('.rt-reattach-btn').addEventListener('click', () => {
-            const detached = loadDetached();
-            detached.delete(tag);
-            saveDetached(detached);
-            panel.remove();
-            refreshRenderedView();
-        });
-
-        // Trigger an initial render to fill its body
+    panel.querySelector('.rt-reattach-btn').addEventListener('click', () => {
+        const detached = loadDetached();
+        detached.delete(tag);
+        saveDetached(detached);
+        panel.remove();
         refreshRenderedView();
-    }
+    });
+
+    // Trigger an initial render to fill its body
+    refreshRenderedView();
+}
 
 
 
 
 
-    /**
-     * UI Implementation
-     */
-    function createPanel() {
-        const settings = getSettings();
-        
-        // Cleanup any existing detached panels from the body to prevent duplicates on re-init
-        document.querySelectorAll('body > .rpg-tracker-detached-panel').forEach(el => el.remove());
-        document.querySelector('body > #rpg-tracker-agent')?.remove();
+/**
+ * UI Implementation
+ */
+function createPanel() {
+    const settings = getSettings();
 
-        const panel = document.createElement('div');
-        panel.id = 'rpg-tracker-panel';
-        panel.className = `rpg-tracker-panel ${settings.trackerCollapsed ? 'rt-panel-collapsed ' : ''}${settings.trackerTheme || 'rt-theme-native'}`;
-        panel.style.setProperty('--rt-base-size', (settings.fontSize || 13) + 'px');
-        panel.innerHTML = `
+    // Cleanup any existing detached panels from the body to prevent duplicates on re-init
+    document.querySelectorAll('body > .rpg-tracker-detached-panel').forEach(el => el.remove());
+    document.querySelector('body > #rpg-tracker-agent')?.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'rpg-tracker-panel';
+    panel.className = `rpg-tracker-panel ${settings.trackerCollapsed ? 'rt-panel-collapsed ' : ''}${settings.trackerTheme || 'rt-theme-native'}`;
+    panel.style.setProperty('--rt-base-size', (settings.fontSize || 13) + 'px');
+    panel.innerHTML = `
             <div class="rt-resizer-tr" id="rt-resizer-tr" title="Resize from top-right"></div>
-            <div class="rt-resizer-br" id="rt-resizer-br" title="Resize from bottom-right"></div>
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
                     <span>Fatbody D&D Framework</span>
@@ -2768,8 +2842,6 @@ Rules:
                 <div id="rpg-tracker-delta-content">${settings.lastDelta || '<span class="delta-empty">No changes yet.</span>'}</div>
             </div>
             <div class="rpg-tracker-panel rpg-tracker-agent-panel ${settings.agentCollapsed ? 'rt-panel-collapsed ' : ''}${settings.trackerTheme || 'rt-theme-native'}" id="rpg-tracker-agent" style="display:none; position: absolute; right: 0; top: 30px; width: 300px; max-height: calc(100% - 30px); z-index: 1000; flex-direction: column;">
-                <div class="rt-resizer-tr" id="rt-agent-resizer-tr" title="Resize width"></div>
-                <div class="rt-resizer-br" id="rt-agent-resizer-br" title="Resize width"></div>
                 <div class="rpg-tracker-header" style="cursor: default;">
                     <span class="rpg-tracker-header-left"><i class="fa-solid fa-robot"></i> <span>Lorebook Agent</span></span>
                     <div class="rpg-tracker-header-center" id="rt-agent-pause-banner" style="color:#ffa500; font-size:0.7em; font-weight:bold; letter-spacing:0.04em;">${settings.routerPaused ? 'AGENT PAUSED' : ''}</div>
@@ -3003,127 +3075,81 @@ Rules:
             </div>
         `;
 
-        document.body.appendChild(panel);
+    document.body.appendChild(panel);
 
-        const header = panel.querySelector('#rpg-tracker-header');
-        if (header instanceof HTMLElement) {
-            makeDraggable(/** @type {HTMLElement} */(panel), header);
-        }
-        setupResizeObserver(/** @type {HTMLElement} */(panel));
-        loadPanelGeometry(/** @type {HTMLElement} */(panel));
+    const header = panel.querySelector('#rpg-tracker-header');
+    if (header instanceof HTMLElement) {
+        makeDraggable(/** @type {HTMLElement} */(panel), header);
+    }
+    setupResizeObserver(/** @type {HTMLElement} */(panel));
+    loadPanelGeometry(/** @type {HTMLElement} */(panel));
 
-        const resizerTR = panel.querySelector('#rt-resizer-tr');
-        if (resizerTR instanceof HTMLElement) {
-            makeResizableTR(/** @type {HTMLElement} */(panel), resizerTR);
-        }
+    const resizerTR = panel.querySelector('#rt-resizer-tr');
+    if (resizerTR instanceof HTMLElement) {
+        makeResizableTR(/** @type {HTMLElement} */(panel), resizerTR);
+    }
 
-        const resizerBR = panel.querySelector('#rt-resizer-br');
-        if (resizerBR instanceof HTMLElement) {
-            makeResizableBR(/** @type {HTMLElement} */(panel), resizerBR);
-        }
-
-        const _agentPanelEl = panel.querySelector('#rpg-tracker-agent');
-        const agentResizerTR = _agentPanelEl?.querySelector('#rt-agent-resizer-tr');
-        const agentResizerBR = _agentPanelEl?.querySelector('#rt-agent-resizer-br');
-        if (_agentPanelEl instanceof HTMLElement) {
-            // For the attached agent panel, save width to its own key so it doesn't clobber the main panel geometry.
-            // When detached, save full geometry (left, top, width, height) to the detached geometry key.
-            const AGENT_ATTACHED_WIDTH_KEY = 'rpg_tracker_agent_attached_width';
-            const AGENT_GEO_KEY = 'rpg_tracker_geometry_lorebook_agent';
-            const agentSave = (p) => {
-                const isDetachedNow = p.classList.contains('rt-detached-panel');
-                if (isDetachedNow) {
-                    const r = p.getBoundingClientRect();
-                    const isCollapsed = p.classList.contains('rt-panel-collapsed');
-                    let savedGeo = {};
-                    try {
-                        const savedStr = localStorage.getItem(AGENT_GEO_KEY);
-                        if (savedStr) savedGeo = JSON.parse(savedStr) || {};
-                    } catch {}
-                    localStorage.setItem(AGENT_GEO_KEY, JSON.stringify({
-                        left: r.left, top: r.top,
-                        width: isCollapsed ? (savedGeo.width || r.width) : r.width,
-                        height: isCollapsed ? (savedGeo.height || r.height) : r.height
-                    }));
-                } else {
-                    const w = p.getBoundingClientRect().width;
-                    localStorage.setItem(AGENT_ATTACHED_WIDTH_KEY, String(w));
-                }
-            };
-            if (agentResizerTR instanceof HTMLElement) {
-                makeResizableTR(_agentPanelEl, agentResizerTR, agentSave);
+    const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // 1. Abort the state update controller (kills fetch/Ollama/OpenAI)
+            if (_stateController) {
+                _stateController.abort();
+                _stateController = null;
             }
-            if (agentResizerBR instanceof HTMLElement) {
-                makeResizableBR(_agentPanelEl, agentResizerBR, agentSave);
-            }
-            // Restore saved width if any
-            try {
-                const savedW = parseFloat(localStorage.getItem(AGENT_ATTACHED_WIDTH_KEY));
-                if (savedW >= 220) _agentPanelEl.style.width = savedW + 'px';
-            } catch {}
-        }
+            // 2. Stop SillyTavern generation (kills internal ST requests)
+            const { stopGeneration } = SillyTavern.getContext();
+            if (stopGeneration) stopGeneration();
+        });
+    }
 
-        const stopBtn = panel.querySelector('#rpg-tracker-stop-btn');
-        if (stopBtn) {
-            stopBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // 1. Abort the state update controller (kills fetch/Ollama/OpenAI)
-                if (_stateController) {
-                    _stateController.abort();
-                    _stateController = null;
-                }
-                // 2. Stop SillyTavern generation (kills internal ST requests)
-                const { stopGeneration } = SillyTavern.getContext();
-                if (stopGeneration) stopGeneration();
-            });
-        }
+    const enableBtn = panel.querySelector('#rpg-tracker-enable-btn');
+    if (enableBtn) {
+        enableBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const s = getSettings();
+            s.enabled = !s.enabled;
+            saveSettings();
+            updatePanelStatus();
+        });
+    }
 
-        const enableBtn = panel.querySelector('#rpg-tracker-enable-btn');
-        if (enableBtn) {
-            enableBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const s = getSettings();
-                s.enabled = !s.enabled;
-                saveSettings();
-                updatePanelStatus();
-            });
-        }
+    const pauseBtn = panel.querySelector('#rpg-tracker-pause-btn');
+    if (pauseBtn) {
+        pauseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const s = getSettings();
+            // Pause button only toggles the paused state, not the enabled state
+            s.paused = !s.paused;
+            saveSettings();
+            updatePanelStatus();
+        });
+    }
 
-        const pauseBtn = panel.querySelector('#rpg-tracker-pause-btn');
-        if (pauseBtn) {
-            pauseBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const s = getSettings();
-                // Pause button only toggles the paused state, not the enabled state
-                s.paused = !s.paused;
-                saveSettings();
-                updatePanelStatus();
-            });
-        }
+    // ── Chat Link Toggle ──
+    const chatLinkBtn = panel.querySelector('#rpg-tracker-chat-link-btn');
+    if (chatLinkBtn) {
+        chatLinkBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const { Popup, POPUP_RESULT } = SillyTavern.getContext();
+            const s = getSettings();
+            const turningOn = !s.chatLinkEnabled;
 
-        // ── Chat Link Toggle ──
-        const chatLinkBtn = panel.querySelector('#rpg-tracker-chat-link-btn');
-        if (chatLinkBtn) {
-            chatLinkBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const { Popup, POPUP_RESULT } = SillyTavern.getContext();
-                const s = getSettings();
-                const turningOn = !s.chatLinkEnabled;
+            if (turningOn && _currentChatId) {
+                const saved = s.chatStates?.[_currentChatId];
+                const liveContent = (s.currentMemo || '').trim();
+                const savedContent = (saved?.currentMemo || '').trim();
 
-                if (turningOn && _currentChatId) {
-                    const saved = s.chatStates?.[_currentChatId];
-                    const liveContent = (s.currentMemo || '').trim();
-                    const savedContent = (saved?.currentMemo || '').trim();
-                    
-                    const liveKeys = s.activeRouterKeys || [];
-                    const savedKeys = saved?.activeRouterKeys || [];
-                    const keysChanged = JSON.stringify(liveKeys.sort()) !== JSON.stringify(savedKeys.sort());
+                const liveKeys = s.activeRouterKeys || [];
+                const savedKeys = saved?.activeRouterKeys || [];
+                const keysChanged = JSON.stringify(liveKeys.sort()) !== JSON.stringify(savedKeys.sort());
 
-                    // Show conflict if EITHER content or keys are different
-                    const hasConflict = (savedContent && liveContent && liveContent !== savedContent) || (savedKeys.length > 0 && liveKeys.length > 0 && keysChanged);
+                // Show conflict if EITHER content or keys are different
+                const hasConflict = (savedContent && liveContent && liveContent !== savedContent) || (savedKeys.length > 0 && liveKeys.length > 0 && keysChanged);
 
-                    if (hasConflict) {
-                        const body = `
+                if (hasConflict) {
+                    const body = `
                             <div style="text-align: left;">
                                 <p><b>Conflict Detected:</b> This chat has a saved state (memo or lore keys), but your current session is not empty.</p>
                                 <p style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
@@ -3131,210 +3157,206 @@ Rules:
                                     <b>OVERWRITE:</b> Keep current session and save it to this chat. (Old chat data moved to history)
                                 </p>
                             </div>`;
-                        
-                        const choice = await Popup.show.confirm('⚠️ Chat Link Conflict', body, {
-                            okButton: 'RESTORE',
-                            cancelButton: 'OVERWRITE',
-                            customButtons: [
-                                {
-                                    text: 'CANCEL',
-                                    result: POPUP_RESULT.CANCELLED,
-                                    appendAtEnd: true,
-                                }
-                            ],
-                        });
 
-                        if (choice === POPUP_RESULT.AFFIRMATIVE) {
-                            // User wants to Restore
-                            if (s.currentMemo) {
-                                saved.memoHistory = saved.memoHistory || [];
-                                saved.memoHistory.unshift({
-                                    memo: s.currentMemo,
-                                    delta: s.lastDelta,
-                                    timestamp: Date.now(),
-                                    label: 'Global Edit (Pre-Link)'
-                                });
-                                if (saved.memoHistory.length > 50) saved.memoHistory.length = 50;
+                    const choice = await Popup.show.confirm('⚠️ Chat Link Conflict', body, {
+                        okButton: 'RESTORE',
+                        cancelButton: 'OVERWRITE',
+                        customButtons: [
+                            {
+                                text: 'CANCEL',
+                                result: POPUP_RESULT.CANCELLED,
+                                appendAtEnd: true,
                             }
-                            loadChatState(_currentChatId);
-                            toastr['success']('Chat Link ON — restored saved state.', 'RPG Tracker');
-                        } else if (choice === POPUP_RESULT.NEGATIVE) {
-                            // User wants to Overwrite
-                            if (saved.currentMemo) {
-                                s.memoHistory.unshift(saved.currentMemo);
-                                if (s.memoHistory.length > 50) s.memoHistory.length = 50;
-                            }
-                            saveChatState(_currentChatId);
-                            toastr['success']('Chat Link ON — current state saved to chat.', 'RPG Tracker');
-                        } else {
-                            // User closed the modal or hit escape — cancel the toggle
-                            return;
+                        ],
+                    });
+
+                    if (choice === POPUP_RESULT.AFFIRMATIVE) {
+                        // User wants to Restore
+                        if (s.currentMemo) {
+                            saved.memoHistory = saved.memoHistory || [];
+                            saved.memoHistory.unshift({
+                                memo: s.currentMemo,
+                                delta: s.lastDelta,
+                                timestamp: Date.now(),
+                                label: 'Global Edit (Pre-Link)'
+                            });
+                            if (saved.memoHistory.length > 50) saved.memoHistory.length = 50;
                         }
-                    } else {
-                        // No conflict or chat was empty
+                        loadChatState(_currentChatId);
+                        toastr['success']('Chat Link ON — restored saved state.', 'RPG Tracker');
+                    } else if (choice === POPUP_RESULT.NEGATIVE) {
+                        // User wants to Overwrite
+                        if (saved.currentMemo) {
+                            s.memoHistory.unshift(saved.currentMemo);
+                            if (s.memoHistory.length > 50) s.memoHistory.length = 50;
+                        }
                         saveChatState(_currentChatId);
-                        toastr['success']('Chat Link ON — state bound to this chat.', 'RPG Tracker');
+                        toastr['success']('Chat Link ON — current state saved to chat.', 'RPG Tracker');
+                    } else {
+                        // User closed the modal or hit escape — cancel the toggle
+                        return;
                     }
-                } else if (turningOn) {
-                    // Normal lock (empty or new chat)
-                    if (_currentChatId) {
-                        const found = loadChatState(_currentChatId);
-                        if (!found) saveChatState(_currentChatId);
-                    }
-                    toastr['success']('Chat Link ON', 'RPG Tracker');
                 } else {
-                    toastr['info']('Chat Link OFF — using global state.', 'RPG Tracker');
+                    // No conflict or chat was empty
+                    saveChatState(_currentChatId);
+                    toastr['success']('Chat Link ON — state bound to this chat.', 'RPG Tracker');
                 }
+            } else if (turningOn) {
+                // Normal lock (empty or new chat)
+                if (_currentChatId) {
+                    const found = loadChatState(_currentChatId);
+                    if (!found) saveChatState(_currentChatId);
+                }
+                toastr['success']('Chat Link ON', 'RPG Tracker');
+            } else {
+                toastr['info']('Chat Link OFF — using global state.', 'RPG Tracker');
+            }
 
-                s.chatLinkEnabled = turningOn;
-                saveSettings();
-                updateChatLinkUI();
-            });
+            s.chatLinkEnabled = turningOn;
+            saveSettings();
+            updateChatLinkUI();
+        });
+    }
+
+    // ── Router Agent UI ──
+    const agentBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent-btn'));
+    const agentPanel = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent'));
+    agentPanel.style.setProperty('--rt-base-size', (settings.agentFontSize || 13) + 'px');
+    const agentCloseBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent-close'));
+
+    renderRouterUI = async function () {
+        const s = getSettings();
+        const keysContainer = agentPanel.querySelector('#rt-agent-router-active-keys');
+        const logContainer = agentPanel.querySelector('#rt-agent-router-log');
+        if (!keysContainer || !logContainer) return;
+
+        const ctx = SillyTavern.getContext();
+        const books = {};
+        const activeKeys = s.activeRouterKeys || [];
+
+        // Collect needed lorebooks to minimize loads
+        const neededBooks = new Set();
+        for (const k of activeKeys) {
+            const parts = k.split('::');
+            if (parts.length > 1) neededBooks.add(parts[0]);
         }
 
-        // ── Router Agent UI ──
-        const agentBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent-btn'));
-        const agentPanel = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent'));
-        agentPanel.style.setProperty('--rt-base-size', (settings.agentFontSize || 13) + 'px');
-        const agentCloseBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-agent-close'));
-        
-        renderRouterUI = async function() {
-            const s = getSettings();
-            const keysContainer = agentPanel.querySelector('#rt-agent-router-active-keys');
-            const logContainer = agentPanel.querySelector('#rt-agent-router-log');
-            if (!keysContainer || !logContainer) return;
-            
-            const ctx = SillyTavern.getContext();
-            const books = {};
-            const activeKeys = s.activeRouterKeys || [];
-            
-            // Collect needed lorebooks to minimize loads
-            const neededBooks = new Set();
-            for (const k of activeKeys) {
-                const parts = k.split('::');
-                if (parts.length > 1) neededBooks.add(parts[0]);
-            }
-            
-            for (const bookName of neededBooks) {
-                books[bookName] = await ctx.loadWorldInfo(bookName);
-            }
+        for (const bookName of neededBooks) {
+            books[bookName] = await ctx.loadWorldInfo(bookName);
+        }
 
-            // Calculate total active tokens
-            let activeTokens = 0;
-            for (const k of activeKeys) {
-                const [bookName, uid] = k.split('::');
-                const entry = books[bookName]?.entries?.[uid];
-                if (entry) {
-                    activeTokens += Math.round((entry.content || '').length / 4);
-                }
+        // Calculate total active tokens
+        let activeTokens = 0;
+        for (const k of activeKeys) {
+            const [bookName, uid] = k.split('::');
+            const entry = books[bookName]?.entries?.[uid];
+            if (entry) {
+                activeTokens += Math.round((entry.content || '').length / 4);
             }
-            const activeTokensEl = agentPanel.querySelector('#rt-agent-active-tokens');
-            if (activeTokensEl) {
-                activeTokensEl.textContent = `(${activeTokens}t)`;
+        }
+        const activeTokensEl = agentPanel.querySelector('#rt-agent-active-tokens');
+        if (activeTokensEl) {
+            activeTokensEl.textContent = `(${activeTokens}t)`;
+        }
+
+        // Use keywordActivatedKeys (persistent pool) for yellow pill coloring.
+        // lastKeywordTriggeredKeys only covers the most recent scan pass and resets immediately.
+        const keywordTriggeredSet = new Set(s.keywordActivatedKeys || []);
+
+        keysContainer.innerHTML = activeKeys.map(k => {
+            const [bookName, uid] = k.split('::');
+            const entry = books[bookName]?.entries?.[uid];
+
+            const shortBook = bookName.split('_').pop() || bookName;
+            let label = `${shortBook}/${uid}`;
+            let title = "No entry found.";
+            if (entry) {
+                label = entry.comment || (entry.key?.[0]) || uid;
+                title = `[${bookName}] ${entry.key?.join(', ')}\n\n${(entry.content || '').substring(0, 500)}${entry.content?.length > 500 ? '...' : ''}`;
             }
 
-            // Use keywordActivatedKeys (persistent pool) for yellow pill coloring.
-            // lastKeywordTriggeredKeys only covers the most recent scan pass and resets immediately.
-            const keywordTriggeredSet = new Set(s.keywordActivatedKeys || []);
+            const isKeywordTriggered = keywordTriggeredSet.has(k);
+            const pillBg = isKeywordTriggered ? 'rgba(58, 46, 14, 0.9)' : 'rgba(42, 42, 53, 0.8)';
+            const pillBorder = isKeywordTriggered ? '1px solid rgba(210, 160, 40, 0.6)' : '1px solid rgba(255,255,255,0.1)';
+            const tooltipPrefix = isKeywordTriggered ? '⌂ Keyword-triggered this turn\n\n' : '';
 
-            keysContainer.innerHTML = activeKeys.map(k => {
-                const [bookName, uid] = k.split('::');
-                const entry = books[bookName]?.entries?.[uid];
-                
-                const shortBook = bookName.split('_').pop() || bookName;
-                let label = `${shortBook}/${uid}`;
-                let title = "No entry found.";
-                if (entry) {
-                    label = entry.comment || (entry.key?.[0]) || uid;
-                    title = `[${bookName}] ${entry.key?.join(', ')}\n\n${(entry.content || '').substring(0, 500)}${entry.content?.length > 500 ? '...' : ''}`;
-                }
-
-                const isKeywordTriggered = keywordTriggeredSet.has(k);
-                const pillBg    = isKeywordTriggered ? 'rgba(58, 46, 14, 0.9)'          : 'rgba(42, 42, 53, 0.8)';
-                const pillBorder = isKeywordTriggered ? '1px solid rgba(210, 160, 40, 0.6)' : '1px solid rgba(255,255,255,0.1)';
-                const tooltipPrefix = isKeywordTriggered ? '⌂ Keyword-triggered this turn\n\n' : '';
-
-                return `<span class="rt-router-pill" style="background: ${pillBg}; padding: 2px 8px; border-radius: 12px; font-size: 0.769em; border: ${pillBorder}; display: inline-flex; align-items: center; gap: 6px; cursor: help; max-width: 120px;" title="${escapeHtml(tooltipPrefix + title)}">
+            return `<span class="rt-router-pill" style="background: ${pillBg}; padding: 2px 8px; border-radius: 12px; font-size: 0.769em; border: ${pillBorder}; display: inline-flex; align-items: center; gap: 6px; cursor: help; max-width: 120px;" title="${escapeHtml(tooltipPrefix + title)}">
                     ${isKeywordTriggered ? '<span style="color: #d4a028; font-size: 0.9em; flex-shrink: 0;" title="Keyword-triggered this turn">⌂</span>' : ''}
                     <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${escapeHtml(label)}</span>
                     <span class="rt-router-kill-key" data-key="${k}" style="cursor:pointer; color: #ff5555; font-weight: bold; padding: 0 2px;" title="Deactivate">✕</span>
                 </span>`;
-            }).join('') || '<span style="opacity:0.5; font-size:10px;">None</span>';
-            
-            logContainer.innerHTML = (s.routerLog || []).map(entry => {
-                let diffStr = '';
-                if (entry.activate?.length) diffStr += `<span style="color:#55ff55;">+${entry.activate.length}</span> `;
-                if (entry.deactivate?.length) diffStr += `<span style="color:#ff5555;">-${entry.deactivate.length}</span> `;
-                if (entry.record?.length) diffStr += `<span style="color:#55ccff;" title="Created: ${entry.record.join(', ')}">*${entry.record.length}</span> `;
-                if (entry.delete?.length) diffStr += `<span style="color:#ff3333; font-weight: bold;" title="Deleted: ${entry.delete.join(', ')}">✕${entry.delete.length}</span> `;
-                if (entry.rewrite?.length) diffStr += `<span style="color:#e67e22; font-weight: bold;" title="Rewritten: ${entry.rewrite.join(', ')}">✎${entry.rewrite.length}</span> `;
-                if (entry.consolidate?.length) diffStr += `<span style="color:#9b59b6; font-weight: bold;" title="Consolidated: ${entry.consolidate.join(', ')}">⎘${entry.consolidate.length}</span> `;
-                return `<div style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 0.769em; margin-bottom: 4px; border-left: 2px solid rgba(255,255,255,0.05);">
+        }).join('') || '<span style="opacity:0.5; font-size:10px;">None</span>';
+
+        logContainer.innerHTML = (s.routerLog || []).map(entry => {
+            let diffStr = '';
+            if (entry.activate?.length) diffStr += `<span style="color:#55ff55;">+${entry.activate.length}</span> `;
+            if (entry.deactivate?.length) diffStr += `<span style="color:#ff5555;">-${entry.deactivate.length}</span> `;
+            if (entry.record?.length) diffStr += `<span style="color:#55ccff;" title="Created: ${entry.record.join(', ')}">*${entry.record.length}</span> `;
+            if (entry.delete?.length) diffStr += `<span style="color:#ff3333; font-weight: bold;" title="Deleted: ${entry.delete.join(', ')}">✕${entry.delete.length}</span> `;
+            if (entry.rewrite?.length) diffStr += `<span style="color:#e67e22; font-weight: bold;" title="Rewritten: ${entry.rewrite.join(', ')}">✎${entry.rewrite.length}</span> `;
+            if (entry.consolidate?.length) diffStr += `<span style="color:#9b59b6; font-weight: bold;" title="Consolidated: ${entry.consolidate.join(', ')}">⎘${entry.consolidate.length}</span> `;
+            return `<div style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; font-size: 0.769em; margin-bottom: 4px; border-left: 2px solid rgba(255,255,255,0.05);">
                     <div style="display:flex; justify-content: space-between; opacity: 0.7; margin-bottom: 2px; font-weight: bold;">
                         <span>${entry.time}</span>
                         <span>${diffStr}</span>
                     </div>
                     <div style="line-height: 1.3;">${escapeHtml(entry.reason)}</div>
                 </div>`;
-            }).join('') || '<span style="opacity:0.5; font-size:10px;">No logs yet.</span>';
-            
-            // Attach kill handlers
-            keysContainer.querySelectorAll('.rt-router-kill-key').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const target = /** @type {HTMLElement} */ (e.target);
-                    const key = target.getAttribute('data-key');
-                    const st = getSettings();
-                    if (st.activeRouterKeys) {
-                        st.activeRouterKeys = st.activeRouterKeys.filter(k => k !== key);
-                        if (st.keywordActivatedKeys) {
-                            st.keywordActivatedKeys = st.keywordActivatedKeys.filter(k => k !== key);
-                        }
-                        if (st.lastKeywordTriggeredKeys) {
-                            st.lastKeywordTriggeredKeys = st.lastKeywordTriggeredKeys.filter(k => k !== key);
-                        }
-                        saveSettings();
-                        renderRouterUI();
-                    }
-                });
-            });
-        }
-        
-        // Assigned below when the agent panel is wired. Declared here so
-        // nav handlers outside the wiring block can always call it safely.
-        let refreshManifest = async (_source = 'uninitialized') => {};
+        }).join('') || '<span style="opacity:0.5; font-size:10px;">No logs yet.</span>';
 
-        if (agentBtn && agentPanel && agentCloseBtn) {
-            agentBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = (/** @type {HTMLElement} */ (agentPanel)).style.display === 'none';
-                (/** @type {HTMLElement} */ (agentPanel)).style.display = isHidden ? 'flex' : 'none';
-                if (isHidden) {
-                    panel.classList.add('rt-agent-open');
-                    // Auto-expand the main tracker if it's collapsed; agent panel is an absolute
-                    // child, so overflow:hidden on the main panel would clip it otherwise.
-                    const s = getSettings();
-                    if (s.trackerCollapsed) {
-                        s.trackerCollapsed = false;
-                        saveSettings();
-                        panel.classList.remove('rt-panel-collapsed');
-                        const colIcon = panel.querySelector('#rpg-tracker-collapse-btn i');
-                        if (colIcon) colIcon.className = 'fa-solid fa-chevron-up';
+        // Attach kill handlers
+        keysContainer.querySelectorAll('.rt-router-kill-key').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = /** @type {HTMLElement} */ (e.target);
+                const key = target.getAttribute('data-key');
+                const st = getSettings();
+                if (st.activeRouterKeys) {
+                    st.activeRouterKeys = st.activeRouterKeys.filter(k => k !== key);
+                    if (st.keywordActivatedKeys) {
+                        st.keywordActivatedKeys = st.keywordActivatedKeys.filter(k => k !== key);
                     }
-                    syncRouterPrefixDisplays(getSettings().routerCampaignPrefix || '');
+                    if (st.lastKeywordTriggeredKeys) {
+                        st.lastKeywordTriggeredKeys = st.lastKeywordTriggeredKeys.filter(k => k !== key);
+                    }
+                    saveSettings();
                     renderRouterUI();
-                    refreshManifest();
-                } else {
-                    panel.classList.remove('rt-agent-open');
                 }
             });
-            agentCloseBtn.addEventListener('click', () => {
-                (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
-                panel.classList.remove('rt-agent-open');
-            });
-            const helpBtn = agentPanel.querySelector('#rt-agent-help-btn');
-            if (helpBtn) {
-                helpBtn.addEventListener('click', () => {
-                    const content = `
+        });
+    }
+
+    // Assigned below when the agent panel is wired. Declared here so
+    // nav handlers outside the wiring block can always call it safely.
+    let refreshManifest = async (_source = 'uninitialized') => { };
+
+    if (agentBtn && agentPanel && agentCloseBtn) {
+        agentBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isHidden = (/** @type {HTMLElement} */ (agentPanel)).style.display === 'none';
+            (/** @type {HTMLElement} */ (agentPanel)).style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                // Auto-expand the main tracker if it's collapsed; agent panel is an absolute
+                // child, so overflow:hidden on the main panel would clip it otherwise.
+                const s = getSettings();
+                if (s.trackerCollapsed) {
+                    s.trackerCollapsed = false;
+                    saveSettings();
+                    panel.classList.remove('rt-panel-collapsed');
+                    const colIcon = panel.querySelector('#rpg-tracker-collapse-btn i');
+                    if (colIcon) colIcon.className = 'fa-solid fa-chevron-up';
+                }
+                syncRouterPrefixDisplays(getSettings().routerCampaignPrefix || '');
+                renderRouterUI();
+                refreshManifest();
+            }
+        });
+        agentCloseBtn.addEventListener('click', () => {
+            (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
+        });
+        const helpBtn = agentPanel.querySelector('#rt-agent-help-btn');
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => {
+                const content = `
                         <div style="text-align: left; font-size: 13px; line-height: 1.5;">
                             <h3 style="margin-top: 0; color: var(--rt-custom-accent, #3498db);">The Lorebook Agent</h3>
                             <p>An autonomous narrative researcher. After each generation it scans your recent chat, decides what has changed, and writes new or updated entries directly into your SillyTavern lorebooks — no manual data entry needed.</p>
@@ -3376,256 +3398,256 @@ Rules:
                             </ul>
                         </div>
                     `;
-                    const { Popup } = SillyTavern.getContext();
-                    Popup.show.confirm('📖 Lorebook Agent Documentation', content, { okButton: 'Got it', cancelButton: false });
-                });
+                const { Popup } = SillyTavern.getContext();
+                Popup.show.confirm('📖 Lorebook Agent Documentation', content, { okButton: 'Got it', cancelButton: false });
+            });
+        }
+
+        /** Applies/removes is-agent-disabled on the agent panel to match routerEnabled. */
+        function updateAgentPanelDisabled() {
+            const s = getSettings();
+            if (s.routerEnabled) {
+                agentPanel.classList.remove('is-agent-disabled');
+            } else {
+                agentPanel.classList.add('is-agent-disabled');
+            }
+            // Keep settings sidebar toggle in sync
+            const sidebarCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_router_enabled'));
+            if (sidebarCheck) sidebarCheck.checked = !!s.routerEnabled;
+            // Keep header ⏻ button in sync
+            const agentEnableBtn = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-agent-router-enable-btn'));
+            if (agentEnableBtn) {
+                agentEnableBtn.style.opacity = s.routerEnabled ? '' : '0.35';
+                agentEnableBtn.title = s.routerEnabled ? 'Disable Lorebook Agent' : 'Enable Lorebook Agent';
+            }
+        }
+
+        // Apply on open
+        updateAgentPanelDisabled();
+
+        // ── Agent collapse/expand ──
+        const toggleAgentCollapse = () => {
+            const s = getSettings();
+            s.agentCollapsed = !s.agentCollapsed;
+            saveSettings();
+
+            if (s.agentCollapsed) {
+                agentPanel.classList.add('rt-panel-collapsed');
+            } else {
+                agentPanel.classList.remove('rt-panel-collapsed');
             }
 
-            /** Applies/removes is-agent-disabled on the agent panel to match routerEnabled. */
-            function updateAgentPanelDisabled() {
-                const s = getSettings();
-                if (s.routerEnabled) {
-                    agentPanel.classList.remove('is-agent-disabled');
-                } else {
-                    agentPanel.classList.add('is-agent-disabled');
-                }
-                // Keep settings sidebar toggle in sync
-                const sidebarCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_router_enabled'));
-                if (sidebarCheck) sidebarCheck.checked = !!s.routerEnabled;
-                // Keep header ⏻ button in sync
-                const agentEnableBtn = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-agent-router-enable-btn'));
-                if (agentEnableBtn) {
-                    agentEnableBtn.style.opacity = s.routerEnabled ? '' : '0.35';
-                    agentEnableBtn.title = s.routerEnabled ? 'Disable Lorebook Agent' : 'Enable Lorebook Agent';
-                }
+            const icon = agentPanel.querySelector('#rt-agent-router-collapse-btn i');
+            if (icon) {
+                icon.className = s.agentCollapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
             }
+        };
 
-            // Apply on open
-            updateAgentPanelDisabled();
+        const agentCollapseBtn = agentPanel.querySelector('#rt-agent-router-collapse-btn');
+        if (agentCollapseBtn) {
+            agentCollapseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleAgentCollapse();
+            });
+        }
 
-            // ── Agent collapse/expand ──
-            const toggleAgentCollapse = () => {
+        const agentHeader = agentPanel.querySelector('.rpg-tracker-header');
+        if (agentHeader) {
+            agentHeader.addEventListener('dblclick', (e) => {
+                if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
+                toggleAgentCollapse();
+            });
+        }
+
+        // ── Agent enable button (header ⏻) ──
+        const agentEnableBtn = agentPanel.querySelector('#rt-agent-router-enable-btn');
+        if (agentEnableBtn) {
+            agentEnableBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const s = getSettings();
-                s.agentCollapsed = !s.agentCollapsed;
+                s.routerEnabled = !s.routerEnabled;
                 saveSettings();
+                updateAgentPanelDisabled();
+            });
+        }
 
-                if (s.agentCollapsed) {
-                    agentPanel.classList.add('rt-panel-collapsed');
-                } else {
-                    agentPanel.classList.remove('rt-panel-collapsed');
-                }
+        const basicCheck = agentPanel.querySelector('#rt-agent-router-basic');
+        if (basicCheck) {
+            basicCheck.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerBasicMode = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                saveSettings();
+            });
+        }
 
-                const icon = agentPanel.querySelector('#rt-agent-router-collapse-btn i');
-                if (icon) {
-                    icon.className = s.agentCollapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
-                }
+        const nativeKwCheck = agentPanel.querySelector('#rt-agent-router-native-kw');
+        if (nativeKwCheck) {
+            nativeKwCheck.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerNativeKeywordActivation = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                saveSettings();
+            });
+        }
+
+        // Tracks which lorebook folders are open across refreshes
+        const _manifestOpenFolders = new Set();
+        // Tracks entries that have unsaved edits: id → { content, keys, comment }
+        /** @type {Map<string, {content:string, keys:string, comment:string}>} */
+        const _dirtyEntries = new Map();
+        // Tracks entries whose body is currently expanded
+        const _openEntries = new Set();
+
+        /**
+         * @param {object} item - manifest row from getLorebookManifest
+         * @param {{ stale?: boolean, dirty?: {content:string, keys:string, comment:string} | null }} [opts]
+         */
+        const buildEntryBody = (item, opts = {}) => {
+            const body = document.createElement('div');
+            body.style.cssText = 'display:none; padding:4px 4px 6px 12px; flex-direction:column; gap:5px;';
+            body.dataset.entryId = item.id;
+
+            const staleBadge = document.createElement('div');
+            staleBadge.className = 'rt-agent-manifest-stale';
+            staleBadge.style.cssText = 'display:' + (opts.stale ? 'block' : 'none') + '; font-size:9px; color:#ffa500; font-style:italic;';
+            staleBadge.textContent = '⚠ Entry changed externally — save discards external changes or cancel to reload.';
+            body.appendChild(staleBadge);
+
+            // ── Read-only view (default when expanded) ─────────────────
+            const readPane = document.createElement('div');
+            readPane.className = 'rt-agent-manifest-read';
+            readPane.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+
+            const titleRead = document.createElement('div');
+            titleRead.style.cssText = 'font-size:9px; color:var(--rt-text);';
+            titleRead.innerHTML = `<span style="opacity:0.5;">Title:</span> ${escapeHtml(item.label)}`;
+
+            const keysRead = document.createElement('div');
+            keysRead.style.cssText = 'font-size:9px; opacity:0.55; color:var(--rt-text-muted); font-family:var(--rt-font-mono);';
+            keysRead.textContent = '[' + item.keys.join(', ') + ']';
+
+            const contentRead = document.createElement('div');
+            contentRead.style.cssText = 'font-size:10px; opacity:0.88; color:var(--rt-text); line-height:1.45; white-space:pre-wrap; word-break:break-word; max-height:220px; overflow-y:auto;';
+            contentRead.textContent = item.content || '';
+
+            const readActions = document.createElement('div');
+            readActions.style.cssText = 'display:flex; justify-content:flex-end; margin-top:2px;';
+            const cleanBtn = document.createElement('button');
+            cleanBtn.type = 'button';
+            cleanBtn.textContent = 'Clean';
+            cleanBtn.title = 'Run targeted cleanup for this entry';
+            cleanBtn.style.cssText = 'background:rgba(230,126,34,0.12); border:1px solid rgba(230,126,34,0.35); color:#e67e22; border-radius:3px; font-size:9px; padding:2px 10px; cursor:pointer; margin-right:5px;';
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.textContent = 'Edit';
+            editBtn.title = 'Edit this lore entry';
+            editBtn.style.cssText = 'background:rgba(80,140,255,0.12); border:1px solid rgba(80,140,255,0.35); color:var(--rt-accent); border-radius:3px; font-size:9px; padding:2px 10px; cursor:pointer;';
+            readActions.appendChild(cleanBtn);
+            readActions.appendChild(editBtn);
+
+            readPane.appendChild(titleRead);
+            readPane.appendChild(keysRead);
+            readPane.appendChild(contentRead);
+            readPane.appendChild(readActions);
+            body.appendChild(readPane);
+
+            const syncReadFromItem = () => {
+                titleRead.innerHTML = `<span style="opacity:0.5;">Title:</span> ${escapeHtml(item.label)}`;
+                keysRead.textContent = '[' + item.keys.join(', ') + ']';
+                contentRead.textContent = item.content || '';
             };
 
-            const agentCollapseBtn = agentPanel.querySelector('#rt-agent-router-collapse-btn');
-            if (agentCollapseBtn) {
-                agentCollapseBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    toggleAgentCollapse();
+            // ── Edit form (hidden until Edit) ─────────────────────────────
+            const editPane = document.createElement('div');
+            editPane.className = 'rt-agent-manifest-edit';
+            editPane.style.cssText = 'display:none; flex-direction:column; gap:5px;';
+
+            const titleRow = document.createElement('div');
+            titleRow.style.cssText = 'display:flex; gap:4px; align-items:center;';
+            const titleLbl = document.createElement('span');
+            titleLbl.style.cssText = 'font-size:9px; opacity:0.5; color:var(--rt-text-muted); flex-shrink:0;';
+            titleLbl.textContent = 'Title:';
+            const titleInp = document.createElement('input');
+            titleInp.type = 'text';
+            titleInp.className = 'rt-agent-manifest-inp-title';
+            titleInp.value = item.label;
+            titleInp.style.cssText = 'flex:1; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:2px 5px; min-width:0;';
+            titleRow.appendChild(titleLbl);
+            titleRow.appendChild(titleInp);
+            editPane.appendChild(titleRow);
+
+            const keysRow = document.createElement('div');
+            keysRow.style.cssText = 'display:flex; gap:4px; align-items:center;';
+            const keysLbl = document.createElement('span');
+            keysLbl.style.cssText = 'font-size:9px; opacity:0.5; color:var(--rt-text-muted); flex-shrink:0;';
+            keysLbl.textContent = 'Keys:';
+            const keysInp = document.createElement('input');
+            keysInp.type = 'text';
+            keysInp.className = 'rt-agent-manifest-inp-keys';
+            keysInp.value = item.keys.join(', ');
+            keysInp.placeholder = 'keyword1, keyword2, …';
+            keysInp.style.cssText = 'flex:1; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:2px 5px; font-family:var(--rt-font-mono); min-width:0;';
+            keysRow.appendChild(keysLbl);
+            keysRow.appendChild(keysInp);
+            editPane.appendChild(keysRow);
+
+            const contentArea = document.createElement('textarea');
+            contentArea.className = 'rt-agent-manifest-ta-content';
+            contentArea.value = item.content || '';
+            contentArea.rows = 5;
+            contentArea.style.cssText = 'width:100%; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:4px 5px; line-height:1.4; resize:vertical; box-sizing:border-box; font-family:var(--rt-font-mono);';
+
+            const markDirty = () => {
+                _dirtyEntries.set(item.id, {
+                    content: contentArea.value,
+                    keys: keysInp.value,
+                    comment: titleInp.value,
                 });
+            };
+            titleInp.addEventListener('input', markDirty);
+            keysInp.addEventListener('input', markDirty);
+            contentArea.addEventListener('input', markDirty);
+            editPane.appendChild(contentArea);
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display:flex; gap:5px; justify-content:flex-end; align-items:center;';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.type = 'button';
+            saveBtn.style.cssText = 'background:rgba(0,200,140,0.15); border:1px solid rgba(0,200,140,0.4); color:#00c88c; border-radius:3px; font-size:9px; padding:2px 8px; cursor:pointer;';
+            saveBtn.textContent = 'Save';
+            saveBtn.title = 'Save changes to lorebook';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.style.cssText = 'background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--rt-text-muted); border-radius:3px; font-size:9px; padding:2px 8px; cursor:pointer;';
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.title = 'Close editor and discard unsaved changes';
+
+            actions.appendChild(cancelBtn);
+            actions.appendChild(saveBtn);
+            editPane.appendChild(actions);
+            body.appendChild(editPane);
+
+            // Restore dirty / forced-edit state from refresh
+            const d = opts.dirty;
+            if (d) {
+                if (d.comment !== undefined) titleInp.value = d.comment;
+                if (d.keys !== undefined) keysInp.value = d.keys;
+                if (d.content !== undefined) contentArea.value = d.content;
+                readPane.style.display = 'none';
+                editPane.style.display = 'flex';
             }
 
-            const agentHeader = agentPanel.querySelector('.rpg-tracker-header');
-            if (agentHeader) {
-                agentHeader.addEventListener('dblclick', (e) => {
-                    if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
-                    toggleAgentCollapse();
-                });
-            }
-
-            // ── Agent enable button (header ⏻) ──
-            const agentEnableBtn = agentPanel.querySelector('#rt-agent-router-enable-btn');
-            if (agentEnableBtn) {
-                agentEnableBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const s = getSettings();
-                    s.routerEnabled = !s.routerEnabled;
-                    saveSettings();
-                    updateAgentPanelDisabled();
-                });
-            }
-
-            const basicCheck = agentPanel.querySelector('#rt-agent-router-basic');
-            if (basicCheck) {
-                basicCheck.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerBasicMode = (/** @type {HTMLInputElement} */ (e.target)).checked;
-                    saveSettings();
-                });
-            }
-
-            const nativeKwCheck = agentPanel.querySelector('#rt-agent-router-native-kw');
-            if (nativeKwCheck) {
-                nativeKwCheck.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerNativeKeywordActivation = (/** @type {HTMLInputElement} */ (e.target)).checked;
-                    saveSettings();
-                });
-            }
-
-            // Tracks which lorebook folders are open across refreshes
-            const _manifestOpenFolders = new Set();
-            // Tracks entries that have unsaved edits: id → { content, keys, comment }
-            /** @type {Map<string, {content:string, keys:string, comment:string}>} */
-            const _dirtyEntries = new Map();
-            // Tracks entries whose body is currently expanded
-            const _openEntries = new Set();
-
-            /**
-             * @param {object} item - manifest row from getLorebookManifest
-             * @param {{ stale?: boolean, dirty?: {content:string, keys:string, comment:string} | null }} [opts]
-             */
-            const buildEntryBody = (item, opts = {}) => {
-                const body = document.createElement('div');
-                body.style.cssText = 'display:none; padding:4px 4px 6px 12px; flex-direction:column; gap:5px;';
-                body.dataset.entryId = item.id;
-
-                const staleBadge = document.createElement('div');
-                staleBadge.className = 'rt-agent-manifest-stale';
-                staleBadge.style.cssText = 'display:' + (opts.stale ? 'block' : 'none') + '; font-size:9px; color:#ffa500; font-style:italic;';
-                staleBadge.textContent = '⚠ Entry changed externally — save discards external changes or cancel to reload.';
-                body.appendChild(staleBadge);
-
-                // ── Read-only view (default when expanded) ─────────────────
-                const readPane = document.createElement('div');
-                readPane.className = 'rt-agent-manifest-read';
-                readPane.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
-
-                const titleRead = document.createElement('div');
-                titleRead.style.cssText = 'font-size:9px; color:var(--rt-text);';
-                titleRead.innerHTML = `<span style="opacity:0.5;">Title:</span> ${escapeHtml(item.label)}`;
-
-                const keysRead = document.createElement('div');
-                keysRead.style.cssText = 'font-size:9px; opacity:0.55; color:var(--rt-text-muted); font-family:var(--rt-font-mono);';
-                keysRead.textContent = '[' + item.keys.join(', ') + ']';
-
-                const contentRead = document.createElement('div');
-                contentRead.style.cssText = 'font-size:10px; opacity:0.88; color:var(--rt-text); line-height:1.45; white-space:pre-wrap; word-break:break-word; max-height:220px; overflow-y:auto;';
-                contentRead.textContent = item.content || '';
-
-                const readActions = document.createElement('div');
-                readActions.style.cssText = 'display:flex; justify-content:flex-end; margin-top:2px;';
-                const cleanBtn = document.createElement('button');
-                cleanBtn.type = 'button';
-                cleanBtn.textContent = 'Clean';
-                cleanBtn.title = 'Run targeted cleanup for this entry';
-                cleanBtn.style.cssText = 'background:rgba(230,126,34,0.12); border:1px solid rgba(230,126,34,0.35); color:#e67e22; border-radius:3px; font-size:9px; padding:2px 10px; cursor:pointer; margin-right:5px;';
-                const editBtn = document.createElement('button');
-                editBtn.type = 'button';
-                editBtn.textContent = 'Edit';
-                editBtn.title = 'Edit this lore entry';
-                editBtn.style.cssText = 'background:rgba(80,140,255,0.12); border:1px solid rgba(80,140,255,0.35); color:var(--rt-accent); border-radius:3px; font-size:9px; padding:2px 10px; cursor:pointer;';
-                readActions.appendChild(cleanBtn);
-                readActions.appendChild(editBtn);
-
-                readPane.appendChild(titleRead);
-                readPane.appendChild(keysRead);
-                readPane.appendChild(contentRead);
-                readPane.appendChild(readActions);
-                body.appendChild(readPane);
-
-                const syncReadFromItem = () => {
-                    titleRead.innerHTML = `<span style="opacity:0.5;">Title:</span> ${escapeHtml(item.label)}`;
-                    keysRead.textContent = '[' + item.keys.join(', ') + ']';
-                    contentRead.textContent = item.content || '';
-                };
-
-                // ── Edit form (hidden until Edit) ─────────────────────────────
-                const editPane = document.createElement('div');
-                editPane.className = 'rt-agent-manifest-edit';
-                editPane.style.cssText = 'display:none; flex-direction:column; gap:5px;';
-
-                const titleRow = document.createElement('div');
-                titleRow.style.cssText = 'display:flex; gap:4px; align-items:center;';
-                const titleLbl = document.createElement('span');
-                titleLbl.style.cssText = 'font-size:9px; opacity:0.5; color:var(--rt-text-muted); flex-shrink:0;';
-                titleLbl.textContent = 'Title:';
-                const titleInp = document.createElement('input');
-                titleInp.type = 'text';
-                titleInp.className = 'rt-agent-manifest-inp-title';
-                titleInp.value = item.label;
-                titleInp.style.cssText = 'flex:1; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:2px 5px; min-width:0;';
-                titleRow.appendChild(titleLbl);
-                titleRow.appendChild(titleInp);
-                editPane.appendChild(titleRow);
-
-                const keysRow = document.createElement('div');
-                keysRow.style.cssText = 'display:flex; gap:4px; align-items:center;';
-                const keysLbl = document.createElement('span');
-                keysLbl.style.cssText = 'font-size:9px; opacity:0.5; color:var(--rt-text-muted); flex-shrink:0;';
-                keysLbl.textContent = 'Keys:';
-                const keysInp = document.createElement('input');
-                keysInp.type = 'text';
-                keysInp.className = 'rt-agent-manifest-inp-keys';
-                keysInp.value = item.keys.join(', ');
-                keysInp.placeholder = 'keyword1, keyword2, …';
-                keysInp.style.cssText = 'flex:1; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:2px 5px; font-family:var(--rt-font-mono); min-width:0;';
-                keysRow.appendChild(keysLbl);
-                keysRow.appendChild(keysInp);
-                editPane.appendChild(keysRow);
-
-                const contentArea = document.createElement('textarea');
-                contentArea.className = 'rt-agent-manifest-ta-content';
-                contentArea.value = item.content || '';
-                contentArea.rows = 5;
-                contentArea.style.cssText = 'width:100%; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.12); border-radius:3px; font-size:9px; padding:4px 5px; line-height:1.4; resize:vertical; box-sizing:border-box; font-family:var(--rt-font-mono);';
-
-                const markDirty = () => {
-                    _dirtyEntries.set(item.id, {
-                        content: contentArea.value,
-                        keys: keysInp.value,
-                        comment: titleInp.value,
-                    });
-                };
-                titleInp.addEventListener('input', markDirty);
-                keysInp.addEventListener('input', markDirty);
-                contentArea.addEventListener('input', markDirty);
-                editPane.appendChild(contentArea);
-
-                const actions = document.createElement('div');
-                actions.style.cssText = 'display:flex; gap:5px; justify-content:flex-end; align-items:center;';
-
-                const saveBtn = document.createElement('button');
-                saveBtn.type = 'button';
-                saveBtn.style.cssText = 'background:rgba(0,200,140,0.15); border:1px solid rgba(0,200,140,0.4); color:#00c88c; border-radius:3px; font-size:9px; padding:2px 8px; cursor:pointer;';
-                saveBtn.textContent = 'Save';
-                saveBtn.title = 'Save changes to lorebook';
-
-                const cancelBtn = document.createElement('button');
-                cancelBtn.type = 'button';
-                cancelBtn.style.cssText = 'background:transparent; border:1px solid rgba(255,255,255,0.12); color:var(--rt-text-muted); border-radius:3px; font-size:9px; padding:2px 8px; cursor:pointer;';
-                cancelBtn.textContent = 'Cancel';
-                cancelBtn.title = 'Close editor and discard unsaved changes';
-
-                actions.appendChild(cancelBtn);
-                actions.appendChild(saveBtn);
-                editPane.appendChild(actions);
-                body.appendChild(editPane);
-
-                // Restore dirty / forced-edit state from refresh
-                const d = opts.dirty;
-                if (d) {
-                    if (d.comment !== undefined) titleInp.value = d.comment;
-                    if (d.keys !== undefined) keysInp.value = d.keys;
-                    if (d.content !== undefined) contentArea.value = d.content;
-                    readPane.style.display = 'none';
-                    editPane.style.display = 'flex';
+            cleanBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (isRouterRunning()) {
+                    // @ts-ignore
+                    toastr.warning('Agent is already running.', 'Lorebook Agent');
+                    return;
                 }
 
-                cleanBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (isRouterRunning()) {
-                        // @ts-ignore
-                        toastr.warning('Agent is already running.', 'Lorebook Agent');
-                        return;
-                    }
-
-                    const { Popup } = SillyTavern.getContext();
-                    const promptHtml = `
+                const { Popup } = SillyTavern.getContext();
+                const promptHtml = `
                         <div style="text-align: left; font-size: 0.9em; line-height: 1.4;">
                             <p>You are triggering a targeted cleanup pass for <b>${escapeHtml(item.label)}</b>.</p>
                             <p style="margin-top: 8px;">Enter custom requirements for this entry's compression (e.g., <i>"Keep the personality section intact"</i> or <i>"Shorten to 3 concise bullet points"</i>):</p>
@@ -3633,686 +3655,686 @@ Rules:
                         </div>
                     `;
 
-                    const choice = await Popup.show.confirm('🧹 Targeted Entry Cleanup', promptHtml, {
-                        okButton: 'Clean Entry',
-                        cancelButton: 'Cancel'
-                    });
+                const choice = await Popup.show.confirm('🧹 Targeted Entry Cleanup', promptHtml, {
+                    okButton: 'Clean Entry',
+                    cancelButton: 'Cancel'
+                });
 
-                    if (choice) {
-                        const textarea = document.getElementById('rt-entry-clean-instructions');
-                        const customInstructions = textarea ? textarea.value.trim() : '';
+                if (choice) {
+                    const textarea = document.getElementById('rt-entry-clean-instructions');
+                    const customInstructions = textarea ? textarea.value.trim() : '';
 
-                        const parts = item.id.split('::');
-                        if (parts.length >= 2) {
-                            const b = parts[0];
-                            const u = parts[1];
-                            let manualPrompt = `__CLEANUP__::${b}::${u}`;
-                            if (customInstructions) {
-                                manualPrompt += `::${customInstructions}`;
-                            }
-                            runRouterPass(null, manualPrompt, null, true);
+                    const parts = item.id.split('::');
+                    if (parts.length >= 2) {
+                        const b = parts[0];
+                        const u = parts[1];
+                        let manualPrompt = `__CLEANUP__::${b}::${u}`;
+                        if (customInstructions) {
+                            manualPrompt += `::${customInstructions}`;
                         }
+                        runRouterPass(null, manualPrompt, null, true);
                     }
-                });
+                }
+            });
 
-                editBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    titleInp.value = item.label;
-                    keysInp.value = item.keys.join(', ');
-                    contentArea.value = item.content || '';
-                    const snap = _dirtyEntries.get(item.id);
-                    if (snap) {
-                        if (snap.comment !== undefined) titleInp.value = snap.comment;
-                        if (snap.keys !== undefined) keysInp.value = snap.keys;
-                        if (snap.content !== undefined) contentArea.value = snap.content;
-                    }
-                    readPane.style.display = 'none';
-                    editPane.style.display = 'flex';
-                });
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                titleInp.value = item.label;
+                keysInp.value = item.keys.join(', ');
+                contentArea.value = item.content || '';
+                const snap = _dirtyEntries.get(item.id);
+                if (snap) {
+                    if (snap.comment !== undefined) titleInp.value = snap.comment;
+                    if (snap.keys !== undefined) keysInp.value = snap.keys;
+                    if (snap.content !== undefined) contentArea.value = snap.content;
+                }
+                readPane.style.display = 'none';
+                editPane.style.display = 'flex';
+            });
 
-                saveBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if (isRouterRunning()) {
-                        // @ts-ignore
-                        toastr.warning('Agent is running — wait for it to finish before saving.', 'Lorebook Agent');
-                        return;
-                    }
-                    saveBtn.disabled = true;
-                    saveBtn.textContent = '…';
-                    const rawKeys = keysInp.value.split(',').map(k => k.trim()).filter(Boolean);
-                    const ok = await updateLorebookEntry(item.id, {
-                        content: contentArea.value,
-                        key: rawKeys,
-                        comment: titleInp.value,
-                    });
-                    if (ok) {
-                        _dirtyEntries.delete(item.id);
-                        staleBadge.style.display = 'none';
-                        saveBtn.textContent = 'Save';
-                        saveBtn.disabled = false;
-                        document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
-                        await refreshManifest();
-                        // @ts-ignore
-                        toastr.success('Entry saved.', 'Lorebook Agent');
-                    } else {
-                        saveBtn.textContent = 'Save';
-                        saveBtn.disabled = false;
-                        // @ts-ignore
-                        toastr.error('Save failed.', 'Lorebook Agent');
-                    }
+            saveBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (isRouterRunning()) {
+                    // @ts-ignore
+                    toastr.warning('Agent is running — wait for it to finish before saving.', 'Lorebook Agent');
+                    return;
+                }
+                saveBtn.disabled = true;
+                saveBtn.textContent = '…';
+                const rawKeys = keysInp.value.split(',').map(k => k.trim()).filter(Boolean);
+                const ok = await updateLorebookEntry(item.id, {
+                    content: contentArea.value,
+                    key: rawKeys,
+                    comment: titleInp.value,
                 });
-
-                cancelBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
+                if (ok) {
                     _dirtyEntries.delete(item.id);
                     staleBadge.style.display = 'none';
-                    titleInp.value = item.label;
-                    keysInp.value = item.keys.join(', ');
-                    contentArea.value = item.content || '';
-                    syncReadFromItem();
-                    readPane.style.display = 'flex';
-                    editPane.style.display = 'none';
-                });
+                    saveBtn.textContent = 'Save';
+                    saveBtn.disabled = false;
+                    document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
+                    await refreshManifest();
+                    // @ts-ignore
+                    toastr.success('Entry saved.', 'Lorebook Agent');
+                } else {
+                    saveBtn.textContent = 'Save';
+                    saveBtn.disabled = false;
+                    // @ts-ignore
+                    toastr.error('Save failed.', 'Lorebook Agent');
+                }
+            });
 
-                return body;
-            };
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                _dirtyEntries.delete(item.id);
+                staleBadge.style.display = 'none';
+                titleInp.value = item.label;
+                keysInp.value = item.keys.join(', ');
+                contentArea.value = item.content || '';
+                syncReadFromItem();
+                readPane.style.display = 'flex';
+                editPane.style.display = 'none';
+            });
 
-            refreshManifest = async () => {
-                const list = agentPanel.querySelector('#rt-agent-manifest-list');
-                if (!list) return;
+            return body;
+        };
 
-                list.innerHTML = '<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">Loading...</div>';
+        refreshManifest = async () => {
+            const list = agentPanel.querySelector('#rt-agent-manifest-list');
+            if (!list) return;
 
-                try {
-                    const manifest = await getLorebookManifest();
-                    if (!manifest.length) {
-                        const hasPrefix = !!(getSettings().routerCampaignPrefix || '').trim();
-                        list.innerHTML = `<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">${hasPrefix ? 'No records found.' : 'Set a Campaign Prefix to see records.'}</div>`;
-                        return;
-                    }
+            list.innerHTML = '<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">Loading...</div>';
 
-                    const s = getSettings();
-                    const prefix = s.routerCampaignPrefix || '';
+            try {
+                const manifest = await getLorebookManifest();
+                if (!manifest.length) {
+                    const hasPrefix = !!(getSettings().routerCampaignPrefix || '').trim();
+                    list.innerHTML = `<div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">${hasPrefix ? 'No records found.' : 'Set a Campaign Prefix to see records.'}</div>`;
+                    return;
+                }
 
-                    // Group entries by lorebook
-                    /** @type {Map<string, typeof manifest>} */
-                    const byBook = new Map();
-                    for (const item of manifest) {
-                        if (!byBook.has(item.book)) byBook.set(item.book, []);
-                        byBook.get(item.book).push(item);
-                    }
+                const s = getSettings();
+                const prefix = s.routerCampaignPrefix || '';
 
-                    list.innerHTML = '';
+                // Group entries by lorebook
+                /** @type {Map<string, typeof manifest>} */
+                const byBook = new Map();
+                for (const item of manifest) {
+                    if (!byBook.has(item.book)) byBook.set(item.book, []);
+                    byBook.get(item.book).push(item);
+                }
 
-                    for (const [bookName, items] of byBook) {
-                        // Strip campaign prefix from display name: "Eldoria_Factions" → "Factions"
-                        const displayName = prefix && bookName.startsWith(prefix + '_')
-                            ? bookName.slice(prefix.length + 1)
-                            : bookName;
+                list.innerHTML = '';
 
-                        const activeCount = items.filter(i => i.is_active).length;
-                        const totalTokens = items.reduce((sum, item) => sum + Math.round((item.content || '').length / 4), 0);
-                        const isOpen = _manifestOpenFolders.has(bookName);
+                for (const [bookName, items] of byBook) {
+                    // Strip campaign prefix from display name: "Eldoria_Factions" → "Factions"
+                    const displayName = prefix && bookName.startsWith(prefix + '_')
+                        ? bookName.slice(prefix.length + 1)
+                        : bookName;
 
-                        const folder = document.createElement('div');
-                        folder.style.cssText = 'flex-shrink: 0; margin-bottom: 2px;';
+                    const activeCount = items.filter(i => i.is_active).length;
+                    const totalTokens = items.reduce((sum, item) => sum + Math.round((item.content || '').length / 4), 0);
+                    const isOpen = _manifestOpenFolders.has(bookName);
 
-                        const folderHdr = document.createElement('div');
-                        folderHdr.style.cssText = 'display:flex; align-items:center; gap:6px; padding:5px 6px; cursor:pointer; border-radius:4px; background:rgba(255,255,255,0.04);';
-                        folderHdr.innerHTML = `
+                    const folder = document.createElement('div');
+                    folder.style.cssText = 'flex-shrink: 0; margin-bottom: 2px;';
+
+                    const folderHdr = document.createElement('div');
+                    folderHdr.style.cssText = 'display:flex; align-items:center; gap:6px; padding:5px 6px; cursor:pointer; border-radius:4px; background:rgba(255,255,255,0.04);';
+                    folderHdr.innerHTML = `
                             <span class="rt-mf-icon" style="font-size:9px; opacity:0.5; width:10px; flex-shrink:0; font-family:monospace;">${isOpen ? '▼' : '▶'}</span>
                             <span style="font-weight:bold; font-size:11px; flex:1; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(displayName)}</span>
                             <span style="font-size:9px; opacity:0.45; color:var(--rt-text-muted); flex-shrink:0;">${activeCount}/${items.length} (${totalTokens}t)</span>
                         `;
 
-                        const folderBody = document.createElement('div');
-                        folderBody.style.cssText = `display:${isOpen ? 'flex' : 'none'}; flex-direction:column; border-left:1px solid rgba(255,255,255,0.07); margin-left:10px; padding-left:6px; gap:1px; padding-top:3px; padding-bottom:3px;`;
+                    const folderBody = document.createElement('div');
+                    folderBody.style.cssText = `display:${isOpen ? 'flex' : 'none'}; flex-direction:column; border-left:1px solid rgba(255,255,255,0.07); margin-left:10px; padding-left:6px; gap:1px; padding-top:3px; padding-bottom:3px;`;
 
-                        folderHdr.addEventListener('click', () => {
-                            const opening = folderBody.style.display === 'none';
-                            folderBody.style.display = opening ? 'flex' : 'none';
-                            folderHdr.querySelector('.rt-mf-icon').textContent = opening ? '▼' : '▶';
-                            if (opening) _manifestOpenFolders.add(bookName);
-                            else _manifestOpenFolders.delete(bookName);
-                        });
+                    folderHdr.addEventListener('click', () => {
+                        const opening = folderBody.style.display === 'none';
+                        folderBody.style.display = opening ? 'flex' : 'none';
+                        folderHdr.querySelector('.rt-mf-icon').textContent = opening ? '▼' : '▶';
+                        if (opening) _manifestOpenFolders.add(bookName);
+                        else _manifestOpenFolders.delete(bookName);
+                    });
 
-                        for (const item of items) {
-                            const statusColor = item.is_active ? 'var(--rt-accent)' : 'rgba(255,255,255,0.18)';
+                    for (const item of items) {
+                        const statusColor = item.is_active ? 'var(--rt-accent)' : 'rgba(255,255,255,0.18)';
 
-                            const entryEl = document.createElement('div');
-                            entryEl.style.cssText = 'flex-shrink:0; border-radius:3px;';
+                        const entryEl = document.createElement('div');
+                        entryEl.style.cssText = 'flex-shrink:0; border-radius:3px;';
 
-                            const entryHdr = document.createElement('div');
-                            entryHdr.style.cssText = 'display:flex; align-items:center; gap:5px; padding:3px 4px; cursor:pointer; border-radius:3px;';
+                        const entryHdr = document.createElement('div');
+                        entryHdr.style.cssText = 'display:flex; align-items:center; gap:5px; padding:3px 4px; cursor:pointer; border-radius:3px;';
 
-                            const isDirty = _dirtyEntries.has(item.id);
-                            const entryTokens = Math.round((item.content || '').length / 4);
-                            entryHdr.innerHTML = `
+                        const isDirty = _dirtyEntries.has(item.id);
+                        const entryTokens = Math.round((item.content || '').length / 4);
+                        entryHdr.innerHTML = `
                                 <div style="width:5px; height:5px; border-radius:50%; background:${statusColor}; flex-shrink:0;" title="${item.is_active ? 'Active (visible to agent)' : 'Inactive'}"></div>
                                 <span style="flex:1; font-size:10px; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.label)}${isDirty ? ' <span style="color:#ffa500; font-size:8px;" title="Unsaved edits">●</span>' : ''}</span>
                                 <span style="font-size:8px; opacity:0.5; color:var(--rt-text-muted); margin-right:5px; flex-shrink:0; background:rgba(255,255,255,0.06); padding:1px 4px; border-radius:4px;" title="Estimated tokens">${entryTokens}t</span>
                                 <button class="rt-agent-entry-delete" data-id="${item.id}" style="background:none; border:none; color:var(--rt-text-muted); cursor:pointer; font-size:9px; padding:1px 3px; opacity:0; flex-shrink:0;" title="Delete entry"><i class="fa-solid fa-trash"></i></button>
                             `;
 
-                            const dirtySnap = isDirty ? _dirtyEntries.get(item.id) : null;
-                            const entryBody = buildEntryBody(item, {
-                                stale: !!isDirty,
-                                dirty: dirtySnap || null,
-                            });
-                            if (_openEntries.has(item.id)) {
-                                entryBody.style.display = 'flex';
-                                entryHdr.style.background = 'rgba(255,255,255,0.05)';
-                            }
-
-                            // Show delete button on hover
-                            const delBtn = /** @type {HTMLButtonElement} */ (entryHdr.querySelector('.rt-agent-entry-delete'));
-                            entryHdr.addEventListener('mouseenter', () => { delBtn.style.opacity = '0.5'; });
-                            entryHdr.addEventListener('mouseleave', () => { delBtn.style.opacity = '0'; });
-
-                            entryHdr.addEventListener('click', (e) => {
-                                if (/** @type {HTMLElement} */ (e.target).closest('.rt-agent-entry-delete')) return;
-                                const opening = entryBody.style.display === 'none';
-                                entryBody.style.display = opening ? 'flex' : 'none';
-                                entryHdr.style.background = opening ? 'rgba(255,255,255,0.05)' : '';
-                                if (opening) _openEntries.add(item.id);
-                                else _openEntries.delete(item.id);
-                            });
-
-                            delBtn.addEventListener('click', async (e) => {
-                                e.stopPropagation();
-                                if (confirm(`Delete lore entry "${item.label}"?`)) {
-                                    const ok = await deleteLorebookEntry(item.id);
-                                    if (ok) {
-                                        _dirtyEntries.delete(item.id);
-                                        _openEntries.delete(item.id);
-                                        refreshManifest();
-                                        // @ts-ignore
-                                        toastr.success(`Deleted "${item.label}"`, 'Lorebook Agent');
-                                    }
-                                }
-                            });
-
-                            entryEl.appendChild(entryHdr);
-                            entryEl.appendChild(entryBody);
-                            folderBody.appendChild(entryEl);
+                        const dirtySnap = isDirty ? _dirtyEntries.get(item.id) : null;
+                        const entryBody = buildEntryBody(item, {
+                            stale: !!isDirty,
+                            dirty: dirtySnap || null,
+                        });
+                        if (_openEntries.has(item.id)) {
+                            entryBody.style.display = 'flex';
+                            entryHdr.style.background = 'rgba(255,255,255,0.05)';
                         }
 
-                        folder.appendChild(folderHdr);
-                        folder.appendChild(folderBody);
-                        list.appendChild(folder);
+                        // Show delete button on hover
+                        const delBtn = /** @type {HTMLButtonElement} */ (entryHdr.querySelector('.rt-agent-entry-delete'));
+                        entryHdr.addEventListener('mouseenter', () => { delBtn.style.opacity = '0.5'; });
+                        entryHdr.addEventListener('mouseleave', () => { delBtn.style.opacity = '0'; });
+
+                        entryHdr.addEventListener('click', (e) => {
+                            if (/** @type {HTMLElement} */ (e.target).closest('.rt-agent-entry-delete')) return;
+                            const opening = entryBody.style.display === 'none';
+                            entryBody.style.display = opening ? 'flex' : 'none';
+                            entryHdr.style.background = opening ? 'rgba(255,255,255,0.05)' : '';
+                            if (opening) _openEntries.add(item.id);
+                            else _openEntries.delete(item.id);
+                        });
+
+                        delBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete lore entry "${item.label}"?`)) {
+                                const ok = await deleteLorebookEntry(item.id);
+                                if (ok) {
+                                    _dirtyEntries.delete(item.id);
+                                    _openEntries.delete(item.id);
+                                    refreshManifest();
+                                    // @ts-ignore
+                                    toastr.success(`Deleted "${item.label}"`, 'Lorebook Agent');
+                                }
+                            }
+                        });
+
+                        entryEl.appendChild(entryHdr);
+                        entryEl.appendChild(entryBody);
+                        folderBody.appendChild(entryEl);
                     }
-                } catch (e) {
-                    list.innerHTML = '<div style="text-align: center; color: #ff5555; font-size: 0.769em; padding: 10px;">Error loading manifest.</div>';
+
+                    folder.appendChild(folderHdr);
+                    folder.appendChild(folderBody);
+                    list.appendChild(folder);
                 }
-            };
+            } catch (e) {
+                list.innerHTML = '<div style="text-align: center; color: #ff5555; font-size: 0.769em; padding: 10px;">Error loading manifest.</div>';
+            }
+        };
 
-            refreshAgentManifest = refreshManifest;
+        refreshAgentManifest = refreshManifest;
 
-            const refreshBtn = agentPanel.querySelector('#rt-agent-manifest-refresh');
-            if (refreshBtn) refreshBtn.addEventListener('click', () => refreshManifest('manual-button'));
+        const refreshBtn = agentPanel.querySelector('#rt-agent-manifest-refresh');
+        if (refreshBtn) refreshBtn.addEventListener('click', () => refreshManifest('manual-button'));
 
-            const activateBooksBtn = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-activate-books'));
-            if (activateBooksBtn) activateBooksBtn.addEventListener('click', async () => {
-                activateBooksBtn.disabled = true;
-                const origOpacity = activateBooksBtn.style.opacity;
-                activateBooksBtn.style.opacity = '1';
-                try {
-                    const count = await activateCampaignBooks({ debugSource: 'manual:agent-activate-books' });
-                    toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
-                } catch (e) {
-                    toastr['error']('Failed to activate campaign lorebooks.');
-                } finally {
-                    activateBooksBtn.disabled = false;
-                    activateBooksBtn.style.opacity = origOpacity;
-                }
-            });
+        const activateBooksBtn = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-activate-books'));
+        if (activateBooksBtn) activateBooksBtn.addEventListener('click', async () => {
+            activateBooksBtn.disabled = true;
+            const origOpacity = activateBooksBtn.style.opacity;
+            activateBooksBtn.style.opacity = '1';
+            try {
+                const count = await activateCampaignBooks({ debugSource: 'manual:agent-activate-books' });
+                toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
+            } catch (e) {
+                toastr['error']('Failed to activate campaign lorebooks.');
+            } finally {
+                activateBooksBtn.disabled = false;
+                activateBooksBtn.style.opacity = origOpacity;
+            }
+        });
 
-            // Initial load so the list is populated without needing a manual click
-            refreshManifest();
+        // Initial load so the list is populated without needing a manual click
+        refreshManifest();
 
-            /**
-             * Shared slot bar: [[TAG: Name | [slot ×]... + | Keywords]]
-             * Middle labels are editable + removable; a + button adds a new slot.
-             * onFormatChange(newFmt) is called whenever the format string changes.
-             */
-            const buildSlotBar = (tagName, format, onFormatChange) => {
-                const parseSegs = (fmt) => (fmt || 'Name | Description | Keywords').split('|').map(s => s.trim());
-                const bar = document.createElement('div');
-                bar.style.cssText = 'display:flex; flex-wrap:wrap; align-items:center; gap:2px; margin-bottom:2px; font-family:var(--rt-font-mono);';
-                const chipSt  = 'padding:1px 6px; border-radius:10px; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.32); font-size:0.708em; white-space:nowrap; cursor:default; user-select:none;';
-                const pipeSt  = 'color:rgba(255,255,255,0.2); font-size:0.708em; padding:0 2px; user-select:none;';
-                const brktSt  = 'color:rgba(255,255,255,0.18); font-size:0.708em; user-select:none;';
-                const inpSt   = 'font-size:0.692em; padding:1px 4px; border-radius:10px; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.18); text-align:center; outline:none; min-width:28px; box-sizing:content-box;';
-                const rmSt    = 'display:inline-flex; align-items:center; justify-content:center; min-width:15px; min-height:15px; margin-left:1px; flex-shrink:0; border-radius:4px; background:rgba(255,80,80,0.12); border:1px solid rgba(255,120,120,0.28); color:#cc8888; font-size:0.72em; font-weight:bold; line-height:1; cursor:pointer; padding:0; box-sizing:border-box;';
-                const addSt   = 'display:inline-flex; align-items:center; justify-content:center; min-width:15px; min-height:15px; flex-shrink:0; border-radius:4px; background:rgba(0,255,170,0.08); border:1px solid rgba(0,255,170,0.32); color:var(--rt-accent); font-size:0.78em; font-weight:bold; line-height:1; cursor:pointer; padding:0 1px; margin:0 1px; box-sizing:border-box; opacity:0.95;';
+        /**
+         * Shared slot bar: [[TAG: Name | [slot ×]... + | Keywords]]
+         * Middle labels are editable + removable; a + button adds a new slot.
+         * onFormatChange(newFmt) is called whenever the format string changes.
+         */
+        const buildSlotBar = (tagName, format, onFormatChange) => {
+            const parseSegs = (fmt) => (fmt || 'Name | Description | Keywords').split('|').map(s => s.trim());
+            const bar = document.createElement('div');
+            bar.style.cssText = 'display:flex; flex-wrap:wrap; align-items:center; gap:2px; margin-bottom:2px; font-family:var(--rt-font-mono);';
+            const chipSt = 'padding:1px 6px; border-radius:10px; background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.32); font-size:0.708em; white-space:nowrap; cursor:default; user-select:none;';
+            const pipeSt = 'color:rgba(255,255,255,0.2); font-size:0.708em; padding:0 2px; user-select:none;';
+            const brktSt = 'color:rgba(255,255,255,0.18); font-size:0.708em; user-select:none;';
+            const inpSt = 'font-size:0.692em; padding:1px 4px; border-radius:10px; background:rgba(0,0,0,0.35); color:var(--rt-text); border:1px solid rgba(255,255,255,0.18); text-align:center; outline:none; min-width:28px; box-sizing:content-box;';
+            const rmSt = 'display:inline-flex; align-items:center; justify-content:center; min-width:15px; min-height:15px; margin-left:1px; flex-shrink:0; border-radius:4px; background:rgba(255,80,80,0.12); border:1px solid rgba(255,120,120,0.28); color:#cc8888; font-size:0.72em; font-weight:bold; line-height:1; cursor:pointer; padding:0; box-sizing:border-box;';
+            const addSt = 'display:inline-flex; align-items:center; justify-content:center; min-width:15px; min-height:15px; flex-shrink:0; border-radius:4px; background:rgba(0,255,170,0.08); border:1px solid rgba(0,255,170,0.32); color:var(--rt-accent); font-size:0.78em; font-weight:bold; line-height:1; cursor:pointer; padding:0 1px; margin:0 1px; box-sizing:border-box; opacity:0.95;';
 
-                const renderBar = (currentFmt) => {
-                    bar.innerHTML = '';
-                    bar.dataset.fmt = currentFmt;
-                    const segs     = parseSegs(currentFmt);
-                    const fixed0   = segs[0] || 'Name';
-                    const fixedEnd = segs[segs.length - 1] || 'Keywords';
-                    const middles  = segs.length > 2 ? segs.slice(1, -1) : [];
+            const renderBar = (currentFmt) => {
+                bar.innerHTML = '';
+                bar.dataset.fmt = currentFmt;
+                const segs = parseSegs(currentFmt);
+                const fixed0 = segs[0] || 'Name';
+                const fixedEnd = segs[segs.length - 1] || 'Keywords';
+                const middles = segs.length > 2 ? segs.slice(1, -1) : [];
 
-                    const open = document.createElement('span');
-                    open.style.cssText = brktSt;
-                    open.textContent = `[[${tagName}: `;
-                    bar.appendChild(open);
+                const open = document.createElement('span');
+                open.style.cssText = brktSt;
+                open.textContent = `[[${tagName}: `;
+                bar.appendChild(open);
 
-                    const chip0 = document.createElement('span');
-                    chip0.style.cssText = chipSt;
-                    chip0.title = 'Fixed — always the entry name';
-                    chip0.textContent = fixed0;
-                    bar.appendChild(chip0);
+                const chip0 = document.createElement('span');
+                chip0.style.cssText = chipSt;
+                chip0.title = 'Fixed — always the entry name';
+                chip0.textContent = fixed0;
+                bar.appendChild(chip0);
 
-                    middles.forEach((label, idx) => {
-                        const pipe = document.createElement('span');
-                        pipe.style.cssText = pipeSt;
-                        pipe.textContent = ' |';
-                        bar.appendChild(pipe);
+                middles.forEach((label, idx) => {
+                    const pipe = document.createElement('span');
+                    pipe.style.cssText = pipeSt;
+                    pipe.textContent = ' |';
+                    bar.appendChild(pipe);
 
-                        const wrap = document.createElement('span');
-                        wrap.style.cssText = 'display:inline-flex; align-items:center; gap:1px;';
+                    const wrap = document.createElement('span');
+                    wrap.style.cssText = 'display:inline-flex; align-items:center; gap:1px;';
 
-                        const inp = document.createElement('input');
-                        inp.type = 'text';
-                        inp.value = label;
-                        inp.title = 'Rename this slot — the AI fills this section based on its name';
-                        inp.style.cssText = inpSt;
-                        inp.style.width = Math.max(28, label.length * 7) + 'px';
-                        inp.addEventListener('input', () => { inp.style.width = Math.max(28, inp.value.length * 7) + 'px'; });
-                        inp.addEventListener('change', () => {
-                            const s = parseSegs(bar.dataset.fmt);
-                            s[idx + 1] = inp.value.trim() || label;
-                            const nf = s.join(' | ');
-                            bar.dataset.fmt = nf;
-                            onFormatChange(nf);
-                        });
-                        wrap.appendChild(inp);
-
-                        const rmBtn = document.createElement('button');
-                        rmBtn.style.cssText = rmSt;
-                        rmBtn.title = 'Remove this slot';
-                        rmBtn.textContent = '×';
-                        rmBtn.addEventListener('click', () => {
-                            const s = parseSegs(bar.dataset.fmt);
-                            s.splice(idx + 1, 1);
-                            const nf = s.join(' | ');
-                            onFormatChange(nf);
-                            renderBar(nf);
-                        });
-                        wrap.appendChild(rmBtn);
-                        bar.appendChild(wrap);
-                    });
-
-                    const addBtn = document.createElement('button');
-                    addBtn.style.cssText = addSt;
-                    addBtn.title = 'Add a slot';
-                    addBtn.textContent = '+';
-                    addBtn.addEventListener('click', () => {
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.value = label;
+                    inp.title = 'Rename this slot — the AI fills this section based on its name';
+                    inp.style.cssText = inpSt;
+                    inp.style.width = Math.max(28, label.length * 7) + 'px';
+                    inp.addEventListener('input', () => { inp.style.width = Math.max(28, inp.value.length * 7) + 'px'; });
+                    inp.addEventListener('change', () => {
                         const s = parseSegs(bar.dataset.fmt);
-                        s.splice(s.length - 1, 0, 'Slot');
+                        s[idx + 1] = inp.value.trim() || label;
+                        const nf = s.join(' | ');
+                        bar.dataset.fmt = nf;
+                        onFormatChange(nf);
+                    });
+                    wrap.appendChild(inp);
+
+                    const rmBtn = document.createElement('button');
+                    rmBtn.style.cssText = rmSt;
+                    rmBtn.title = 'Remove this slot';
+                    rmBtn.textContent = '×';
+                    rmBtn.addEventListener('click', () => {
+                        const s = parseSegs(bar.dataset.fmt);
+                        s.splice(idx + 1, 1);
                         const nf = s.join(' | ');
                         onFormatChange(nf);
                         renderBar(nf);
                     });
-                    bar.appendChild(addBtn);
+                    wrap.appendChild(rmBtn);
+                    bar.appendChild(wrap);
+                });
 
-                    const pipeLast = document.createElement('span');
-                    pipeLast.style.cssText = pipeSt;
-                    pipeLast.textContent = ' |';
-                    bar.appendChild(pipeLast);
+                const addBtn = document.createElement('button');
+                addBtn.style.cssText = addSt;
+                addBtn.title = 'Add a slot';
+                addBtn.textContent = '+';
+                addBtn.addEventListener('click', () => {
+                    const s = parseSegs(bar.dataset.fmt);
+                    s.splice(s.length - 1, 0, 'Slot');
+                    const nf = s.join(' | ');
+                    onFormatChange(nf);
+                    renderBar(nf);
+                });
+                bar.appendChild(addBtn);
 
-                    const chipLast = document.createElement('span');
-                    chipLast.style.cssText = chipSt;
-                    chipLast.title = 'Fixed — always comma-separated search keywords';
-                    chipLast.textContent = fixedEnd;
-                    bar.appendChild(chipLast);
+                const pipeLast = document.createElement('span');
+                pipeLast.style.cssText = pipeSt;
+                pipeLast.textContent = ' |';
+                bar.appendChild(pipeLast);
 
-                    const close = document.createElement('span');
-                    close.style.cssText = brktSt;
-                    close.textContent = ']]';
-                    bar.appendChild(close);
-                };
-                renderBar(format);
-                return bar;
+                const chipLast = document.createElement('span');
+                chipLast.style.cssText = chipSt;
+                chipLast.title = 'Fixed — always comma-separated search keywords';
+                chipLast.textContent = fixedEnd;
+                bar.appendChild(chipLast);
+
+                const close = document.createElement('span');
+                close.style.cssText = brktSt;
+                close.textContent = ']]';
+                bar.appendChild(close);
             };
+            renderBar(format);
+            return bar;
+        };
 
-            const renderAgentModules = () => {
-                const s = getSettings();
-                const list = agentPanel.querySelector('#rt-agent-stock-modules-list');
-                if (!list) return;
-                list.innerHTML = '';
+        const renderAgentModules = () => {
+            const s = getSettings();
+            const list = agentPanel.querySelector('#rt-agent-stock-modules-list');
+            if (!list) return;
+            list.innerHTML = '';
 
-                Object.entries(s.routerModules || {}).forEach(([id, config]) => {
-                    const row = document.createElement('div');
-                    row.style.cssText = 'margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05);';
+            Object.entries(s.routerModules || {}).forEach(([id, config]) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05);';
 
-                    const header = document.createElement('div');
-                    header.style.cssText = 'display:flex; align-items:center; gap:4px; margin-bottom:3px;';
-                    header.innerHTML = `
+                const header = document.createElement('div');
+                header.style.cssText = 'display:flex; align-items:center; gap:4px; margin-bottom:3px;';
+                header.innerHTML = `
                         <input type="checkbox" class="rt-agent-module-check" ${config.enabled ? 'checked' : ''} style="cursor:pointer; margin:0; flex-shrink:0;">
                         <span style="font-size:0.769em; font-weight:bold; opacity:0.7; flex:1;">${config.tag}</span>
                         <button class="rt-agent-module-reset" style="background:transparent; border:none; color:var(--rt-accent); cursor:pointer; font-size:0.692em; padding:0 4px; opacity:0.5;" title="Reset slots and instruction to default"><i class="fa-solid fa-arrow-rotate-left"></i></button>
                     `;
-                    header.querySelector('.rt-agent-module-check').addEventListener('change', (e) => {
+                header.querySelector('.rt-agent-module-check').addEventListener('change', (e) => {
+                    const st = getSettings();
+                    st.routerModules[id].enabled = (/** @type {HTMLInputElement} */ (e.target)).checked;
+                    saveSettings();
+                });
+                header.querySelector('.rt-agent-module-reset').addEventListener('click', () => {
+                    if (confirm(`Reset ${id.toUpperCase()} module slots and instruction to default?`)) {
                         const st = getSettings();
-                        st.routerModules[id].enabled = (/** @type {HTMLInputElement} */ (e.target)).checked;
-                        saveSettings();
-                    });
-                    header.querySelector('.rt-agent-module-reset').addEventListener('click', () => {
-                        if (confirm(`Reset ${id.toUpperCase()} module slots and instruction to default?`)) {
-                            const st = getSettings();
-                            if (DEFAULT_MODULES[id]) {
-                                st.routerModules[id].instruction = DEFAULT_MODULES[id].instruction;
-                                if (DEFAULT_MODULES[id].format != null) st.routerModules[id].format = DEFAULT_MODULES[id].format;
-                                saveSettings();
-                                renderAgentModules();
-                            }
+                        if (DEFAULT_MODULES[id]) {
+                            st.routerModules[id].instruction = DEFAULT_MODULES[id].instruction;
+                            if (DEFAULT_MODULES[id].format != null) st.routerModules[id].format = DEFAULT_MODULES[id].format;
+                            saveSettings();
+                            renderAgentModules();
                         }
-                    });
-                    row.appendChild(header);
-
-                    row.appendChild(buildSlotBar(config.tag, config.format || 'Name | Description | Keywords', (nf) => {
-                        const st = getSettings();
-                        st.routerModules[id].format = nf;
-                        saveSettings();
-                    }));
-
-                    const inst = document.createElement('input');
-                    inst.type = 'text';
-                    inst.value = config.instruction || '';
-                    inst.title = 'Instruction text — guidance about what to write in each slot';
-                    inst.style.cssText = 'width:100%; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.692em; padding:2px 4px; box-sizing:border-box; margin-top:2px;';
-                    inst.addEventListener('change', () => {
-                        const st = getSettings();
-                        st.routerModules[id].instruction = inst.value;
-                        saveSettings();
-                    });
-                    row.appendChild(inst);
-                    list.appendChild(row);
+                    }
                 });
-            };
-            renderAgentModules();
+                row.appendChild(header);
 
-            const renderAgentCustomTags = () => {
-                const s = getSettings();
-                const list = agentPanel.querySelector('#rt-agent-custom-tags-list');
-                if (!list) return;
-                list.innerHTML = '';
+                row.appendChild(buildSlotBar(config.tag, config.format || 'Name | Description | Keywords', (nf) => {
+                    const st = getSettings();
+                    st.routerModules[id].format = nf;
+                    saveSettings();
+                }));
 
-                (s.routerCustomTags || []).forEach((tag, idx) => {
-                    const fmt = tag.format || 'Name | Description | Keywords';
-                    const row = document.createElement('div');
-                    row.style.cssText = 'margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05);';
-
-                    const header = document.createElement('div');
-                    header.style.cssText = 'display:flex; align-items:center; gap:4px; margin-bottom:3px;';
-
-                    const tagInp = document.createElement('input');
-                    tagInp.type = 'text';
-                    tagInp.value = tag.tag;
-                    tagInp.placeholder = 'TAG';
-                    tagInp.style.cssText = 'width:60px; flex-shrink:0; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.769em; font-weight:bold; padding:1px 4px; box-sizing:border-box;';
-                    tagInp.addEventListener('change', () => {
-                        const st = getSettings();
-                        st.routerCustomTags[idx].tag = tagInp.value.toUpperCase();
-                        saveSettings();
-                    });
-                    header.appendChild(tagInp);
-
-                    const spacer = document.createElement('span');
-                    spacer.style.flex = '1';
-                    header.appendChild(spacer);
-
-                    const delBtn = document.createElement('button');
-                    delBtn.style.cssText = 'background:#422; color:#f99; border:none; font-size:0.692em; cursor:pointer; padding:1px 6px; border-radius:3px;';
-                    delBtn.title = 'Delete this custom tag';
-                    delBtn.textContent = '✕';
-                    delBtn.addEventListener('click', () => {
-                        const st = getSettings();
-                        st.routerCustomTags.splice(idx, 1);
-                        saveSettings();
-                        renderAgentCustomTags();
-                    });
-                    header.appendChild(delBtn);
-                    row.appendChild(header);
-
-                    row.appendChild(buildSlotBar(tag.tag || 'CUSTOM', fmt, (nf) => {
-                        const st = getSettings();
-                        st.routerCustomTags[idx].format = nf;
-                        saveSettings();
-                    }));
-
-                    const inst = document.createElement('input');
-                    inst.type = 'text';
-                    inst.value = tag.instruction || '';
-                    inst.placeholder = 'Instructions for this tag...';
-                    inst.title = 'Instruction text — guidance about what to write in each slot';
-                    inst.style.cssText = 'width:100%; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.692em; padding:2px 4px; box-sizing:border-box; margin-top:2px;';
-                    inst.addEventListener('change', () => {
-                        const st = getSettings();
-                        st.routerCustomTags[idx].instruction = inst.value;
-                        saveSettings();
-                    });
-                    row.appendChild(inst);
-                    list.appendChild(row);
+                const inst = document.createElement('input');
+                inst.type = 'text';
+                inst.value = config.instruction || '';
+                inst.title = 'Instruction text — guidance about what to write in each slot';
+                inst.style.cssText = 'width:100%; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.692em; padding:2px 4px; box-sizing:border-box; margin-top:2px;';
+                inst.addEventListener('change', () => {
+                    const st = getSettings();
+                    st.routerModules[id].instruction = inst.value;
+                    saveSettings();
                 });
-            };
+                row.appendChild(inst);
+                list.appendChild(row);
+            });
+        };
+        renderAgentModules();
 
-            const addTagBtn = agentPanel.querySelector('#rt-agent-add-custom-tag');
-            if (addTagBtn) {
-                addTagBtn.addEventListener('click', () => {
-                    const s = getSettings();
-                    if (!s.routerCustomTags) s.routerCustomTags = [];
-                    s.routerCustomTags.push({ tag: 'NEW_TAG', instruction: 'New instructions...', format: 'Name | Description | Keywords' });
+        const renderAgentCustomTags = () => {
+            const s = getSettings();
+            const list = agentPanel.querySelector('#rt-agent-custom-tags-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            (s.routerCustomTags || []).forEach((tag, idx) => {
+                const fmt = tag.format || 'Name | Description | Keywords';
+                const row = document.createElement('div');
+                row.style.cssText = 'margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05);';
+
+                const header = document.createElement('div');
+                header.style.cssText = 'display:flex; align-items:center; gap:4px; margin-bottom:3px;';
+
+                const tagInp = document.createElement('input');
+                tagInp.type = 'text';
+                tagInp.value = tag.tag;
+                tagInp.placeholder = 'TAG';
+                tagInp.style.cssText = 'width:60px; flex-shrink:0; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.769em; font-weight:bold; padding:1px 4px; box-sizing:border-box;';
+                tagInp.addEventListener('change', () => {
+                    const st = getSettings();
+                    st.routerCustomTags[idx].tag = tagInp.value.toUpperCase();
+                    saveSettings();
+                });
+                header.appendChild(tagInp);
+
+                const spacer = document.createElement('span');
+                spacer.style.flex = '1';
+                header.appendChild(spacer);
+
+                const delBtn = document.createElement('button');
+                delBtn.style.cssText = 'background:#422; color:#f99; border:none; font-size:0.692em; cursor:pointer; padding:1px 6px; border-radius:3px;';
+                delBtn.title = 'Delete this custom tag';
+                delBtn.textContent = '✕';
+                delBtn.addEventListener('click', () => {
+                    const st = getSettings();
+                    st.routerCustomTags.splice(idx, 1);
                     saveSettings();
                     renderAgentCustomTags();
                 });
-            }
-            renderAgentCustomTags();
+                header.appendChild(delBtn);
+                row.appendChild(header);
 
+                row.appendChild(buildSlotBar(tag.tag || 'CUSTOM', fmt, (nf) => {
+                    const st = getSettings();
+                    st.routerCustomTags[idx].format = nf;
+                    saveSettings();
+                }));
 
-
-            const lookbackInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-lookback'));
-            if (lookbackInput) {
-                lookbackInput.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 4;
+                const inst = document.createElement('input');
+                inst.type = 'text';
+                inst.value = tag.instruction || '';
+                inst.placeholder = 'Instructions for this tag...';
+                inst.title = 'Instruction text — guidance about what to write in each slot';
+                inst.style.cssText = 'width:100%; background:rgba(0,0,0,0.3); color:var(--rt-text); border:1px solid rgba(255,255,255,0.1); border-radius:3px; font-size:0.692em; padding:2px 4px; box-sizing:border-box; margin-top:2px;';
+                inst.addEventListener('change', () => {
+                    const st = getSettings();
+                    st.routerCustomTags[idx].instruction = inst.value;
                     saveSettings();
                 });
-            }
+                row.appendChild(inst);
+                list.appendChild(row);
+            });
+        };
 
-            const directLookbackInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
-            if (directLookbackInput) {
-                directLookbackInput.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerDirectLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value);
-                    saveSettings();
-                });
-            }
+        const addTagBtn = agentPanel.querySelector('#rt-agent-add-custom-tag');
+        if (addTagBtn) {
+            addTagBtn.addEventListener('click', () => {
+                const s = getSettings();
+                if (!s.routerCustomTags) s.routerCustomTags = [];
+                s.routerCustomTags.push({ tag: 'NEW_TAG', instruction: 'New instructions...', format: 'Name | Description | Keywords' });
+                saveSettings();
+                renderAgentCustomTags();
+            });
+        }
+        renderAgentCustomTags();
 
-            const maxAct = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-activations'));
-            if (maxAct) {
-                maxAct.addEventListener('change', () => {
-                    const s = getSettings();
-                    s.routerMaxActivations = parseInt(maxAct.value) || 8;
-                    saveSettings();
-                });
-            }
 
-            // Prefix is auto-derived from chat id — sync settings + agent footer readouts
-            syncRouterPrefixDisplays(settings.routerCampaignPrefix || '');
-            
-            const sourceSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-source'));
-            const profGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-profile-group'));
-            const profSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-profile'));
-            const ollGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-group'));
-            const ollUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-url'));
-            const ollMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-model'));
-            const ollRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-refresh'));
-            const oaiGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-group'));
-            const oaiUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-url'));
-            const oaiKey = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-key'));
-            const oaiMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model'));
-            const oaiRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-refresh'));
-            const oaiMan = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model-manual'));
-            const preSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-preset'));
-            const maxTok = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-tokens'));
-            if (maxTok) {
-                maxTok.addEventListener('input', (e) => {
-                    const s = getSettings();
-                    s.routerMaxTokens = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 0;
 
-                    saveSettings();
-                });
-            }
-            const maxTur = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-turns'));
-            if (maxTur) {
-                maxTur.addEventListener('input', (e) => {
-                    const s = getSettings();
-                    s.routerMaxTurns = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 5;
-                    $('#rpg_tracker_router_max_turns').val(s.routerMaxTurns);
-                    saveSettings();
-                });
-            }
+        const lookbackInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-lookback'));
+        if (lookbackInput) {
+            lookbackInput.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 4;
+                saveSettings();
+            });
+        }
 
-            const directPromptInp = /** @type {HTMLTextAreaElement} */ (agentPanel.querySelector('#rt-agent-router-direct-prompt'));
-            if (directPromptInp) {
-                directPromptInp.addEventListener('input', (e) => {
-                    const s = getSettings();
-                    s.routerDirectPrompt = (/** @type {HTMLTextAreaElement} */ (e.target)).value;
-                    saveSettings();
-                });
-            }
+        const directLookbackInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
+        if (directLookbackInput) {
+            directLookbackInput.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerDirectLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value);
+                saveSettings();
+            });
+        }
 
-            const lookbackInp = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-lookback'));
-            if (lookbackInp) {
-                lookbackInp.addEventListener('input', (e) => {
-                    const s = getSettings();
-                    s.routerLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 4;
-                    $('#rpg_tracker_router_lookback').val(s.routerLookback);
-                    saveSettings();
-                });
-            }
+        const maxAct = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-activations'));
+        if (maxAct) {
+            maxAct.addEventListener('change', () => {
+                const s = getSettings();
+                s.routerMaxActivations = parseInt(maxAct.value) || 8;
+                saveSettings();
+            });
+        }
 
-            // ── Include hidden messages ──
-            const includeHiddenCheck = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-include-hidden'));
-            if (includeHiddenCheck) {
-                includeHiddenCheck.addEventListener('change', () => {
-                    const s = getSettings();
-                    s.routerIncludeHidden = includeHiddenCheck.checked;
-                    saveSettings();
-                });
-            }
+        // Prefix is auto-derived from chat id — sync settings + agent footer readouts
+        syncRouterPrefixDisplays(settings.routerCampaignPrefix || '');
 
-            // ── Run-every counter ──
-            const runEveryInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-run-every'));
-            if (runEveryInput) {
-                runEveryInput.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerRunEvery = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 1;
-                    saveSettings();
-                });
-            }
+        const sourceSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-source'));
+        const profGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-profile-group'));
+        const profSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-profile'));
+        const ollGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-group'));
+        const ollUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-url'));
+        const ollMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-model'));
+        const ollRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-refresh'));
+        const oaiGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-group'));
+        const oaiUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-url'));
+        const oaiKey = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-key'));
+        const oaiMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model'));
+        const oaiRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-refresh'));
+        const oaiMan = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model-manual'));
+        const preSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-preset'));
+        const maxTok = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-tokens'));
+        if (maxTok) {
+            maxTok.addEventListener('input', (e) => {
+                const s = getSettings();
+                s.routerMaxTokens = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 0;
 
-            // ── Agent pause button ──
-            const agentPauseBtn = agentPanel.querySelector('#rt-agent-router-pause-btn');
-            const agentPauseBanner = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-pause-banner'));
-            if (agentPauseBtn) {
-                agentPauseBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const s = getSettings();
-                    s.routerPaused = !s.routerPaused;
-                    saveSettings();
-                    agentPauseBtn.textContent = s.routerPaused ? '▶' : '⏸';
+                saveSettings();
+            });
+        }
+        const maxTur = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-turns'));
+        if (maxTur) {
+            maxTur.addEventListener('input', (e) => {
+                const s = getSettings();
+                s.routerMaxTurns = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 5;
+                $('#rpg_tracker_router_max_turns').val(s.routerMaxTurns);
+                saveSettings();
+            });
+        }
+
+        const directPromptInp = /** @type {HTMLTextAreaElement} */ (agentPanel.querySelector('#rt-agent-router-direct-prompt'));
+        if (directPromptInp) {
+            directPromptInp.addEventListener('input', (e) => {
+                const s = getSettings();
+                s.routerDirectPrompt = (/** @type {HTMLTextAreaElement} */ (e.target)).value;
+                saveSettings();
+            });
+        }
+
+        const lookbackInp = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-lookback'));
+        if (lookbackInp) {
+            lookbackInp.addEventListener('input', (e) => {
+                const s = getSettings();
+                s.routerLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 4;
+                $('#rpg_tracker_router_lookback').val(s.routerLookback);
+                saveSettings();
+            });
+        }
+
+        // ── Include hidden messages ──
+        const includeHiddenCheck = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-include-hidden'));
+        if (includeHiddenCheck) {
+            includeHiddenCheck.addEventListener('change', () => {
+                const s = getSettings();
+                s.routerIncludeHidden = includeHiddenCheck.checked;
+                saveSettings();
+            });
+        }
+
+        // ── Run-every counter ──
+        const runEveryInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-run-every'));
+        if (runEveryInput) {
+            runEveryInput.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerRunEvery = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 1;
+                saveSettings();
+            });
+        }
+
+        // ── Agent pause button ──
+        const agentPauseBtn = agentPanel.querySelector('#rt-agent-router-pause-btn');
+        const agentPauseBanner = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-pause-banner'));
+        if (agentPauseBtn) {
+            agentPauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const s = getSettings();
+                s.routerPaused = !s.routerPaused;
+                saveSettings();
+                agentPauseBtn.textContent = s.routerPaused ? '▶' : '⏸';
                     /** @type {HTMLElement} */ (agentPauseBtn).title = s.routerPaused
-                        ? 'Resume Agent (auto-runs paused)'
-                        : 'Pause Agent (skip auto-runs)';
+                    ? 'Resume Agent (auto-runs paused)'
+                    : 'Pause Agent (skip auto-runs)';
                     /** @type {HTMLElement} */ (agentPauseBtn).style.color = s.routerPaused ? '#ffa500' : '';
-                    if (agentPauseBanner) agentPauseBanner.textContent = s.routerPaused ? 'AGENT PAUSED' : '';
-                });
-            }
+                if (agentPauseBanner) agentPauseBanner.textContent = s.routerPaused ? 'AGENT PAUSED' : '';
+            });
+        }
 
-            const runDirectBtn = agentPanel.querySelector('#rt-agent-router-run-direct');
-            if (runDirectBtn) {
-                runDirectBtn.addEventListener('click', async (e) => {
+        const runDirectBtn = agentPanel.querySelector('#rt-agent-router-run-direct');
+        if (runDirectBtn) {
+            runDirectBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const s = getSettings();
+                const prompt = s.routerDirectPrompt?.trim() || null;
+
+                const dlInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
+                const lookback = dlInput ? parseInt(dlInput.value) : (s.routerDirectLookback || 10);
+
+                const { chat } = SillyTavern.getContext();
+                const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
+                toastr['info'](prompt ? "Running agent with specific command..." : "Starting manual research pass...");
+                await runRouterPass(combinedNarrative, prompt, lookback, true);
+            });
+        }
+
+        const manualRunBtn = agentPanel.querySelector('#rt-agent-router-manual-run');
+        if (manualRunBtn) {
+            manualRunBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const s = getSettings();
+                const { chat } = SillyTavern.getContext();
+                const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
+                toastr['info']("Starting manual research pass...");
+                await runRouterPass(combinedNarrative, null, s.routerLookback || 4, true);
+            });
+        }
+
+        // ── Cleanup dropdown submenu ─────────────────────────────────────────────
+        const cleanupBroomBtn = agentPanel.querySelector('#rt-agent-router-cleanup');
+        const cleanupDropdown = agentPanel.querySelector('#rt-cleanup-dropdown');
+        const cleanupRunBtn = agentPanel.querySelector('#rt-cleanup-run-btn');
+        const cleanupSettingsToggle = agentPanel.querySelector('#rt-cleanup-settings-toggle');
+        const cleanupSettingsPanel = agentPanel.querySelector('#rt-cleanup-settings-panel');
+        const cleanupThresholdInp = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-threshold-inp'));
+        const cleanupEveryInp = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-every-inp'));
+        const cleanupUseThresholdChk = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-use-threshold-chk'));
+        const cleanupThresholdRow = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-cleanup-threshold-row'));
+
+        if (cleanupBroomBtn && cleanupDropdown) {
+            // Toggle dropdown on broom click
+            cleanupBroomBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = cleanupDropdown.style.display !== 'none';
+                cleanupDropdown.style.display = isOpen ? 'none' : 'block';
+            });
+
+            // Stop pointer/mouse/click propagation inside the dropdown (prevents header drag and outside-dismiss),
+            // but pass through events on form controls so native spinner/focus behaviour is preserved.
+            const _isFormControl = (/** @type {EventTarget|null} */ t) =>
+                t instanceof Element && t.closest('input, select, textarea') !== null;
+            cleanupDropdown.addEventListener('pointerdown', (e) => { if (!_isFormControl(e.target)) e.stopPropagation(); });
+            cleanupDropdown.addEventListener('mousedown', (e) => { if (!_isFormControl(e.target)) e.stopPropagation(); });
+            cleanupDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+            // Dismiss dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (!cleanupDropdown.parentElement?.contains(/** @type {Node} */(e.target))) {
+                    cleanupDropdown.style.display = 'none';
+                }
+            });
+
+            // "Run Cleanup" button — existing popup-then-run flow
+            if (cleanupRunBtn) {
+                cleanupRunBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    const s = getSettings();
-                    const prompt = s.routerDirectPrompt?.trim() || null;
-                    
-                    const dlInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
-                    const lookback = dlInput ? parseInt(dlInput.value) : (s.routerDirectLookback || 10);
-                    
-                    const { chat } = SillyTavern.getContext();
-                    const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
-                    toastr['info'](prompt ? "Running agent with specific command..." : "Starting manual research pass...");
-                    await runRouterPass(combinedNarrative, prompt, lookback, true);
-                });
-            }
+                    cleanupDropdown.style.display = 'none';
 
-            const manualRunBtn = agentPanel.querySelector('#rt-agent-router-manual-run');
-            if (manualRunBtn) {
-                manualRunBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const s = getSettings();
-                    const { chat } = SillyTavern.getContext();
-                    const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
-                    toastr['info']("Starting manual research pass...");
-                    await runRouterPass(combinedNarrative, null, s.routerLookback || 4, true);
-                });
-            }
-
-            // ── Cleanup dropdown submenu ─────────────────────────────────────────────
-            const cleanupBroomBtn   = agentPanel.querySelector('#rt-agent-router-cleanup');
-            const cleanupDropdown   = agentPanel.querySelector('#rt-cleanup-dropdown');
-            const cleanupRunBtn     = agentPanel.querySelector('#rt-cleanup-run-btn');
-            const cleanupSettingsToggle   = agentPanel.querySelector('#rt-cleanup-settings-toggle');
-            const cleanupSettingsPanel    = agentPanel.querySelector('#rt-cleanup-settings-panel');
-            const cleanupThresholdInp     = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-threshold-inp'));
-            const cleanupEveryInp         = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-every-inp'));
-            const cleanupUseThresholdChk  = /** @type {HTMLInputElement|null} */ (agentPanel.querySelector('#rt-cleanup-use-threshold-chk'));
-            const cleanupThresholdRow     = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-cleanup-threshold-row'));
-
-            if (cleanupBroomBtn && cleanupDropdown) {
-                // Toggle dropdown on broom click
-                cleanupBroomBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isOpen = cleanupDropdown.style.display !== 'none';
-                    cleanupDropdown.style.display = isOpen ? 'none' : 'block';
-                });
-
-                // Stop pointer/mouse/click propagation inside the dropdown (prevents header drag and outside-dismiss),
-                // but pass through events on form controls so native spinner/focus behaviour is preserved.
-                const _isFormControl = (/** @type {EventTarget|null} */ t) =>
-                    t instanceof Element && t.closest('input, select, textarea') !== null;
-                cleanupDropdown.addEventListener('pointerdown', (e) => { if (!_isFormControl(e.target)) e.stopPropagation(); });
-                cleanupDropdown.addEventListener('mousedown',   (e) => { if (!_isFormControl(e.target)) e.stopPropagation(); });
-                cleanupDropdown.addEventListener('click',       (e) => e.stopPropagation());
-
-                // Dismiss dropdown on outside click
-                document.addEventListener('click', (e) => {
-                    if (!cleanupDropdown.parentElement?.contains(/** @type {Node} */ (e.target))) {
-                        cleanupDropdown.style.display = 'none';
+                    if (isRouterRunning()) {
+                        // @ts-ignore
+                        toastr.warning('Agent is already running.', 'Lorebook Agent');
+                        return;
                     }
-                });
 
-                // "Run Cleanup" button — existing popup-then-run flow
-                if (cleanupRunBtn) {
-                    cleanupRunBtn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        cleanupDropdown.style.display = 'none';
-
-                        if (isRouterRunning()) {
-                            // @ts-ignore
-                            toastr.warning('Agent is already running.', 'Lorebook Agent');
-                            return;
-                        }
-
-                        const { Popup } = SillyTavern.getContext();
-                        const s = getSettings();
-                        const threshold = s.routerCleanupTokenThreshold || 300;
-                        const promptHtml = `
+                    const { Popup } = SillyTavern.getContext();
+                    const s = getSettings();
+                    const threshold = s.routerCleanupTokenThreshold || 300;
+                    const promptHtml = `
                             <div style="text-align: left; font-size: 0.9em; line-height: 1.4;">
                                 <p>You are triggering a <b>Global Cleanup Mode</b> pass to consolidate all bloated lore entries (&gt;${threshold} tokens).</p>
                                 <p style="margin-top: 8px;">Enter custom requirements for the global compression (e.g., <i>"Keep background lore detailed but condense quest status"</i>):</p>
@@ -4320,64 +4342,64 @@ Rules:
                             </div>
                         `;
 
-                        const choice = await Popup.show.confirm('🧹 Global Lorebook Cleanup', promptHtml, {
-                            okButton: 'Clean All Bloated',
-                            cancelButton: 'Cancel'
-                        });
-
-                        if (choice) {
-                            const textarea = document.getElementById('rt-global-clean-instructions');
-                            const customInstructions = textarea ? textarea.value.trim() : '';
-                            let manualPrompt = '__CLEANUP__';
-                            if (customInstructions) manualPrompt += `::::${customInstructions}`;
-                            toastr['info']('Starting lorebook cleanup mode...', 'Lorebook Agent');
-                            await runRouterPass(null, manualPrompt, null, true);
-                        }
+                    const choice = await Popup.show.confirm('🧹 Global Lorebook Cleanup', promptHtml, {
+                        okButton: 'Clean All Bloated',
+                        cancelButton: 'Cancel'
                     });
-                }
 
-                // "⚙ Settings" toggle
-                if (cleanupSettingsToggle && cleanupSettingsPanel) {
-                    cleanupSettingsToggle.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const isOpen = cleanupSettingsPanel.style.display !== 'none';
-                        cleanupSettingsPanel.style.display = isOpen ? 'none' : 'block';
-                    });
-                }
-
-                // Threshold input → persists immediately
-                if (cleanupThresholdInp) {
-                    cleanupThresholdInp.addEventListener('change', (e) => {
-                        const s = getSettings();
-                        const v = parseInt(/** @type {HTMLInputElement} */ (e.target).value) || 300;
-                        s.routerCleanupTokenThreshold = Math.max(50, Math.min(5000, v));
-                        /** @type {HTMLInputElement} */ (e.target).value = String(s.routerCleanupTokenThreshold);
-                        SillyTavern.getContext().saveSettingsDebounced();
-                    });
-                }
-
-                // Interval input → persists immediately
-                if (cleanupEveryInp) {
-                    cleanupEveryInp.addEventListener('change', (e) => {
-                        const s = getSettings();
-                        const v = parseInt(/** @type {HTMLInputElement} */ (e.target).value);
-                        s.routerCleanupEvery = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
-                        /** @type {HTMLInputElement} */ (e.target).value = String(s.routerCleanupEvery);
-                        SillyTavern.getContext().saveSettingsDebounced();
-                    });
-                }
-
-                // Use-threshold checkbox → dims threshold row and persists
-                if (cleanupUseThresholdChk && cleanupThresholdRow) {
-                    cleanupUseThresholdChk.addEventListener('change', () => {
-                        const s = getSettings();
-                        s.routerCleanupUseThreshold = cleanupUseThresholdChk.checked;
-                        cleanupThresholdRow.style.opacity  = cleanupUseThresholdChk.checked ? '1' : '0.35';
-                        cleanupThresholdRow.style.pointerEvents = cleanupUseThresholdChk.checked ? 'auto' : 'none';
-                        SillyTavern.getContext().saveSettingsDebounced();
-                    });
-                }
+                    if (choice) {
+                        const textarea = document.getElementById('rt-global-clean-instructions');
+                        const customInstructions = textarea ? textarea.value.trim() : '';
+                        let manualPrompt = '__CLEANUP__';
+                        if (customInstructions) manualPrompt += `::::${customInstructions}`;
+                        toastr['info']('Starting lorebook cleanup mode...', 'Lorebook Agent');
+                        await runRouterPass(null, manualPrompt, null, true);
+                    }
+                });
             }
+
+            // "⚙ Settings" toggle
+            if (cleanupSettingsToggle && cleanupSettingsPanel) {
+                cleanupSettingsToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = cleanupSettingsPanel.style.display !== 'none';
+                    cleanupSettingsPanel.style.display = isOpen ? 'none' : 'block';
+                });
+            }
+
+            // Threshold input → persists immediately
+            if (cleanupThresholdInp) {
+                cleanupThresholdInp.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    const v = parseInt(/** @type {HTMLInputElement} */(e.target).value) || 300;
+                    s.routerCleanupTokenThreshold = Math.max(50, Math.min(5000, v));
+                        /** @type {HTMLInputElement} */ (e.target).value = String(s.routerCleanupTokenThreshold);
+                    SillyTavern.getContext().saveSettingsDebounced();
+                });
+            }
+
+            // Interval input → persists immediately
+            if (cleanupEveryInp) {
+                cleanupEveryInp.addEventListener('change', (e) => {
+                    const s = getSettings();
+                    const v = parseInt(/** @type {HTMLInputElement} */(e.target).value);
+                    s.routerCleanupEvery = isNaN(v) ? 0 : Math.max(0, Math.min(100, v));
+                        /** @type {HTMLInputElement} */ (e.target).value = String(s.routerCleanupEvery);
+                    SillyTavern.getContext().saveSettingsDebounced();
+                });
+            }
+
+            // Use-threshold checkbox → dims threshold row and persists
+            if (cleanupUseThresholdChk && cleanupThresholdRow) {
+                cleanupUseThresholdChk.addEventListener('change', () => {
+                    const s = getSettings();
+                    s.routerCleanupUseThreshold = cleanupUseThresholdChk.checked;
+                    cleanupThresholdRow.style.opacity = cleanupUseThresholdChk.checked ? '1' : '0.35';
+                    cleanupThresholdRow.style.pointerEvents = cleanupUseThresholdChk.checked ? 'auto' : 'none';
+                    SillyTavern.getContext().saveSettingsDebounced();
+                });
+            }
+        }
 
         // ── Lorebook Agent Detaching ──
         const detachBtn = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-detach'));
@@ -4394,7 +4416,6 @@ Rules:
                     agentPanel.classList.add('rt-detached-panel');
                     agentPanel.style.display = 'flex'; // Force visibility if detached
                     document.body.appendChild(agentPanel);
-                    panel.classList.remove('rt-agent-open');
                     syncRouterPrefixDisplays(getSettings().routerCampaignPrefix || '');
                     renderRouterUI(); // Ensure it's populated
                     refreshManifest();
@@ -4404,12 +4425,12 @@ Rules:
                     }
                     detachBtn.innerHTML = '↓';
                     detachBtn.title = 'Re-attach Lorebook Agent';
-                    
+
                     // Restore geometry with off-screen protection
                     try {
                         const savedStr = localStorage.getItem(GEO_KEY);
                         const saved = savedStr ? JSON.parse(savedStr) : null;
-                        
+
                         let left = 100;
                         let top = 100;
                         let width = 300;
@@ -4417,12 +4438,12 @@ Rules:
 
                         if (saved && typeof saved.left === 'number') {
                             const isOffScreen = (
-                                saved.left + 50 > window.innerWidth || 
-                                saved.top + 50 > window.innerHeight || 
-                                saved.left < -250 || 
+                                saved.left + 50 > window.innerWidth ||
+                                saved.top + 50 > window.innerHeight ||
+                                saved.left < -250 ||
                                 saved.top < -50
                             );
-                            
+
                             if (!isOffScreen) {
                                 left = saved.left;
                                 top = saved.top;
@@ -4450,11 +4471,6 @@ Rules:
                     panel.appendChild(agentPanel);
                     agentPanel.style.left = ''; agentPanel.style.top = '30px'; agentPanel.style.right = '0';
                     agentPanel.style.width = '300px'; agentPanel.style.height = '';
-                    if (agentPanel.style.display !== 'none') {
-                        panel.classList.add('rt-agent-open');
-                    } else {
-                        panel.classList.remove('rt-agent-open');
-                    }
                     detachBtn.innerHTML = '⧉';
                     detachBtn.title = 'Detach Lorebook Agent';
                 }
@@ -4472,1039 +4488,909 @@ Rules:
 
         const updateRouterPanels = () => {
             const src = sourceSel.value;
-                $(profGrp).stop(true, true)[src === 'profile' ? 'slideDown' : 'slideUp'](200);
-                $(ollGrp).stop(true, true)[src === 'ollama' ? 'slideDown' : 'slideUp'](200);
-                $(oaiGrp).stop(true, true)[src === 'openai' ? 'slideDown' : 'slideUp'](200);
-            };
+            $(profGrp).stop(true, true)[src === 'profile' ? 'slideDown' : 'slideUp'](200);
+            $(ollGrp).stop(true, true)[src === 'ollama' ? 'slideDown' : 'slideUp'](200);
+            $(oaiGrp).stop(true, true)[src === 'openai' ? 'slideDown' : 'slideUp'](200);
+        };
 
-            if (sourceSel) {
-                sourceSel.addEventListener('change', (e) => {
-                    const s = getSettings();
-                    s.routerConnectionSource = (/** @type {HTMLSelectElement} */ (e.target)).value;
-                    saveSettings();
-                    updateRouterPanels();
-                });
-            }
+        if (sourceSel) {
+            sourceSel.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerConnectionSource = (/** @type {HTMLSelectElement} */ (e.target)).value;
+                saveSettings();
+                updateRouterPanels();
+            });
+        }
 
-            if (profSel) {
-                const ctx = SillyTavern.getContext();
-                if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+        if (profSel) {
+            const ctx = SillyTavern.getContext();
+            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
                     /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profSel);
-                    profSel.value = settings.routerConnectionProfileId || "";
-                } else {
-                    getConnectionProfiles().then(profiles => {
-                        profSel.innerHTML = '<option value="">-- No Profile Selected --</option>';
-                        profiles.forEach(p => {
-                            const opt = document.createElement('option');
-                            opt.value = p; opt.textContent = p;
-                            profSel.appendChild(opt);
-                        });
-                        profSel.value = settings.routerConnectionProfileId || "";
-                    });
-                }
-                profSel.addEventListener('change', () => {
-                    getSettings().routerConnectionProfileId = profSel.value;
-                    saveSettings();
-                });
-            }
-
-            if (ollUrl) {
-                ollUrl.addEventListener('input', () => {
-                    getSettings().routerOllamaUrl = ollUrl.value;
-                    saveSettings();
-                });
-            }
-            if (ollMod) {
-                ollMod.addEventListener('change', () => {
-                    getSettings().routerOllamaModel = ollMod.value;
-                    saveSettings();
-                });
-                ollRef.addEventListener('click', async () => {
-                    if (!ollUrl.value) return toastr['info']("Enter Ollama URL first.");
-                    try {
-                        toastr['info']("Fetching Ollama models...");
-                        const models = await fetchOllamaModels(ollUrl.value);
-                        ollMod.innerHTML = '<option value="">-- Select Model --</option>';
-                        models.forEach(m => {
-                            const opt = document.createElement('option');
-                            opt.value = m.name; opt.textContent = m.name;
-                            ollMod.appendChild(opt);
-                        });
-                        ollMod.value = getSettings().routerOllamaModel || "";
-                        toastr['success']("Ollama models updated.");
-                    } catch (e) {
-                        toastr['error']("Failed to fetch Ollama models.");
-                    }
-                });
-            }
-
-            if (oaiUrl) {
-                oaiUrl.addEventListener('input', () => {
-                    getSettings().routerOpenaiUrl = oaiUrl.value;
-                    saveSettings();
-                });
-            }
-            if (oaiKey) {
-                oaiKey.addEventListener('input', () => {
-                    getSettings().routerOpenaiKey = oaiKey.value;
-                    saveSettings();
-                });
-            }
-            if (oaiMod) {
-                oaiMod.addEventListener('change', () => {
-                    if (oaiMod.value) {
-                        oaiMan.value = '';
-                        getSettings().routerOpenaiModel = oaiMod.value;
-                    } else {
-                        getSettings().routerOpenaiModel = oaiMan.value.trim();
-                    }
-                    saveSettings();
-                });
-                oaiRef.addEventListener('click', async () => {
-                    if (!oaiUrl.value) return toastr['info']("Enter Endpoint URL first.");
-                    try {
-                        toastr['info']("Fetching models...");
-                        const models = await fetchOpenAIModels(oaiUrl.value, oaiKey.value);
-                        oaiMod.innerHTML = '<option value="">-- Select Model --</option>';
-                        models.forEach(m => {
-                            const id = typeof m === 'string' ? m : (m.id || m.name);
-                            const opt = document.createElement('option');
-                            opt.value = id; opt.textContent = id;
-                            oaiMod.appendChild(opt);
-                        });
-                        oaiMod.value = getSettings().routerOpenaiModel || "";
-                        toastr['success']("Models updated.");
-                    } catch (e) {
-                        toastr['warning']("Cannot auto-detect models (CORS). Type manually.");
-                    }
-                });
-            }
-            if (oaiMan) {
-                oaiMan.addEventListener('input', () => {
-                    if (oaiMan.value.trim()) oaiMod.value = '';
-                    getSettings().routerOpenaiModel = oaiMan.value.trim() || oaiMod.value;
-                    saveSettings();
-                });
-            }
-
-            if (preSel) {
-                const ctx = SillyTavern.getContext();
-                const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
-                if (pm && typeof pm.getAllPresets === 'function') {
-                    const presets = pm.getAllPresets();
-                    preSel.innerHTML = '<option value="">-- Use Current Settings --</option>';
-                    presets.forEach(p => {
+                profSel.value = settings.routerConnectionProfileId || "";
+            } else {
+                getConnectionProfiles().then(profiles => {
+                    profSel.innerHTML = '<option value="">-- No Profile Selected --</option>';
+                    profiles.forEach(p => {
                         const opt = document.createElement('option');
                         opt.value = p; opt.textContent = p;
-                        preSel.appendChild(opt);
+                        profSel.appendChild(opt);
                     });
-                    preSel.value = settings.routerCompletionPresetId || '';
-                }
-                preSel.addEventListener('change', () => {
-                    getSettings().routerCompletionPresetId = preSel.value;
-                    saveSettings();
+                    profSel.value = settings.routerConnectionProfileId || "";
                 });
             }
-
-            if (maxTok) {
-                maxTok.addEventListener('input', () => {
-                    getSettings().routerMaxTokens = parseInt(maxTok.value) || 0;
-                    saveSettings();
-                });
-            }
+            profSel.addEventListener('change', () => {
+                getSettings().routerConnectionProfileId = profSel.value;
+                saveSettings();
+            });
         }
-        
-        // ── Lorebook Agent History Nav (← [LIVE] →) ─────────────────────────
-        const agentNavBack  = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-nav-back'));
-        const agentNavFwd   = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-nav-fwd'));
-        const agentNavLabel = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-agent-nav-label'));
 
-        const syncAgentNav = () => {
-            const s = getSettings();
-            const histLen  = (s.routerHistory || []).length;
-            const redoLen  = _loreRedoStack.length;
-            if (agentNavBack)  agentNavBack.disabled  = histLen === 0;
-            if (agentNavFwd)   agentNavFwd.disabled   = redoLen === 0;
-            if (agentNavLabel) {
-                if (redoLen === 0) {
-                    agentNavLabel.textContent = '[ LIVE ]';
-                    agentNavLabel.title = 'Lorebook is at current live state';
-                } else {
-                    agentNavLabel.textContent = `[ -${redoLen} ]`;
-                    agentNavLabel.title = `Rolled back ${redoLen} agent pass${redoLen !== 1 ? 'es' : ''} — use → to redo`;
-                }
-                agentNavLabel.classList.remove('clickable');
-            }
-        };
-
-        /** Snapshot the current lorebook state for the books touched by the given history entry. */
-        const captureCurrentLoreState = async (histEntry) => {
-            const ctx = SillyTavern.getContext();
-            const s   = getSettings();
-            const bookNames = Object.keys(histEntry.bookSnapshots || {});
-            const bookSnapshots = {};
-            for (const name of bookNames) {
+        if (ollUrl) {
+            ollUrl.addEventListener('input', () => {
+                getSettings().routerOllamaUrl = ollUrl.value;
+                saveSettings();
+            });
+        }
+        if (ollMod) {
+            ollMod.addEventListener('change', () => {
+                getSettings().routerOllamaModel = ollMod.value;
+                saveSettings();
+            });
+            ollRef.addEventListener('click', async () => {
+                if (!ollUrl.value) return toastr['info']("Enter Ollama URL first.");
                 try {
-                    const book = await ctx.loadWorldInfo(name);
-                    if (book) bookSnapshots[name] = JSON.parse(JSON.stringify(book));
-                } catch (_) {}
-            }
-            return {
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                activeRouterKeys: JSON.parse(JSON.stringify(s.activeRouterKeys || [])),
-                bookSnapshots,
-            };
-        };
+                    toastr['info']("Fetching Ollama models...");
+                    const models = await fetchOllamaModels(ollUrl.value);
+                    ollMod.innerHTML = '<option value="">-- Select Model --</option>';
+                    models.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.name; opt.textContent = m.name;
+                        ollMod.appendChild(opt);
+                    });
+                    ollMod.value = getSettings().routerOllamaModel || "";
+                    toastr['success']("Ollama models updated.");
+                } catch (e) {
+                    toastr['error']("Failed to fetch Ollama models.");
+                }
+            });
+        }
 
-        if (agentNavBack) {
-            agentNavBack.addEventListener('click', async () => {
-                const s = getSettings();
-                if (!(s.routerHistory || []).length) return;
-                agentNavBack.disabled = true;
-                if (agentNavFwd) agentNavFwd.disabled = true;
-                const histEntry = s.routerHistory[0];
-                const postPassState = await captureCurrentLoreState(histEntry);
-                const ok = await rollbackRouterPass(0);
-                if (ok) {
-                    _loreRedoStack.push({ prePassSnapshot: histEntry, postPassState });
+        if (oaiUrl) {
+            oaiUrl.addEventListener('input', () => {
+                getSettings().routerOpenaiUrl = oaiUrl.value;
+                saveSettings();
+            });
+        }
+        if (oaiKey) {
+            oaiKey.addEventListener('input', () => {
+                getSettings().routerOpenaiKey = oaiKey.value;
+                saveSettings();
+            });
+        }
+        if (oaiMod) {
+            oaiMod.addEventListener('change', () => {
+                if (oaiMod.value) {
+                    oaiMan.value = '';
+                    getSettings().routerOpenaiModel = oaiMod.value;
                 } else {
-                    toastr['error']('Rollback failed. Check console.', 'Lorebook Agent');
+                    getSettings().routerOpenaiModel = oaiMan.value.trim();
                 }
-                syncAgentNav();
-                await refreshManifest();
+                saveSettings();
+            });
+            oaiRef.addEventListener('click', async () => {
+                if (!oaiUrl.value) return toastr['info']("Enter Endpoint URL first.");
+                try {
+                    toastr['info']("Fetching models...");
+                    const models = await fetchOpenAIModels(oaiUrl.value, oaiKey.value);
+                    oaiMod.innerHTML = '<option value="">-- Select Model --</option>';
+                    models.forEach(m => {
+                        const id = typeof m === 'string' ? m : (m.id || m.name);
+                        const opt = document.createElement('option');
+                        opt.value = id; opt.textContent = id;
+                        oaiMod.appendChild(opt);
+                    });
+                    oaiMod.value = getSettings().routerOpenaiModel || "";
+                    toastr['success']("Models updated.");
+                } catch (e) {
+                    toastr['warning']("Cannot auto-detect models (CORS). Type manually.");
+                }
+            });
+        }
+        if (oaiMan) {
+            oaiMan.addEventListener('input', () => {
+                if (oaiMan.value.trim()) oaiMod.value = '';
+                getSettings().routerOpenaiModel = oaiMan.value.trim() || oaiMod.value;
+                saveSettings();
             });
         }
 
-        if (agentNavFwd) {
-            agentNavFwd.addEventListener('click', async () => {
-                if (!_loreRedoStack.length) return;
-                if (agentNavBack) agentNavBack.disabled = true;
-                agentNavFwd.disabled = true;
-                const redoEntry = _loreRedoStack.pop();
-                const ok = await reapplyRouterPass(redoEntry.prePassSnapshot, redoEntry.postPassState);
-                if (!ok) {
-                    _loreRedoStack.push(redoEntry);
-                    toastr['error']('Redo failed. Check console.', 'Lorebook Agent');
-                }
-                syncAgentNav();
-                await refreshManifest();
+        if (preSel) {
+            const ctx = SillyTavern.getContext();
+            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+            if (pm && typeof pm.getAllPresets === 'function') {
+                const presets = pm.getAllPresets();
+                preSel.innerHTML = '<option value="">-- Use Current Settings --</option>';
+                presets.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p; opt.textContent = p;
+                    preSel.appendChild(opt);
+                });
+                preSel.value = settings.routerCompletionPresetId || '';
+            }
+            preSel.addEventListener('change', () => {
+                getSettings().routerCompletionPresetId = preSel.value;
+                saveSettings();
             });
         }
 
-        // updateUndoLabel kept as alias so existing call-sites still compile
-        const updateUndoLabel = syncAgentNav;
-        // ── Active Keys Refresh Button ────────────────────────────────────────
-        const keysRefreshBtn = agentPanel.querySelector('#rt-agent-keys-refresh');
-        if (keysRefreshBtn) {
-            keysRefreshBtn.addEventListener('click', async () => {
-                keysRefreshBtn.querySelector('i')?.classList.add('fa-spin');
-                const _ctx = SillyTavern.getContext();
-                if (typeof _ctx.updateWorldInfoList === 'function') {
-                    try { await _ctx.updateWorldInfoList(); } catch (_) {}
-                }
-                await renderRouterUI();
-                keysRefreshBtn.querySelector('i')?.classList.remove('fa-spin');
+        if (maxTok) {
+            maxTok.addEventListener('input', () => {
+                getSettings().routerMaxTokens = parseInt(maxTok.value) || 0;
+                saveSettings();
             });
         }
+    }
 
-        updateUndoLabel();
+    // ── Lorebook Agent History Nav (← [LIVE] →) ─────────────────────────
+    const agentNavBack = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-nav-back'));
+    const agentNavFwd = /** @type {HTMLButtonElement|null} */ (agentPanel.querySelector('#rt-agent-nav-fwd'));
+    const agentNavLabel = /** @type {HTMLElement|null} */ (agentPanel.querySelector('#rt-agent-nav-label'));
 
-        document.addEventListener('rt_lore_agent_updated', async () => {
-            saveSettings();
-            // Flush ST's in-memory lorebook cache before re-rendering so that
-            // loadWorldInfo() picks up the entries we just wrote via the HTTP API.
+    const syncAgentNav = () => {
+        const s = getSettings();
+        const histLen = (s.routerHistory || []).length;
+        const redoLen = _loreRedoStack.length;
+        if (agentNavBack) agentNavBack.disabled = histLen === 0;
+        if (agentNavFwd) agentNavFwd.disabled = redoLen === 0;
+        if (agentNavLabel) {
+            if (redoLen === 0) {
+                agentNavLabel.textContent = '[ LIVE ]';
+                agentNavLabel.title = 'Lorebook is at current live state';
+            } else {
+                agentNavLabel.textContent = `[ -${redoLen} ]`;
+                agentNavLabel.title = `Rolled back ${redoLen} agent pass${redoLen !== 1 ? 'es' : ''} — use → to redo`;
+            }
+            agentNavLabel.classList.remove('clickable');
+        }
+    };
+
+    /** Snapshot the current lorebook state for the books touched by the given history entry. */
+    const captureCurrentLoreState = async (histEntry) => {
+        const ctx = SillyTavern.getContext();
+        const s = getSettings();
+        const bookNames = Object.keys(histEntry.bookSnapshots || {});
+        const bookSnapshots = {};
+        for (const name of bookNames) {
+            try {
+                const book = await ctx.loadWorldInfo(name);
+                if (book) bookSnapshots[name] = JSON.parse(JSON.stringify(book));
+            } catch (_) { }
+        }
+        return {
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            activeRouterKeys: JSON.parse(JSON.stringify(s.activeRouterKeys || [])),
+            bookSnapshots,
+        };
+    };
+
+    if (agentNavBack) {
+        agentNavBack.addEventListener('click', async () => {
+            const s = getSettings();
+            if (!(s.routerHistory || []).length) return;
+            agentNavBack.disabled = true;
+            if (agentNavFwd) agentNavFwd.disabled = true;
+            const histEntry = s.routerHistory[0];
+            const postPassState = await captureCurrentLoreState(histEntry);
+            const ok = await rollbackRouterPass(0);
+            if (ok) {
+                _loreRedoStack.push({ prePassSnapshot: histEntry, postPassState });
+            } else {
+                toastr['error']('Rollback failed. Check console.', 'Lorebook Agent');
+            }
+            syncAgentNav();
+            await refreshManifest();
+        });
+    }
+
+    if (agentNavFwd) {
+        agentNavFwd.addEventListener('click', async () => {
+            if (!_loreRedoStack.length) return;
+            if (agentNavBack) agentNavBack.disabled = true;
+            agentNavFwd.disabled = true;
+            const redoEntry = _loreRedoStack.pop();
+            const ok = await reapplyRouterPass(redoEntry.prePassSnapshot, redoEntry.postPassState);
+            if (!ok) {
+                _loreRedoStack.push(redoEntry);
+                toastr['error']('Redo failed. Check console.', 'Lorebook Agent');
+            }
+            syncAgentNav();
+            await refreshManifest();
+        });
+    }
+
+    // updateUndoLabel kept as alias so existing call-sites still compile
+    const updateUndoLabel = syncAgentNav;
+    // ── Active Keys Refresh Button ────────────────────────────────────────
+    const keysRefreshBtn = agentPanel.querySelector('#rt-agent-keys-refresh');
+    if (keysRefreshBtn) {
+        keysRefreshBtn.addEventListener('click', async () => {
+            keysRefreshBtn.querySelector('i')?.classList.add('fa-spin');
             const _ctx = SillyTavern.getContext();
             if (typeof _ctx.updateWorldInfoList === 'function') {
-                try { await _ctx.updateWorldInfoList(); } catch (_) {}
+                try { await _ctx.updateWorldInfoList(); } catch (_) { }
             }
             await renderRouterUI();
-            updateUndoLabel();
+            keysRefreshBtn.querySelector('i')?.classList.remove('fa-spin');
         });
+    }
 
-        // ── Lorebook Terminal Logic ──
-        let _routerSteps = [];
-        const terminal = agentPanel.querySelector('#rt-agent-router-terminal');
-        const terminalClear = agentPanel.querySelector('#rt-agent-router-terminal-clear');
-        const logClear = agentPanel.querySelector('#rt-agent-router-log-clear');
+    updateUndoLabel();
 
-        document.addEventListener('rt_lore_agent_step', (e) => {
-            if (!terminal) return;
-            const step = (/** @type {CustomEvent} */ (e)).detail;
-            
-            if (step.type === 'start') {
-                _routerSteps = [];
-                _loreRedoStack = [];
-                syncAgentNav();
-            }
-            _routerSteps.push(step);
-
-            terminal.innerHTML = renderLorebookTerminal(_routerSteps);
-            terminal.scrollTop = terminal.scrollHeight;
-
-            // Refresh Campaign Records after the pass fully completes — at this point
-            // all applyAction writes and saveWorldInfo cache-busts are guaranteed done.
-            if (step.type === 'finish' || step.type === 'error') {
-                refreshManifest();
-            }
-        });
-
-        if (terminalClear) {
-            terminalClear.addEventListener('click', () => {
-                _routerSteps = [];
-                if (terminal) terminal.innerHTML = '<div style="opacity: 0.4; font-size: 0.769em; font-style: italic;">Waiting for agent activity...</div>';
-            });
+    document.addEventListener('rt_lore_agent_updated', async () => {
+        saveSettings();
+        // Flush ST's in-memory lorebook cache before re-rendering so that
+        // loadWorldInfo() picks up the entries we just wrote via the HTTP API.
+        const _ctx = SillyTavern.getContext();
+        if (typeof _ctx.updateWorldInfoList === 'function') {
+            try { await _ctx.updateWorldInfoList(); } catch (_) { }
         }
+        await renderRouterUI();
+        updateUndoLabel();
+    });
 
-        if (logClear) {
-            logClear.addEventListener('click', () => {
-                const s = getSettings();
-                s.routerLog = [];
-                saveSettings();
-                renderRouterUI();
-            });
+    // ── Lorebook Terminal Logic ──
+    let _routerSteps = [];
+    const terminal = agentPanel.querySelector('#rt-agent-router-terminal');
+    const terminalClear = agentPanel.querySelector('#rt-agent-router-terminal-clear');
+    const logClear = agentPanel.querySelector('#rt-agent-router-log-clear');
+
+    document.addEventListener('rt_lore_agent_step', (e) => {
+        if (!terminal) return;
+        const step = (/** @type {CustomEvent} */ (e)).detail;
+
+        if (step.type === 'start') {
+            _routerSteps = [];
+            _loreRedoStack = [];
+            syncAgentNav();
         }
+        _routerSteps.push(step);
 
+        terminal.innerHTML = renderLorebookTerminal(_routerSteps);
+        terminal.scrollTop = terminal.scrollHeight;
 
-
-        updateChatLinkUI();
-        updatePanelStatus();
-
-        // Handle manual edits to live memo
-        const textarea = panel.querySelector('#rpg-tracker-memo');
-        let _rawEditDebounce = null;
-        textarea.addEventListener('input', (e) => {
-            if (_historyViewIndex !== -1) return;
-            const newText = /** @type {HTMLTextAreaElement} */ (e.target).value;
-            settings.currentMemo = newText;
-            
-            // Sync internal quest state
-            syncQuestsFromMemo(newText);
-
-            panel.querySelector('#rpg-tracker-count').textContent = `~${Math.round(settings.currentMemo.length / 2.62)} tokens`;
-            saveSettings();
-            // Refresh the rendered view live so changes are visible without toggling modes
-            clearTimeout(_rawEditDebounce);
-            _rawEditDebounce = setTimeout(refreshRenderedView, 400);
-        });
-
-        // (RNG footer toggles removed; managed via settings.html)
-
-        // View toggle (Raw ↔ Rendered)
-        let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
-        const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
-        const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
-
-        if (settings.renderedViewActive !== undefined) {
-            _renderedViewActive = settings.renderedViewActive;
-        } else {
-            _renderedViewActive = true;
-            settings.renderedViewActive = true;
+        // Refresh Campaign Records after the pass fully completes — at this point
+        // all applyAction writes and saveWorldInfo cache-busts are guaranteed done.
+        if (step.type === 'finish' || step.type === 'error') {
+            refreshManifest();
         }
+    });
 
-        const applyViewState = () => {
-            if (_renderedViewActive) {
-                ta.style.display = 'none';
-                rv.style.display = 'block';
-                _viewBtn.textContent = '≡';
-                _viewBtn.title = 'Switch to Raw view';
-                refreshRenderedView();
-            } else {
-                ta.style.display = '';
-                rv.style.display = 'none';
-                _viewBtn.textContent = '⊞';
-                _viewBtn.title = 'Switch to Rendered view';
-            }
-        };
-
-        applyViewState();
-
-        _viewBtn.addEventListener('click', () => {
-            _renderedViewActive = !_renderedViewActive;
-            settings.renderedViewActive = _renderedViewActive;
-            saveSettings();
-            applyViewState();
+    if (terminalClear) {
+        terminalClear.addEventListener('click', () => {
+            _routerSteps = [];
+            if (terminal) terminal.innerHTML = '<div style="opacity: 0.4; font-size: 0.769em; font-style: italic;">Waiting for agent activity...</div>';
         });
+    }
 
-        // Delta toggle — also shows/hides the resize handle
-        panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
-            const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
-            const handleEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
-            const isVisible = deltaEl.style.display !== 'none';
-            deltaEl.style.display = isVisible ? 'none' : 'flex';
-            handleEl.style.display = isVisible ? 'none' : 'block';
-            if (!isVisible) {
-                const h = loadDeltaHeight();
-                deltaEl.style.height = h + 'px';
-            }
-        });
-
-        // Delta clear button
-        panel.querySelector('#rpg-tracker-delta-clear').addEventListener('click', () => {
-            settings.lastDelta = '';
-            const dp = document.getElementById('rpg-tracker-delta-content');
-            if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-            saveSettings();
-        });
-
-        // Delta resize handle drag
-        setupDeltaResize(/** @type {HTMLElement} */(panel));
-
-        // Collapse panel
-        const toggleTrackerCollapse = () => {
+    if (logClear) {
+        logClear.addEventListener('click', () => {
             const s = getSettings();
-            s.trackerCollapsed = !s.trackerCollapsed;
+            s.routerLog = [];
             saveSettings();
-            
-            if (s.trackerCollapsed) {
-                panel.classList.add('rt-panel-collapsed');
-            } else {
-                panel.classList.remove('rt-panel-collapsed');
-            }
-            
-            const icon = panel.querySelector('#rpg-tracker-collapse-btn i');
-            if (icon) {
-                icon.className = s.trackerCollapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
-            }
-        };
-
-        panel.querySelector('#rpg-tracker-collapse-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleTrackerCollapse();
+            renderRouterUI();
         });
+    }
 
-        panel.querySelector('#rpg-tracker-header').addEventListener('dblclick', (e) => {
-            if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
-            toggleTrackerCollapse();
-        });
 
-        // Close panel
-        panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
-            panel.style.display = 'none';
-            settings.closeCount = (settings.closeCount || 0) + 1;
-            // Only show toast on the 1st close and every 10th close thereafter
-            if (settings.closeCount === 1 || settings.closeCount % 10 === 0) {
-                toastr['info']('Tracker hidden. You can reopen it at any time from the Extensions (Wand) Menu.', 'RPG Tracker');
-            }
-            saveSettings();
-        });
 
-        // Context Debugger toggle
-        panel.querySelector('#rpg-tracker-debug-btn').addEventListener('click', () => {
-            toggleDebugViewer();
-        });
+    updateChatLinkUI();
+    updatePanelStatus();
 
-        // Direct prompt toggle
-        panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', () => {
-            const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
-            const isVisible = bar.style.display !== 'none';
-            bar.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible) /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-input')).focus();
-        });
+    // Handle manual edits to live memo
+    const textarea = panel.querySelector('#rpg-tracker-memo');
+    let _rawEditDebounce = null;
+    textarea.addEventListener('input', (e) => {
+        if (_historyViewIndex !== -1) return;
+        const newText = /** @type {HTMLTextAreaElement} */ (e.target).value;
+        settings.currentMemo = newText;
 
-        // Direct prompt send
-        const promptSend = async () => {
-            const input = /** @type {HTMLTextAreaElement} */ (panel.querySelector('#rpg-tracker-prompt-input'));
-            const msg = input.value.trim();
-            if (!msg) return;
-            input.value = '';
-            await sendDirectPrompt(msg);
-        };
-        panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
-        panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
-        });
-        panel.querySelector('#rt-prompt-context-val').addEventListener('change', (e) => {
-            settings.directPromptContext = parseInt(/** @type {HTMLInputElement} */(e.target).value) || 0;
-            saveSettings();
-        });
+        // Sync internal quest state
+        syncQuestsFromMemo(newText);
 
-        // Manual update from panel button
-        const manualUpdate = async (type = 'regular') => {
-            const { chat, Popup } = SillyTavern.getContext();
-            let narrative = "";
-            let isFullAudit = false;
-            let customLookbackN = null;
+        panel.querySelector('#rpg-tracker-count').textContent = `~${Math.round(settings.currentMemo.length / 2.62)} tokens`;
+        saveSettings();
+        // Refresh the rendered view live so changes are visible without toggling modes
+        clearTimeout(_rawEditDebounce);
+        _rawEditDebounce = setTimeout(refreshRenderedView, 400);
+    });
 
-            if (type === 'regular') {
-                narrative = getNarrativeBlocks(chat, -1);
-            } else if (type === 'full') {
-                isFullAudit = true;
-            } else if (type === 'custom') {
-                const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
-                if (!count || isNaN(parseInt(count))) return;
-                customLookbackN = parseInt(count);
-                narrative = getNarrativeBlocks(chat, customLookbackN);
-            }
+    // (RNG footer toggles removed; managed via settings.html)
 
-            if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+    // View toggle (Raw ↔ Rendered)
+    let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
+    const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
+    const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
 
-            toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
-            await runStateModelPass(narrative, isFullAudit, customLookbackN);
-        };
+    if (settings.renderedViewActive !== undefined) {
+        _renderedViewActive = settings.renderedViewActive;
+    } else {
+        _renderedViewActive = true;
+        settings.renderedViewActive = true;
+    }
 
-        const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
-        const updateMenu = document.createElement('div');
-        updateMenu.className = 'rt-update-menu';
-        updateMenu.style.display = 'none';
-        updateMenu.innerHTML = `
+    const applyViewState = () => {
+        if (_renderedViewActive) {
+            ta.style.display = 'none';
+            rv.style.display = 'block';
+            _viewBtn.textContent = '≡';
+            _viewBtn.title = 'Switch to Raw view';
+            refreshRenderedView();
+        } else {
+            ta.style.display = '';
+            rv.style.display = 'none';
+            _viewBtn.textContent = '⊞';
+            _viewBtn.title = 'Switch to Rendered view';
+        }
+    };
+
+    applyViewState();
+
+    _viewBtn.addEventListener('click', () => {
+        _renderedViewActive = !_renderedViewActive;
+        settings.renderedViewActive = _renderedViewActive;
+        saveSettings();
+        applyViewState();
+    });
+
+    // Delta toggle — also shows/hides the resize handle
+    panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
+        const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
+        const handleEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
+        const isVisible = deltaEl.style.display !== 'none';
+        deltaEl.style.display = isVisible ? 'none' : 'flex';
+        handleEl.style.display = isVisible ? 'none' : 'block';
+        if (!isVisible) {
+            const h = loadDeltaHeight();
+            deltaEl.style.height = h + 'px';
+        }
+    });
+
+    // Delta clear button
+    panel.querySelector('#rpg-tracker-delta-clear').addEventListener('click', () => {
+        settings.lastDelta = '';
+        const dp = document.getElementById('rpg-tracker-delta-content');
+        if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+        saveSettings();
+    });
+
+    // Delta resize handle drag
+    setupDeltaResize(/** @type {HTMLElement} */(panel));
+
+    // Collapse panel
+    const toggleTrackerCollapse = () => {
+        const s = getSettings();
+        s.trackerCollapsed = !s.trackerCollapsed;
+        saveSettings();
+
+        if (s.trackerCollapsed) {
+            panel.classList.add('rt-panel-collapsed');
+        } else {
+            panel.classList.remove('rt-panel-collapsed');
+        }
+
+        const icon = panel.querySelector('#rpg-tracker-collapse-btn i');
+        if (icon) {
+            icon.className = s.trackerCollapsed ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+        }
+    };
+
+    panel.querySelector('#rpg-tracker-collapse-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleTrackerCollapse();
+    });
+
+    panel.querySelector('#rpg-tracker-header').addEventListener('dblclick', (e) => {
+        if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
+        toggleTrackerCollapse();
+    });
+
+    // Close panel
+    panel.querySelector('#rpg-tracker-close-btn').addEventListener('click', () => {
+        panel.style.display = 'none';
+        settings.closeCount = (settings.closeCount || 0) + 1;
+        // Only show toast on the 1st close and every 10th close thereafter
+        if (settings.closeCount === 1 || settings.closeCount % 10 === 0) {
+            toastr['info']('Tracker hidden. You can reopen it at any time from the Extensions (Wand) Menu.', 'RPG Tracker');
+        }
+        saveSettings();
+    });
+
+    // Context Debugger toggle
+    panel.querySelector('#rpg-tracker-debug-btn').addEventListener('click', () => {
+        toggleDebugViewer();
+    });
+
+    // Direct prompt toggle
+    panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', () => {
+        const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
+        const isVisible = bar.style.display !== 'none';
+        bar.style.display = isVisible ? 'none' : 'flex';
+        if (!isVisible) /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-input')).focus();
+    });
+
+    // Direct prompt send
+    const promptSend = async () => {
+        const input = /** @type {HTMLTextAreaElement} */ (panel.querySelector('#rpg-tracker-prompt-input'));
+        const msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+        await sendDirectPrompt(msg);
+    };
+    panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
+    panel.querySelector('#rpg-tracker-prompt-input').addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); promptSend(); }
+    });
+    panel.querySelector('#rt-prompt-context-val').addEventListener('change', (e) => {
+        settings.directPromptContext = parseInt(/** @type {HTMLInputElement} */(e.target).value) || 0;
+        saveSettings();
+    });
+
+    // Manual update from panel button
+    const manualUpdate = async (type = 'regular') => {
+        const { chat, Popup } = SillyTavern.getContext();
+        let narrative = "";
+        let isFullAudit = false;
+        let customLookbackN = null;
+
+        if (type === 'regular') {
+            narrative = getNarrativeBlocks(chat, -1);
+        } else if (type === 'full') {
+            isFullAudit = true;
+        } else if (type === 'custom') {
+            const count = await Popup.show.input("RPG Tracker", "How many messages back should I parse?", "5");
+            if (!count || isNaN(parseInt(count))) return;
+            customLookbackN = parseInt(count);
+            narrative = getNarrativeBlocks(chat, customLookbackN);
+        }
+
+        if (type !== 'full' && !narrative) return toastr['info']("No assistant message to parse.", "RPG Tracker");
+
+        toastr['info'](isFullAudit ? "Triggering Full Context Audit..." : "Triggering manual State Update...", "RPG Tracker");
+        await runStateModelPass(narrative, isFullAudit, customLookbackN);
+    };
+
+    const updateBtn = panel.querySelector('#rpg-tracker-update-btn');
+    const updateMenu = document.createElement('div');
+    updateMenu.className = 'rt-update-menu';
+    updateMenu.style.display = 'none';
+    updateMenu.innerHTML = `
             <div class="rt-menu-item" id="rt-update-regular"><b>Regular Update</b><small>Since last user message</small></div>
             <div class="rt-menu-item" id="rt-update-custom"><b>Lookback Update</b><small>Last N messages</small></div>
             <div class="rt-menu-item" id="rt-update-full"><b>Full Context Audit</b><small>Re-examine whole history</small></div>
         `;
-        panel.appendChild(updateMenu);
+    panel.appendChild(updateMenu);
 
-        updateBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = updateMenu.style.display !== 'none';
+    updateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = updateMenu.style.display !== 'none';
 
-            // Close all other menus possibly
-            document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */(m).style.display = 'none');
+        // Close all other menus possibly
+        document.querySelectorAll('.rt-update-menu').forEach(m => /** @type {HTMLElement} */(m).style.display = 'none');
 
-            if (!isVisible) {
-                const rect = updateBtn.getBoundingClientRect();
-                const panelRect = panel.getBoundingClientRect();
-                updateMenu.style.top = (rect.bottom - panelRect.top + 5) + 'px';
-                updateMenu.style.right = (panelRect.right - rect.right) + 'px';
-                updateMenu.style.display = 'flex';
+        if (!isVisible) {
+            const rect = updateBtn.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            updateMenu.style.top = (rect.bottom - panelRect.top + 5) + 'px';
+            updateMenu.style.right = (panelRect.right - rect.right) + 'px';
+            updateMenu.style.display = 'flex';
 
-                const closeMenu = () => {
-                    updateMenu.style.display = 'none';
-                    document.removeEventListener('click', closeMenu);
-                };
-                setTimeout(() => document.addEventListener('click', closeMenu), 10);
-            }
-        });
+            const closeMenu = () => {
+                updateMenu.style.display = 'none';
+                document.removeEventListener('click', closeMenu);
+            };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
+        }
+    });
 
-        updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate('regular'));
-        updateMenu.querySelector('#rt-update-custom').addEventListener('click', () => manualUpdate('custom'));
-        updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate('full'));
+    updateMenu.querySelector('#rt-update-regular').addEventListener('click', () => manualUpdate('regular'));
+    updateMenu.querySelector('#rt-update-custom').addEventListener('click', () => manualUpdate('custom'));
+    updateMenu.querySelector('#rt-update-full').addEventListener('click', () => manualUpdate('full'));
 
-        // Link the settings button too if it's already rendered
-        // For settings button, we'll keep it simple or just trigger regular
-        $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate('regular'));
+    // Link the settings button too if it's already rendered
+    // For settings button, we'll keep it simple or just trigger regular
+    $('#rpg_tracker_btn_update').off('click').on('click', () => manualUpdate('regular'));
 
-        // Snapshot navigation
-        panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
-        panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
+    // Snapshot navigation
+    panel.querySelector('#rpg-tracker-nav-back').addEventListener('click', () => navigateSnapshot(1));
+    panel.querySelector('#rpg-tracker-nav-fwd').addEventListener('click', () => navigateSnapshot(-1));
 
-        // Footer Expand/Collapse (Mobile)
-        panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
-            const footer = document.getElementById('rt-main-footer');
-            if (footer) {
-                footer.classList.toggle('rt-footer-expanded');
-                const icon = footer.querySelector('#rt-footer-expand-btn i');
-                if (icon) {
-                    if (footer.classList.contains('rt-footer-expanded')) {
-                        icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
-                    } else {
-                        icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
-                    }
+    // Footer Expand/Collapse (Mobile)
+    panel.querySelector('#rt-footer-expand-btn').addEventListener('click', () => {
+        const footer = document.getElementById('rt-main-footer');
+        if (footer) {
+            footer.classList.toggle('rt-footer-expanded');
+            const icon = footer.querySelector('#rt-footer-expand-btn i');
+            if (icon) {
+                if (footer.classList.contains('rt-footer-expanded')) {
+                    icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+                } else {
+                    icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
                 }
             }
-        });
+        }
+    });
 
-        // Restore via label click (Commit)
-        panel.querySelector('#rpg-tracker-nav-label').addEventListener('click', () => {
-            const s = getSettings();
-            if (_historyViewIndex === -1) return;
-            const snapshot = s.memoHistory[_historyViewIndex];
-            if (snapshot === undefined) return;
+    // Restore via label click (Commit)
+    panel.querySelector('#rpg-tracker-nav-label').addEventListener('click', () => {
+        const s = getSettings();
+        if (_historyViewIndex === -1) return;
+        const snapshot = s.memoHistory[_historyViewIndex];
+        if (snapshot === undefined) return;
 
-            // Simply move the live pointer to this snapshot.
-            // The history already contains all states — no need to archive currentMemo here.
-            // Direct Prompt and runStateModelPass handle archiving when they produce new states.
-            s.currentMemo = snapshot;
-            s.historyIndex = _historyViewIndex;
+        // Simply move the live pointer to this snapshot.
+        // The history already contains all states — no need to archive currentMemo here.
+        // Direct Prompt and runStateModelPass handle archiving when they produce new states.
+        s.currentMemo = snapshot;
+        s.historyIndex = _historyViewIndex;
+        _historyViewIndex = -1;
+        saveSettings();
+        syncMemoView();
+        toastr['success']('Historical state restored as LIVE.', 'RPG Tracker');
+    });
+
+    // Clear memo button
+    panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
+        if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
+            settings.currentMemo = "";
+            settings.prevMemo1 = "";
+            settings.prevMemo2 = "";
+            settings.memoHistory = [];
+            settings.historyIndex = -1;
+            settings.lastDelta = "";
             _historyViewIndex = -1;
             saveSettings();
             syncMemoView();
-            toastr['success']('Historical state restored as LIVE.', 'RPG Tracker');
-        });
+            const dp = document.getElementById('rpg-tracker-delta-content');
+            if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+            toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+        }
+    });
 
-        // Clear memo button
-        panel.querySelector('#rpg-tracker-memo-clear').addEventListener('click', () => {
-            if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
-                settings.currentMemo = "";
-                settings.prevMemo1 = "";
-                settings.prevMemo2 = "";
-                settings.memoHistory = [];
-                settings.historyIndex = -1;
-                settings.lastDelta = "";
-                _historyViewIndex = -1;
-                saveSettings();
-                syncMemoView();
-                const dp = document.getElementById('rpg-tracker-delta-content');
-                if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-                toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
-            }
-        });
+    syncMemoView();
+}
 
-        syncMemoView();
+function navigateSnapshot(direction) {
+    const s = getSettings();
+    const L = s.historyIndex === undefined ? -1 : s.historyIndex;
+    const maxIndex = s.memoHistory.length - 1;
+    const maxPos = L === -1 ? maxIndex + 1 : maxIndex;
+
+    let pos = L === -1
+        ? (_historyViewIndex === -1 ? 0 : _historyViewIndex + 1)
+        : (_historyViewIndex === -1 ? L : _historyViewIndex);
+
+    pos += direction;
+
+    if (pos < 0) pos = 0;
+    if (pos > maxPos) pos = maxPos;
+
+    _historyViewIndex = L === -1
+        ? (pos === 0 ? -1 : pos - 1)
+        : (pos === L ? -1 : pos);
+
+    syncMemoView();
+}
+
+function syncMemoView() {
+    const s = getSettings();
+    const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
+    const navLabel = document.getElementById('rpg-tracker-nav-label');
+    const btnBack = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-back'));
+    const btnFwd = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-fwd'));
+    const counter = document.getElementById('rpg-tracker-count');
+    if (!textarea || !navLabel) return;
+
+    const histLen = s.memoHistory.length;
+    const L = s.historyIndex === undefined ? -1 : s.historyIndex;
+    const livePos = L === -1 ? 0 : L;
+    const currentPos = L === -1
+        ? (_historyViewIndex === -1 ? 0 : _historyViewIndex + 1)
+        : (_historyViewIndex === -1 ? L : _historyViewIndex);
+
+    const maxPos = L === -1 ? histLen : histLen - 1;
+
+    if (_historyViewIndex === -1) {
+        // LIVE stone
+        textarea.value = s.currentMemo;
+        textarea.readOnly = false;
+        navLabel.classList.remove('clickable');
+        navLabel.title = 'Current Live State';
+    } else {
+        // Snapshot stone
+        const snapshot = s.memoHistory[_historyViewIndex];
+        textarea.value = snapshot ?? '';
+        textarea.readOnly = true;
+        navLabel.classList.add('clickable');
+        navLabel.title = 'Click to RESTORE this state as LIVE';
     }
 
-    function navigateSnapshot(direction) {
-        const s = getSettings();
-        const L = s.historyIndex === undefined ? -1 : s.historyIndex;
-        const maxIndex = s.memoHistory.length - 1;
-        const maxPos = L === -1 ? maxIndex + 1 : maxIndex;
-        
-        let pos = L === -1 
-            ? (_historyViewIndex === -1 ? 0 : _historyViewIndex + 1)
-            : (_historyViewIndex === -1 ? L : _historyViewIndex);
-            
-        pos += direction;
-        
-        if (pos < 0) pos = 0;
-        if (pos > maxPos) pos = maxPos;
-        
-        _historyViewIndex = L === -1
-            ? (pos === 0 ? -1 : pos - 1)
-            : (pos === L ? -1 : pos);
-            
-        syncMemoView();
+    const distance = currentPos - livePos;
+    if (distance === 0) {
+        navLabel.textContent = '[ LIVE ]';
+    } else if (distance > 0) {
+        navLabel.textContent = `[ -${distance} 🔄 ]`;
+    } else {
+        navLabel.textContent = `[ +${Math.abs(distance)} 🔄 ]`;
     }
 
-    function syncMemoView() {
-        const s = getSettings();
-        const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
-        const navLabel = document.getElementById('rpg-tracker-nav-label');
-        const btnBack = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-back'));
-        const btnFwd = /** @type {HTMLButtonElement|null} */ (document.getElementById('rpg-tracker-nav-fwd'));
-        const counter = document.getElementById('rpg-tracker-count');
-        if (!textarea || !navLabel) return;
+    btnBack.disabled = currentPos >= maxPos;
+    btnFwd.disabled = currentPos <= 0;
 
-        const histLen = s.memoHistory.length;
-        const L = s.historyIndex === undefined ? -1 : s.historyIndex;
-        const livePos = L === -1 ? 0 : L;
-        const currentPos = L === -1 
-            ? (_historyViewIndex === -1 ? 0 : _historyViewIndex + 1)
-            : (_historyViewIndex === -1 ? L : _historyViewIndex);
+    if (counter) {
+        counter.textContent = `~${Math.round(textarea.value.length / 2.62)} tokens`;
+    }
 
-        const maxPos = L === -1 ? histLen : histLen - 1;
+    // Update delta panel: always show the diff that created the currently-viewed state
+    const deltaPanel = document.getElementById('rpg-tracker-delta-content');
+    if (deltaPanel) {
+        let deltaHtml = '';
+        const activeIdx = (_historyViewIndex === -1) ? L : _historyViewIndex;
 
-        if (_historyViewIndex === -1) {
-            // LIVE stone
-            textarea.value = s.currentMemo;
-            textarea.readOnly = false;
-            navLabel.classList.remove('clickable');
-            navLabel.title = 'Current Live State';
+        if (activeIdx === -1) {
+            deltaHtml = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
         } else {
-            // Snapshot stone
-            const snapshot = s.memoHistory[_historyViewIndex];
-            textarea.value = snapshot ?? '';
-            textarea.readOnly = true;
-            navLabel.classList.add('clickable');
-            navLabel.title = 'Click to RESTORE this state as LIVE';
+            const current = s.memoHistory[activeIdx];
+            const previous = s.memoHistory[activeIdx + 1] || '';
+            deltaHtml = computeDelta(previous, current);
         }
-
-        const distance = currentPos - livePos;
-        if (distance === 0) {
-            navLabel.textContent = '[ LIVE ]';
-        } else if (distance > 0) {
-            navLabel.textContent = `[ -${distance} 🔄 ]`;
-        } else {
-            navLabel.textContent = `[ +${Math.abs(distance)} 🔄 ]`;
-        }
-
-        btnBack.disabled = currentPos >= maxPos;
-        btnFwd.disabled = currentPos <= 0;
-
-        if (counter) {
-            counter.textContent = `~${Math.round(textarea.value.length / 2.62)} tokens`;
-        }
-
-        // Update delta panel: always show the diff that created the currently-viewed state
-        const deltaPanel = document.getElementById('rpg-tracker-delta-content');
-        if (deltaPanel) {
-            let deltaHtml = '';
-            const activeIdx = (_historyViewIndex === -1) ? L : _historyViewIndex;
-
-            if (activeIdx === -1) {
-                deltaHtml = s.lastDelta || '<span class="delta-empty">No changes yet.</span>';
-            } else {
-                const current  = s.memoHistory[activeIdx];
-                const previous = s.memoHistory[activeIdx + 1] || '';
-                deltaHtml = computeDelta(previous, current);
-            }
-            deltaPanel.innerHTML = deltaHtml;
-        }
-
-        refreshRenderedView();
+        deltaPanel.innerHTML = deltaHtml;
     }
 
-    /**
-     * @param {HTMLElement} panel
-     * @param {HTMLElement} handle
-     */
-    function makeDraggable(panel, handle, customKey = null) {
-        let isDragging = false;
-        let startX, startY, startLeft, startTop;
+    refreshRenderedView();
+}
 
-        const onPointerDown = (e) => {
-            if (e.button !== 0) return;
-            // Ignore clicks on buttons inside the header
-            if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
-            isDragging = true;
-            handle.setPointerCapture(e.pointerId);
-            const rect = panel.getBoundingClientRect();
-            startX = e.clientX; startY = e.clientY;
-            startLeft = rect.left; startTop = rect.top;
-            panel.style.left = startLeft + 'px';
-            panel.style.top = startTop + 'px';
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-            e.preventDefault();
-        };
+/**
+ * @param {HTMLElement} panel
+ * @param {HTMLElement} handle
+ */
+function makeDraggable(panel, handle, customKey = null) {
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
 
-        const onPointerMove = (e) => {
-            if (!isDragging) return;
-            if (e.buttons === 0) {
-                // Defensive check if mouseup was missed (especially on Firefox)
-                onPointerUp(e);
-                return;
-            }
-            const left = startLeft + (e.clientX - startX);
-            const top = startTop + (e.clientY - startY);
+    const onPointerDown = (e) => {
+        if (e.button !== 0) return;
+        // Ignore clicks on buttons inside the header
+        if (e.target instanceof Element && e.target.closest('button, input, select, textarea')) return;
+        isDragging = true;
+        handle.setPointerCapture(e.pointerId);
+        const rect = panel.getBoundingClientRect();
+        startX = e.clientX; startY = e.clientY;
+        startLeft = rect.left; startTop = rect.top;
+        panel.style.left = startLeft + 'px';
+        panel.style.top = startTop + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        e.preventDefault();
+    };
 
-            // Constrain to viewport (ensure header stays reachable)
-            const boundedLeft = Math.max(0, Math.min(window.innerWidth - 100, left));
-            const boundedTop = Math.max(0, Math.min(window.innerHeight - 50, top));
+    const onPointerMove = (e) => {
+        if (!isDragging) return;
+        const left = startLeft + (e.clientX - startX);
+        const top = startTop + (e.clientY - startY);
 
-            panel.style.left = boundedLeft + 'px';
-            panel.style.top = boundedTop + 'px';
-        };
+        // Constrain to viewport (ensure header stays reachable)
+        const boundedLeft = Math.max(0, Math.min(window.innerWidth - 100, left));
+        const boundedTop = Math.max(0, Math.min(window.innerHeight - 50, top));
 
-        const onPointerUp = (e) => {
-            if (isDragging) {
-                isDragging = false;
-                if (e) {
-                    try {
-                        handle.releasePointerCapture(e.pointerId);
-                    } catch (err) {}
-                }
-                if (customKey) {
-                    const rect = panel.getBoundingClientRect();
-                    const isCollapsed = panel.classList.contains('rt-panel-collapsed');
-                    let savedGeo = {};
-                    try {
-                        const savedStr = localStorage.getItem(customKey);
-                        if (savedStr) savedGeo = JSON.parse(savedStr) || {};
-                    } catch {}
+        panel.style.left = boundedLeft + 'px';
+        panel.style.top = boundedTop + 'px';
+    };
 
-                    localStorage.setItem(customKey, JSON.stringify({
-                        left: rect.left, top: rect.top,
-                        width: isCollapsed ? (savedGeo.width || rect.width) : rect.width,
-                        height: isCollapsed ? (savedGeo.height || rect.height) : rect.height
-                    }));
-                } else {
-                    savePanelGeometry(panel);
-                }
-            }
-        };
-
-        const onPointerCancel = (e) => {
-            if (isDragging) {
-                isDragging = false;
-                if (e) {
-                    try {
-                        handle.releasePointerCapture(e.pointerId);
-                    } catch (err) {}
-                }
-            }
-        };
-
-        handle.addEventListener('pointerdown', onPointerDown);
-        handle.addEventListener('pointermove', onPointerMove);
-        handle.addEventListener('pointerup', onPointerUp);
-        handle.addEventListener('pointercancel', onPointerCancel);
-
-        return () => {
+    const onPointerUp = () => {
+        if (isDragging) {
             isDragging = false;
-            handle.removeEventListener('pointerdown', onPointerDown);
-            handle.removeEventListener('pointermove', onPointerMove);
-            handle.removeEventListener('pointerup', onPointerUp);
-            handle.removeEventListener('pointercancel', onPointerCancel);
-        };
-    }
+            if (customKey) {
+                const rect = panel.getBoundingClientRect();
+                const isCollapsed = panel.classList.contains('rt-panel-collapsed');
+                let savedGeo = {};
+                try {
+                    const savedStr = localStorage.getItem(customKey);
+                    if (savedStr) savedGeo = JSON.parse(savedStr) || {};
+                } catch { }
 
-    /**
-     * Top-Right corner resizer logic
-     * @param {HTMLElement} panel
-     * @param {HTMLElement} handle
-     * @param {((panel: HTMLElement) => void) | null} [saveCallback] - optional override for geometry saving
-     */
-    function makeResizableTR(panel, handle, saveCallback = null) {
-        let isResizing = false;
-        let startX, startY, startWidth, startHeight, startTop, startLeft;
-
-        const stopResize = (e) => {
-            if (!isResizing) return;
-            isResizing = false;
-            window.removeEventListener('mouseup', onWindowMouseUp);
-            if (e) {
-                try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+                localStorage.setItem(customKey, JSON.stringify({
+                    left: rect.left, top: rect.top,
+                    width: isCollapsed ? (savedGeo.width || rect.width) : rect.width,
+                    height: isCollapsed ? (savedGeo.height || rect.height) : rect.height
+                }));
+            } else {
+                savePanelGeometry(panel);
             }
-            if (saveCallback) saveCallback(panel);
-            else savePanelGeometry(panel);
-        };
-
-        // Safety net: catch any mouseup the pointer events miss (Firefox quirk)
-        const onWindowMouseUp = () => stopResize(null);
-
-        handle.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0) return;
-            isResizing = true;
-            handle.setPointerCapture(e.pointerId);
-            const rect = panel.getBoundingClientRect();
-            startX = e.clientX;
-            startY = e.clientY;
-            startWidth = rect.width;
-            startHeight = rect.height;
-            startTop = rect.top;
-            startLeft = rect.left;
-
-            // Only lock position for freely-positioned panels (not right-anchored agent panel)
-            if (!panel.style.right || panel.style.right === 'auto') {
-                panel.style.left = startLeft + 'px';
-                panel.style.top = startTop + 'px';
-                panel.style.right = 'auto';
-                panel.style.bottom = 'auto';
-            }
-
-            window.addEventListener('mouseup', onWindowMouseUp, { once: true });
-
-            e.preventDefault();
-            e.stopPropagation();
-        });
-
-        handle.addEventListener('pointermove', (e) => {
-            if (!isResizing) return;
-            if (e.buttons === 0) {
-                stopResize(e);
-                return;
-            }
-            const isCollapsed = panel.classList.contains('rt-panel-collapsed');
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-
-            const newWidth = Math.max(220, startWidth + dx);
-            panel.style.width = newWidth + 'px';
-
-            if (!isCollapsed) {
-                const newHeight = Math.max(200, startHeight - dy);
-                if (newHeight > 200) {
-                    panel.style.height = newHeight + 'px';
-                    if (!panel.style.right || panel.style.right === 'auto') {
-                        const newTop = startTop + dy;
-                        panel.style.top = newTop + 'px';
-                    }
-                }
-            }
-        });
-
-        handle.addEventListener('pointerup', stopResize);
-        handle.addEventListener('pointercancel', stopResize);
-    }
-
-    /**
-     * Bottom-Right corner resizer logic
-     * @param {HTMLElement} panel
-     * @param {HTMLElement} handle
-     * @param {((panel: HTMLElement) => void) | null} [saveCallback] - optional override for geometry saving
-     */
-    function makeResizableBR(panel, handle, saveCallback = null) {
-        let isResizing = false;
-        let startX, startY, startWidth, startHeight, startTop, startLeft;
-
-        const stopResize = (e) => {
-            if (!isResizing) return;
-            isResizing = false;
-            window.removeEventListener('mouseup', onWindowMouseUp);
-            if (e) {
-                try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-            }
-            if (saveCallback) saveCallback(panel);
-            else savePanelGeometry(panel);
-        };
-
-        // Safety net: catch any mouseup the pointer events miss (Firefox quirk)
-        const onWindowMouseUp = () => stopResize(null);
-
-        handle.addEventListener('pointerdown', (e) => {
-            if (e.button !== 0) return;
-            isResizing = true;
-            handle.setPointerCapture(e.pointerId);
-            const rect = panel.getBoundingClientRect();
-            startX = e.clientX;
-            startY = e.clientY;
-            startWidth = rect.width;
-            startHeight = rect.height;
-            startTop = rect.top;
-            startLeft = rect.left;
-
-            // Lock position so freely-positioned panels resize from the correct corner
-            if (!panel.style.right || panel.style.right === 'auto') {
-                panel.style.left = startLeft + 'px';
-                panel.style.top = startTop + 'px';
-                panel.style.right = 'auto';
-                panel.style.bottom = 'auto';
-            }
-
-            window.addEventListener('mouseup', onWindowMouseUp, { once: true });
-            e.preventDefault();
-            e.stopPropagation();
-        });
-
-        handle.addEventListener('pointermove', (e) => {
-            if (!isResizing) return;
-            if (e.buttons === 0) {
-                stopResize(e);
-                return;
-            }
-            const isCollapsed = panel.classList.contains('rt-panel-collapsed');
-            const newWidth = Math.max(220, startWidth + (e.clientX - startX));
-            panel.style.width = newWidth + 'px';
-            if (!isCollapsed) {
-                const newHeight = Math.max(200, startHeight + (e.clientY - startY));
-                panel.style.height = newHeight + 'px';
-            }
-        });
-
-        handle.addEventListener('pointerup', stopResize);
-        handle.addEventListener('pointercancel', stopResize);
-    }
-
-    function setupResizeObserver(panel) {
-        // Debounced save on resize
-        let _resizeTimer;
-        const ro = new ResizeObserver(() => {
-            clearTimeout(_resizeTimer);
-            _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
-        });
-        ro.observe(panel);
-    }
-
-    function setupDeltaResize(panel) {
-        const handle = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
-        const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
-        let isDeltaResizing = false;
-        let startY, startH;
-
-        const stopDeltaResize = (e) => {
-            if (!isDeltaResizing) return;
-            isDeltaResizing = false;
-            if (e) {
-                try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-            }
-            saveDeltaHeight(deltaEl.offsetHeight);
-        };
-
-        // Safety net: catch any mouseup the pointer events miss (Firefox quirk)
-        const onWindowMouseUp = () => stopDeltaResize(null);
-
-        handle.addEventListener('pointerdown', (e) => {
-            isDeltaResizing = true;
-            startY = e.clientY;
-            startH = deltaEl.offsetHeight;
-            handle.setPointerCapture(e.pointerId);
-            window.addEventListener('mouseup', onWindowMouseUp, { once: true });
-            e.preventDefault();
-        });
-
-        handle.addEventListener('pointermove', (e) => {
-            if (!isDeltaResizing) return;
-            if (e.buttons === 0) {
-                stopDeltaResize(e);
-                return;
-            }
-            const newH = Math.max(40, startH - (e.clientY - startY));
-            deltaEl.style.height = newH + 'px';
-        });
-
-        handle.addEventListener('pointerup', stopDeltaResize);
-        handle.addEventListener('pointercancel', stopDeltaResize);
-    }
-
-    function updateUIMemo(text) {
-        if (_historyViewIndex !== -1) return; // don't clobber snapshot view
-        const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
-        if (textarea) textarea.value = text;
-        const counter = document.getElementById('rpg-tracker-count');
-        if (counter) counter.textContent = `~${Math.round(text.length / 2.62)} tokens`;
-    }
-
-    function updateStatusIndicator(state) {
-        const indicator = document.getElementById('rpg-tracker-status');
-        const stopBtn = /** @type {HTMLElement} */ (document.getElementById('rpg-tracker-stop-btn'));
-        if (!indicator) return;
-
-        indicator.className = 'rpg-tracker-status-indicator ' + state;
-        if (stopBtn) {
-            stopBtn.style.display = (state === 'running') ? 'flex' : 'none';
-        }
-    }
-
-    const RENDER_HINTS = {
-        CHARACTER: {
-            label: 'Entity Rows — HP Bars (Characters)',
-            description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Att/def, Attr, Saves, Skills, Traits, HD, Status.',
-            example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3) | Furs (AC: 13)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
-        },
-        COMBAT: {
-            label: 'Entity Rows — HP Bars (Enemies)',
-            description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
-            example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
-        },
-        SPELLS: {
-            label: 'Spell Pips — Slot Tracker',
-            description: 'One line per spell level. Cantrips: comma-separated names. Slots: "Level N (available/max): Spell1, Spell2".',
-            example: 'Cantrips: Guidance, Resistance\nLevel 1 (2/2): Cure Wounds, Shield of Faith\nLevel 2 (1/3): Hold Person, Silence'
-        },
-        INVENTORY: {
-            label: 'Bullet Points — Item List',
-            description: 'One item per line. Leading "- " dashes are stripped. Supports <font color=...> tags for rarity/class coloring.',
-            example: '- <font color=#ff8000>Volcanic Mace (+1 / 2d6+3 Fire)</font>\n- <font color=#a335ee>Cloak of Displacement</font>\n- <font color=#0070dd>Healing Potion (Greater)</font> x2\n- <font color=#1eff00>Iron Buckler (AC +2)</font>\n- <font color=#aaaaaa>Rope (50 ft)</font>\n- 80 gold pieces'
-        },
-        ABILITIES: {
-            label: 'Oval Pills — Trait Tags',
-            description: 'Each line becomes a clickable pill. Text in parentheses (e.g. 10/15) is tracked as a resource. Supports <font color=...> tags.',
-            example: '- Lay on Hands (10/15, Heal 1 HP per point)\n- Divine Sense (3/4, Detect celestials/fiends/undead)\n- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>'
         }
     };
 
-    // Row type options shared by both the custom field editor and the global sub-field rules list
-    const ROW_TYPE_OPTIONS = [
-        ['pills',     'Pills (comma-separated chips)'],
-        ['badge',     'Badge (single chip)'],
-        ['highlight', 'Highlight (paren emphasis)'],
-        ['hp_bar',    'HP Bar (X/Y progress)'],
-        ['xp_bar',    'XP Bar (X/Y with optional level)'],
-        ['kv',        'Key / Value pair'],
-        ['text',      'Plain Text'],
-    ];
+    handle.addEventListener('pointerdown', onPointerDown);
+    handle.addEventListener('pointermove', onPointerMove);
+    handle.addEventListener('pointerup', onPointerUp);
+    handle.addEventListener('pointercancel', () => { isDragging = false; });
 
-    function buildRowTypeSelect(selectedVal) {
-        const sel = document.createElement('select');
-        sel.className = 'text_pole';
-        sel.style.cssText = 'flex:2; min-width:110px; height:28px; padding:2px 4px; font-size:12px;';
-        ROW_TYPE_OPTIONS.forEach(([val, label]) => {
-            const opt = document.createElement('option');
-            opt.value = val; opt.textContent = label;
-            if (val === selectedVal) opt.selected = true;
-            sel.appendChild(opt);
-        });
-        return sel;
+    return () => {
+        isDragging = false;
+        handle.removeEventListener('pointerdown', onPointerDown);
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', onPointerUp);
+    };
+}
+
+/**
+ * Top-Right corner resizer logic
+ * @param {HTMLElement} panel 
+ * @param {HTMLElement} handle 
+ */
+function makeResizableTR(panel, handle) {
+    let startX, startY, startWidth, startHeight, startTop, startLeft;
+
+    handle.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        handle.setPointerCapture(e.pointerId);
+        const rect = panel.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startTop = rect.top;
+        startLeft = rect.left;
+
+        panel.style.left = startLeft + 'px';
+        panel.style.top = startTop + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+        if (!handle.hasPointerCapture(e.pointerId)) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        const newWidth = Math.max(220, startWidth + dx);
+        const newHeight = Math.max(200, startHeight - dy);
+        const newTop = startTop + dy;
+
+        panel.style.width = newWidth + 'px';
+        if (newHeight > 200) {
+            panel.style.height = newHeight + 'px';
+            panel.style.top = newTop + 'px';
+        }
+    });
+
+    handle.addEventListener('pointerup', (e) => {
+        if (handle.hasPointerCapture(e.pointerId)) {
+            savePanelGeometry(panel);
+        }
+    });
+
+    handle.addEventListener('pointercancel', () => { });
+}
+
+function setupResizeObserver(panel) {
+    // Debounced save on resize
+    let _resizeTimer;
+    const ro = new ResizeObserver(() => {
+        clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
+    });
+    ro.observe(panel);
+}
+
+function setupDeltaResize(panel) {
+    const handle = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta-handle'));
+    const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
+    let startY, startH;
+
+    handle.addEventListener('pointerdown', (e) => {
+        startY = e.clientY;
+        startH = deltaEl.offsetHeight;
+        handle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+        if (!handle.hasPointerCapture(e.pointerId)) return;
+        const newH = Math.max(40, startH - (e.clientY - startY));
+        deltaEl.style.height = newH + 'px';
+    });
+
+    handle.addEventListener('pointerup', (e) => {
+        if (handle.hasPointerCapture(e.pointerId)) {
+            saveDeltaHeight(deltaEl.offsetHeight);
+        }
+    });
+
+    handle.addEventListener('pointercancel', () => { });
+}
+
+function updateUIMemo(text) {
+    if (_historyViewIndex !== -1) return; // don't clobber snapshot view
+    const textarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('rpg-tracker-memo'));
+    if (textarea) textarea.value = text;
+    const counter = document.getElementById('rpg-tracker-count');
+    if (counter) counter.textContent = `~${Math.round(text.length / 2.62)} tokens`;
+}
+
+function updateStatusIndicator(state) {
+    const indicator = document.getElementById('rpg-tracker-status');
+    const stopBtn = /** @type {HTMLElement} */ (document.getElementById('rpg-tracker-stop-btn'));
+    if (!indicator) return;
+
+    indicator.className = 'rpg-tracker-status-indicator ' + state;
+    if (stopBtn) {
+        stopBtn.style.display = (state === 'running') ? 'flex' : 'none';
     }
+}
 
-    function openCustomFieldEditor(index) {
-        const isSmallScreen = window.innerWidth <= 700;
-        const s = getSettings();
-        const field = s.customFields[index];
-        const overlay = document.createElement('div');
-        overlay.id = 'rt_cfe_overlay';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(2px);z-index:10000000;display:none;align-items:center;justify-content:center;overflow-y:auto;';
+const RENDER_HINTS = {
+    CHARACTER: {
+        label: 'Entity Rows — HP Bars (Characters)',
+        description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Att/def, Attr, Saves, Skills, Traits, HD, Status.',
+        example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nAtt/def: Volcanic Mace (+1 / 2d6+3) | Furs (AC: 13)\nAttr: STR 16, DEX 12, CON 16, INT 8, WIS 16, CHA 6\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
+    },
+    COMBAT: {
+        label: 'Entity Rows — HP Bars (Enemies)',
+        description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
+        example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
+    },
+    SPELLS: {
+        label: 'Spell Pips — Slot Tracker',
+        description: 'One line per spell level. Cantrips: comma-separated names. Slots: "Level N (available/max): Spell1, Spell2".',
+        example: 'Cantrips: Guidance, Resistance\nLevel 1 (2/2): Cure Wounds, Shield of Faith\nLevel 2 (1/3): Hold Person, Silence'
+    },
+    INVENTORY: {
+        label: 'Bullet Points — Item List',
+        description: 'One item per line. Leading "- " dashes are stripped. Supports <font color=...> tags for rarity/class coloring.',
+        example: '- <font color=#ff8000>Volcanic Mace (+1 / 2d6+3 Fire)</font>\n- <font color=#a335ee>Cloak of Displacement</font>\n- <font color=#0070dd>Healing Potion (Greater)</font> x2\n- <font color=#1eff00>Iron Buckler (AC +2)</font>\n- <font color=#aaaaaa>Rope (50 ft)</font>\n- 80 gold pieces'
+    },
+    ABILITIES: {
+        label: 'Oval Pills — Trait Tags',
+        description: 'Each line becomes a clickable pill. Text in parentheses (e.g. 10/15) is tracked as a resource. Supports <font color=...> tags.',
+        example: '- Lay on Hands (10/15, Heal 1 HP per point)\n- Divine Sense (3/4, Detect celestials/fiends/undead)\n- <font color=#ffaa00>Hasted (Double speed, +2 AC)</font>\n- <font color=#ff5555>Poisoned (Disadvantage on attacks)</font>'
+    }
+};
 
-        overlay.innerHTML = `
+// Row type options shared by both the custom field editor and the global sub-field rules list
+const ROW_TYPE_OPTIONS = [
+    ['pills', 'Pills (comma-separated chips)'],
+    ['badge', 'Badge (single chip)'],
+    ['highlight', 'Highlight (paren emphasis)'],
+    ['hp_bar', 'HP Bar (X/Y progress)'],
+    ['xp_bar', 'XP Bar (X/Y with optional level)'],
+    ['kv', 'Key / Value pair'],
+    ['text', 'Plain Text'],
+];
+
+function buildRowTypeSelect(selectedVal) {
+    const sel = document.createElement('select');
+    sel.className = 'text_pole';
+    sel.style.cssText = 'flex:2; min-width:110px; height:28px; padding:2px 4px; font-size:12px;';
+    ROW_TYPE_OPTIONS.forEach(([val, label]) => {
+        const opt = document.createElement('option');
+        opt.value = val; opt.textContent = label;
+        if (val === selectedVal) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    return sel;
+}
+
+function openCustomFieldEditor(index) {
+    const isSmallScreen = window.innerWidth <= 700;
+    const s = getSettings();
+    const field = s.customFields[index];
+    const overlay = document.createElement('div');
+    overlay.id = 'rt_cfe_overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);backdrop-filter:blur(2px);z-index:10000000;display:none;align-items:center;justify-content:center;overflow-y:auto;';
+
+    overlay.innerHTML = `
             <div id="rt_cfe_modal" class="popup shadowBase" style="
                 width: min(540px, 94vw);
                 height: ${isSmallScreen ? '85vh' : 'auto'};
@@ -5567,171 +5453,171 @@ Rules:
                 <div id="rt_cfe_preview_view" class="rpg-tracker-render-view"></div>
             </div>
         `;
-        document.body.appendChild(overlay);
-        overlay.addEventListener('mousedown', e => e.stopPropagation());
-        overlay.addEventListener('click', e => e.stopPropagation());
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', e => e.stopPropagation());
+    overlay.addEventListener('click', e => e.stopPropagation());
 
-        const iconEl     = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_icon'));
-        const tagEl      = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
-        const labelEl    = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
-        const templateEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_template'));
-        const promptEl   = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
-        const previewEl  = document.getElementById('rt_cfe_preview');
-        const pageSizeEl = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_pagesize'));
+    const iconEl = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_icon'));
+    const tagEl = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_tag'));
+    const labelEl = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_label'));
+    const templateEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_template'));
+    const promptEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_cfe_prompt'));
+    const previewEl = document.getElementById('rt_cfe_preview');
+    const pageSizeEl = /** @type {HTMLInputElement}    */ (document.getElementById('rt_cfe_pagesize'));
 
-        iconEl.value     = field.icon  || '📄';
-        tagEl.value      = field.tag   || '';
-        labelEl.value    = field.label || '';
-        templateEl.value = field.template || '';
-        // Legacy cleanup: clear the old placeholder text if it's stored as a value
-        if (field.prompt === 'What should the AI track for this new field? Describe it here.') {
-            field.prompt = '';
-        }
-        promptEl.value   = field.prompt || '';
-        pageSizeEl.value = String(s.modulePageSizes?.[field.tag.toUpperCase()] ?? (field.tag.toUpperCase() === 'SPELLS' ? 5 : PAGE_SIZE));
+    iconEl.value = field.icon || '📄';
+    tagEl.value = field.tag || '';
+    labelEl.value = field.label || '';
+    templateEl.value = field.template || '';
+    // Legacy cleanup: clear the old placeholder text if it's stored as a value
+    if (field.prompt === 'What should the AI track for this new field? Describe it here.') {
+        field.prompt = '';
+    }
+    promptEl.value = field.prompt || '';
+    pageSizeEl.value = String(s.modulePageSizes?.[field.tag.toUpperCase()] ?? (field.tag.toUpperCase() === 'SPELLS' ? 5 : PAGE_SIZE));
 
-        // ── Live Preview ──
-        let _previewDebounce = null;
-        let _bgRefreshDebounce = null;
-        const schedulePreview = () => {
-            clearTimeout(_previewDebounce);
-            _previewDebounce = setTimeout(updatePreview, 180);
-            clearTimeout(_bgRefreshDebounce);
-            _bgRefreshDebounce = setTimeout(refreshRenderedView, 300);
+    // ── Live Preview ──
+    let _previewDebounce = null;
+    let _bgRefreshDebounce = null;
+    const schedulePreview = () => {
+        clearTimeout(_previewDebounce);
+        _previewDebounce = setTimeout(updatePreview, 180);
+        clearTimeout(_bgRefreshDebounce);
+        _bgRefreshDebounce = setTimeout(refreshRenderedView, 300);
+    };
+
+    const renderPreviewInto = (targetEl) => {
+        const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
+        if (!renderView) return;
+
+        const testContent = templateEl.value || 'Nothing in testing sandbox';
+        const previewTag = '__PREVIEW__';
+        const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
+
+        const ghostField = {
+            tag: previewTag,
+            label: labelEl.value || tagEl.value || 'Preview',
+            icon: iconEl.value || '📄',
+            template: templateEl.value,
+            prompt: '',
+            enabled: true
         };
-
-        const renderPreviewInto = (targetEl) => {
-            const renderView = targetEl || document.getElementById('rt_cfe_preview_view');
-            if (!renderView) return;
-
-            const testContent = templateEl.value || 'Nothing in testing sandbox';
-            const previewTag = '__PREVIEW__';
-            const fakeMemo = `[${previewTag}]\n${testContent}\n[/${previewTag}]`;
-
-            const ghostField = {
-                tag:     previewTag,
-                label:   labelEl.value || tagEl.value || 'Preview',
-                icon:    iconEl.value || '📄',
-                template: templateEl.value,
-                prompt:  '',
-                enabled: true
-            };
-            const savedCustomFields = s.customFields;
-            s.customFields = [...savedCustomFields, ghostField];
-            try {
-                renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag, _sectionPages);
-                bindRenderedCardEvents(renderView, fakeMemo, true, () => renderPreviewInto(targetEl));
-            } finally {
-                s.customFields = savedCustomFields;
-            }
-        };
-
-        const updatePreview = () => renderPreviewInto(null);
-
-        iconEl.addEventListener('input', schedulePreview);
-        tagEl.addEventListener('input', schedulePreview);
-        labelEl.addEventListener('input', schedulePreview);
-        templateEl.addEventListener('input', schedulePreview);
-        pageSizeEl.addEventListener('input', () => {
-            if (!s.modulePageSizes) s.modulePageSizes = {};
-            const val = parseInt(String(pageSizeEl.value), 10);
-            if (!isNaN(val) && val >= 1) {
-                s.modulePageSizes[tagEl.value.toUpperCase()] = val;
-                saveSettings();
-                schedulePreview();
-            }
-        });
-
-        updatePreview();
-        overlay.style.display = 'flex';
-
-        const modal = document.getElementById('rt_cfe_modal');
-        const previewHeader = (document.getElementById('rt_cfe_preview_header'));
-
-        if (modal && previewEl && previewHeader) {
-            const rect = modal.getBoundingClientRect();
-            const spaceOnRight = window.innerWidth - rect.right;
-            if (spaceOnRight >= 320 && !isSmallScreen) {
-                previewEl.style.display = 'flex';
-                previewEl.style.left = (rect.right + 20) + 'px';
-                previewEl.style.top  = rect.top + 'px';
-                // @ts-ignore
-                makeDraggable(previewEl, previewHeader);
-            }
+        const savedCustomFields = s.customFields;
+        s.customFields = [...savedCustomFields, ghostField];
+        try {
+            renderView.innerHTML = renderMemoAsCards(fakeMemo, previewTag, _sectionPages);
+            bindRenderedCardEvents(renderView, fakeMemo, true, () => renderPreviewInto(targetEl));
+        } finally {
+            s.customFields = savedCustomFields;
         }
+    };
 
-        const save = () => {
-            field.icon  = iconEl.value;
-            const newTag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-            if (!newTag) { toastr['error']('Tag cannot be empty.', 'RPG Tracker'); return; }
+    const updatePreview = () => renderPreviewInto(null);
 
-            // Save page size
-            if (!s.modulePageSizes) s.modulePageSizes = {};
-            const ps = parseInt(pageSizeEl.value, 10);
-            if (!isNaN(ps) && ps >= 1) {
-                s.modulePageSizes[newTag] = ps;
+    iconEl.addEventListener('input', schedulePreview);
+    tagEl.addEventListener('input', schedulePreview);
+    labelEl.addEventListener('input', schedulePreview);
+    templateEl.addEventListener('input', schedulePreview);
+    pageSizeEl.addEventListener('input', () => {
+        if (!s.modulePageSizes) s.modulePageSizes = {};
+        const val = parseInt(String(pageSizeEl.value), 10);
+        if (!isNaN(val) && val >= 1) {
+            s.modulePageSizes[tagEl.value.toUpperCase()] = val;
+            saveSettings();
+            schedulePreview();
+        }
+    });
+
+    updatePreview();
+    overlay.style.display = 'flex';
+
+    const modal = document.getElementById('rt_cfe_modal');
+    const previewHeader = (document.getElementById('rt_cfe_preview_header'));
+
+    if (modal && previewEl && previewHeader) {
+        const rect = modal.getBoundingClientRect();
+        const spaceOnRight = window.innerWidth - rect.right;
+        if (spaceOnRight >= 320 && !isSmallScreen) {
+            previewEl.style.display = 'flex';
+            previewEl.style.left = (rect.right + 20) + 'px';
+            previewEl.style.top = rect.top + 'px';
+            // @ts-ignore
+            makeDraggable(previewEl, previewHeader);
+        }
+    }
+
+    const save = () => {
+        field.icon = iconEl.value;
+        const newTag = tagEl.value.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+        if (!newTag) { toastr['error']('Tag cannot be empty.', 'RPG Tracker'); return; }
+
+        // Save page size
+        if (!s.modulePageSizes) s.modulePageSizes = {};
+        const ps = parseInt(pageSizeEl.value, 10);
+        if (!isNaN(ps) && ps >= 1) {
+            s.modulePageSizes[newTag] = ps;
+        }
+        if (!newTag) { toastr['error']('Tag cannot be empty.', 'RPG Tracker'); return; }
+        if (BLOCK_ORDER.includes(newTag)) { toastr['error'](`[${newTag}] is a reserved stock module name.`, 'RPG Tracker'); return; }
+        const dup = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
+        if (dup) { toastr['error'](`Tag [${newTag}] is already in use.`, 'RPG Tracker'); return; }
+
+        field.tag = newTag;
+        field.label = labelEl.value;
+        field.template = templateEl.value;
+        field.prompt = promptEl.value;
+        delete field.rows;
+        delete field.renderType;
+
+        overlay.remove();
+        saveSettings();
+        refreshOrderList();
+        refreshRenderedView();
+    };
+
+    const del = () => {
+        const tagToDelete = field.tag.toUpperCase();
+        if (confirm(`Delete custom module [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
+            s.customFields.splice(index, 1);
+            if (s.blockOrder) s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
+            const memoBlocks = parseMemoBlocks(s.currentMemo || '');
+            if (memoBlocks[tagToDelete] !== undefined) {
+                delete memoBlocks[tagToDelete];
+                s.currentMemo = Object.entries(memoBlocks).map(([k, v]) => `[${k}]\n${v}\n[/${k}]`).join('\n\n');
+                updateUIMemo(s.currentMemo);
             }
-            if (!newTag) { toastr['error']('Tag cannot be empty.', 'RPG Tracker'); return; }
-            if (BLOCK_ORDER.includes(newTag)) { toastr['error'](`[${newTag}] is a reserved stock module name.`, 'RPG Tracker'); return; }
-            const dup = s.customFields.find((f, i) => i !== index && f.tag.toUpperCase() === newTag);
-            if (dup) { toastr['error'](`Tag [${newTag}] is already in use.`, 'RPG Tracker'); return; }
-
-            field.tag      = newTag;
-            field.label    = labelEl.value;
-            field.template = templateEl.value;
-            field.prompt   = promptEl.value;
-            delete field.rows;
-            delete field.renderType;
-
             overlay.remove();
             saveSettings();
             refreshOrderList();
             refreshRenderedView();
-        };
+        }
+    };
 
-        const del = () => {
-            const tagToDelete = field.tag.toUpperCase();
-            if (confirm(`Delete custom module [${tagToDelete}]? This will also remove its data from the current tracker.`)) {
-                s.customFields.splice(index, 1);
-                if (s.blockOrder) s.blockOrder = s.blockOrder.filter(t => t !== tagToDelete);
-                const memoBlocks = parseMemoBlocks(s.currentMemo || '');
-                if (memoBlocks[tagToDelete] !== undefined) {
-                    delete memoBlocks[tagToDelete];
-                    s.currentMemo = Object.entries(memoBlocks).map(([k, v]) => `[${k}]\n${v}\n[/${k}]`).join('\n\n');
-                    updateUIMemo(s.currentMemo);
-                }
-                overlay.remove();
-                saveSettings();
-                refreshOrderList();
-                refreshRenderedView();
-            }
-        };
+    const close = () => overlay.remove();
+    document.getElementById('rt_cfe_save').onclick = save;
+    document.getElementById('rt_cfe_delete').onclick = del;
+    document.getElementById('rt_cfe_cancel').onclick = close;
+    document.getElementById('rt_cfe_close').onclick = close;
+    document.getElementById('rpg-tracker-debug-btn').onclick = () => toggleDebugViewer();
+    document.getElementById('rt_cfe_export').onclick = () => exportModules([field]);
+}
+function openPromptEditor(tag, title, currentText, defaultText, onSave) {
+    let overlay = document.getElementById('rt_pe_overlay');
 
-        const close = () => overlay.remove();
-        document.getElementById('rt_cfe_save').onclick   = save;
-        document.getElementById('rt_cfe_delete').onclick = del;
-        document.getElementById('rt_cfe_cancel').onclick = close;
-        document.getElementById('rt_cfe_close').onclick  = close;
-        document.getElementById('rpg-tracker-debug-btn').onclick = () => toggleDebugViewer();
-        document.getElementById('rt_cfe_export').onclick = () => exportModules([field]);
-    }
-    function openPromptEditor(tag, title, currentText, defaultText, onSave) {
-        let overlay = document.getElementById('rt_pe_overlay');
-
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'rt_pe_overlay';
-            overlay.style.position = 'fixed';
-            overlay.style.top = '0';
-            overlay.style.left = '0';
-            overlay.style.width = '100vw';
-            overlay.style.height = '100vh';
-            overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
-            overlay.style.zIndex = '10000000';
-            overlay.style.display = 'flex';
-            overlay.style.alignItems = 'center';
-            overlay.style.justifyContent = 'center';
-            overlay.innerHTML = `
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'rt_pe_overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        overlay.style.zIndex = '10000000';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.innerHTML = `
                 <div class="popup shadowBase" style="min-width: 400px; max-width: 600px;">
                     <div class="popup-header">
                         <h3 class="margin0" id="rt_pe_title">Edit Prompt</h3>
@@ -5755,100 +5641,100 @@ Rules:
                     </div>
                 </div>
             `;
-            document.body.appendChild(overlay);
-        }
+        document.body.appendChild(overlay);
+    }
 
-        const titleEl = document.getElementById('rt_pe_title');
-        const textEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_pe_text'));
-        const pageSizeEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_pe_pagesize'));
-        const saveBtn = document.getElementById('rt_pe_save');
-        const resetBtn = document.getElementById('rt_pe_reset');
-        const closeBtn = document.getElementById('rt_pe_close');
-        const cancelBtn = document.getElementById('rt_pe_cancel');
-        
-        const s = getSettings();
-        pageSizeEl.value = String(s.modulePageSizes?.[tag.toUpperCase()] ?? (tag.toUpperCase() === 'SPELLS' ? 5 : PAGE_SIZE));
-        pageSizeEl.addEventListener('input', () => {
-            if (!s.modulePageSizes) s.modulePageSizes = {};
-            const val = parseInt(String(pageSizeEl.value), 10);
-            if (!isNaN(val) && val >= 1) {
-                s.modulePageSizes[tag.toUpperCase()] = val;
-                saveSettings();
-                refreshRenderedView();
-            }
-        });
+    const titleEl = document.getElementById('rt_pe_title');
+    const textEl = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_pe_text'));
+    const pageSizeEl = /** @type {HTMLInputElement} */ (document.getElementById('rt_pe_pagesize'));
+    const saveBtn = document.getElementById('rt_pe_save');
+    const resetBtn = document.getElementById('rt_pe_reset');
+    const closeBtn = document.getElementById('rt_pe_close');
+    const cancelBtn = document.getElementById('rt_pe_cancel');
 
-        const close = () => { overlay.style.display = 'none'; };
-
-        titleEl.textContent = title;
-        textEl.value = currentText;
-        overlay.style.display = 'flex';
-
-        const saveHandler = () => {
-            if (!s.modulePageSizes) s.modulePageSizes = {};
-            const ps = parseInt(String(pageSizeEl.value), 10);
-            if (!isNaN(ps) && ps >= 1) {
-                s.modulePageSizes[tag.toUpperCase()] = ps;
-            }
+    const s = getSettings();
+    pageSizeEl.value = String(s.modulePageSizes?.[tag.toUpperCase()] ?? (tag.toUpperCase() === 'SPELLS' ? 5 : PAGE_SIZE));
+    pageSizeEl.addEventListener('input', () => {
+        if (!s.modulePageSizes) s.modulePageSizes = {};
+        const val = parseInt(String(pageSizeEl.value), 10);
+        if (!isNaN(val) && val >= 1) {
+            s.modulePageSizes[tag.toUpperCase()] = val;
             saveSettings();
-            onSave(textEl.value);
-            close();
-        };
+            refreshRenderedView();
+        }
+    });
 
-        const resetHandler = () => {
-            if (confirm("Reset this prompt to the factory default?")) {
-                textEl.value = defaultText;
-            }
-        };
+    const close = () => { overlay.style.display = 'none'; };
 
-        const cleanup = () => {
-            saveBtn.removeEventListener('click', saveHandler);
-            resetBtn.removeEventListener('click', resetHandler);
-            document.getElementById('rt_pe_close').removeEventListener('click', close);
-            document.getElementById('rt_pe_cancel').removeEventListener('click', close);
-        };
+    titleEl.textContent = title;
+    textEl.value = currentText;
+    overlay.style.display = 'flex';
 
-        saveBtn.onclick = saveHandler;
-        resetBtn.onclick = resetHandler;
-        document.getElementById('rt_pe_close').onclick = close;
-        document.getElementById('rt_pe_cancel').onclick = close;
-    }
+    const saveHandler = () => {
+        if (!s.modulePageSizes) s.modulePageSizes = {};
+        const ps = parseInt(String(pageSizeEl.value), 10);
+        if (!isNaN(ps) && ps >= 1) {
+            s.modulePageSizes[tag.toUpperCase()] = ps;
+        }
+        saveSettings();
+        onSave(textEl.value);
+        close();
+    };
+
+    const resetHandler = () => {
+        if (confirm("Reset this prompt to the factory default?")) {
+            textEl.value = defaultText;
+        }
+    };
+
+    const cleanup = () => {
+        saveBtn.removeEventListener('click', saveHandler);
+        resetBtn.removeEventListener('click', resetHandler);
+        document.getElementById('rt_pe_close').removeEventListener('click', close);
+        document.getElementById('rt_pe_cancel').removeEventListener('click', close);
+    };
+
+    saveBtn.onclick = saveHandler;
+    resetBtn.onclick = resetHandler;
+    document.getElementById('rt_pe_close').onclick = close;
+    document.getElementById('rt_pe_cancel').onclick = close;
+}
 
 
-    // ── Module Export / Import ──────────────────────────────────────────────────
+// ── Module Export / Import ──────────────────────────────────────────────────
 
-    /**
-     * Builds the shareable JSON envelope for the given custom field objects
-     * and opens the share modal.
-     * @param {Array<{icon:string, tag:string, label:string, prompt:string}>} fields
-     */
-    function exportModules(fields) {
-        const payload = {
-            format: 'fatbody-custom-module',
-            version: 1,
-            exportedAt: new Date().toISOString(),
-            modules: fields.map(f => ({
-                icon:   f.icon  || '📄',
-                tag:    f.tag,
-                label:  f.label || f.tag,
-                prompt: f.prompt || '',
-            })),
-        };
-        openShareModal(JSON.stringify(payload, null, 2));
-    }
+/**
+ * Builds the shareable JSON envelope for the given custom field objects
+ * and opens the share modal.
+ * @param {Array<{icon:string, tag:string, label:string, prompt:string}>} fields
+ */
+function exportModules(fields) {
+    const payload = {
+        format: 'fatbody-custom-module',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        modules: fields.map(f => ({
+            icon: f.icon || '📄',
+            tag: f.tag,
+            label: f.label || f.tag,
+            prompt: f.prompt || '',
+        })),
+    };
+    openShareModal(JSON.stringify(payload, null, 2));
+}
 
-    /**
-     * Opens a read-only copy-to-clipboard modal with the export JSON.
-     * Uses the Termux-safe execCommand fallback (same as sysprompt copy).
-     * @param {string} jsonString
-     */
-    function openShareModal(jsonString) {
-        const { Popup } = SillyTavern.getContext();
-        const escaped = jsonString
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        const content = `
+/**
+ * Opens a read-only copy-to-clipboard modal with the export JSON.
+ * Uses the Termux-safe execCommand fallback (same as sysprompt copy).
+ * @param {string} jsonString
+ */
+function openShareModal(jsonString) {
+    const { Popup } = SillyTavern.getContext();
+    const escaped = jsonString
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const content = `
             <div style="display:flex; flex-direction:column; gap:8px; min-width:360px;">
                 <p style="margin:0; font-size:12px; opacity:0.7;">
                     Copy this code and share it anywhere. Others can paste it using the <b>Import</b> button.
@@ -5866,1162 +5752,1306 @@ Rules:
                 </div>
             </div>
         `;
-        Popup.show.confirm('📤 Share Custom Module', content, {
-            okButton: 'Done',
-            cancelButton: false,
-        });
-        // Wire buttons after the popup DOM renders (next tick)
-        setTimeout(() => {
-            const copyBtn = document.getElementById('rt_share_copy');
-            if (copyBtn) {
-                copyBtn.addEventListener('click', async () => {
-                    try {
-                        // Use modern Clipboard API if available and in secure context
-                        if (navigator.clipboard && window.isSecureContext) {
-                            await navigator.clipboard.writeText(jsonString);
-                            toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
-                            return;
-                        }
-
-                        // Fallback for non-secure contexts (HTTP) or older browsers
-                        const ta = document.createElement('textarea');
-                        ta.value = jsonString;
-                        ta.style.position = 'fixed';
-                        ta.style.left = '-9999px';
-                        ta.style.top = '0';
-                        ta.style.opacity = '0';
-                        document.body.appendChild(ta);
-                        ta.focus();
-                        ta.select();
-                        ta.setSelectionRange(0, 99999); // Important for mobile
-
-                        const success = document.execCommand('copy');
-                        document.body.removeChild(ta);
-
-                        if (success) {
-                            toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
-                        } else {
-                            throw new Error('execCommand returned false');
-                        }
-                    } catch (err) {
-                        console.error('[Fatbody Framework] clipboard copy failed:', err);
-                        toastr['error']('Could not copy automatically. Please select the text manually.', 'Fatbody Framework');
+    Popup.show.confirm('📤 Share Custom Module', content, {
+        okButton: 'Done',
+        cancelButton: false,
+    });
+    // Wire buttons after the popup DOM renders (next tick)
+    setTimeout(() => {
+        const copyBtn = document.getElementById('rt_share_copy');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async () => {
+                try {
+                    // Use modern Clipboard API if available and in secure context
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(jsonString);
+                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                        return;
                     }
-                });
-            }
 
-            const downloadBtn = document.getElementById('rt_share_download');
-            if (downloadBtn) {
-                downloadBtn.addEventListener('click', () => {
-                    const blob = new Blob([jsonString], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `fatbody_module_${new Date().getTime()}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                });
-            }
-        }, 50);
+                    // Fallback for non-secure contexts (HTTP) or older browsers
+                    const ta = document.createElement('textarea');
+                    ta.value = jsonString;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    ta.style.top = '0';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    ta.setSelectionRange(0, 99999); // Important for mobile
+
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(ta);
+
+                    if (success) {
+                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                    } else {
+                        throw new Error('execCommand returned false');
+                    }
+                } catch (err) {
+                    console.error('[Fatbody Framework] clipboard copy failed:', err);
+                    toastr['error']('Could not copy automatically. Please select the text manually.', 'Fatbody Framework');
+                }
+            });
+        }
+
+        const downloadBtn = document.getElementById('rt_share_download');
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', () => {
+                const blob = new Blob([jsonString], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `fatbody_module_${new Date().getTime()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
+    }, 50);
+}
+
+/**
+ * Validates and imports custom modules from a pasted JSON export string.
+ * Collects all tag conflicts first, then resolves them with a single prompt.
+ * @param {string} jsonString
+ */
+async function importModulesFromJson(jsonString) {
+    // Stock module tags — derived from the settings default so they stay in sync
+    const STOCK_TAGS = new Set(['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']);
+
+    let parsed;
+    try {
+        parsed = JSON.parse(jsonString.trim());
+    } catch {
+        toastr['error']('Invalid JSON. Please paste a valid module export.', 'Fatbody Framework');
+        return;
     }
 
-    /**
-     * Validates and imports custom modules from a pasted JSON export string.
-     * Collects all tag conflicts first, then resolves them with a single prompt.
-     * @param {string} jsonString
-     */
-    async function importModulesFromJson(jsonString) {
-        // Stock module tags — derived from the settings default so they stay in sync
-        const STOCK_TAGS = new Set(['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME']);
-
-        let parsed;
-        try {
-            parsed = JSON.parse(jsonString.trim());
-        } catch {
-            toastr['error']('Invalid JSON. Please paste a valid module export.', 'Fatbody Framework');
-            return;
-        }
-
-        if (parsed?.format !== 'fatbody-custom-module' || !Array.isArray(parsed?.modules)) {
-            toastr['error']("This doesn't look like a Fatbody module export.", 'Fatbody Framework');
-            return;
-        }
-
-        // Normalize and filter out malformed entries
-        const incoming = parsed.modules.filter(m => {
-            if (!m.tag || typeof m.tag !== 'string') return false;
-            m.tag = m.tag.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
-            return m.tag.length > 0;
-        });
-
-        if (incoming.length === 0) {
-            toastr['warning']('No valid modules found in the export.', 'Fatbody Framework');
-            return;
-        }
-
-        const s = getSettings();
-        const existingTags = new Set((s.customFields || []).map(f => f.tag.toUpperCase()));
-
-        // Hard-block stock tag conflicts
-        const stockConflicts = incoming.filter(m => STOCK_TAGS.has(m.tag));
-        if (stockConflicts.length > 0) {
-            toastr['error'](
-                `Cannot import: [${stockConflicts.map(m => m.tag).join('], [')}] clash with built-in stock modules.`,
-                'Fatbody Framework'
-            );
-            return;
-        }
-
-        // Collect soft (custom) conflicts and resolve with a single popup
-        const softConflicts = incoming.filter(m => existingTags.has(m.tag));
-        let overwriteConflicts = false;
-
-        if (softConflicts.length > 0) {
-            const { Popup } = SillyTavern.getContext();
-            const tagList = softConflicts.map(m => `<b>[${m.tag}]</b>`).join(', ');
-            const choice = await Popup.show.confirm(
-                '⚠️ Import Conflicts',
-                `<p>${softConflicts.length} module(s) already exist: ${tagList}</p><p>What would you like to do?</p>`,
-                { okButton: 'Overwrite Existing', cancelButton: 'Skip Conflicts' }
-            );
-            if (choice === null || choice === undefined) return; // user dismissed
-            overwriteConflicts = (choice === 1);
-        }
-
-        if (!s.blockOrder) s.blockOrder = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
-
-        let importedCount = 0;
-        for (const m of incoming) {
-            const isConflict = existingTags.has(m.tag);
-            if (isConflict && !overwriteConflicts) continue;
-
-            const newField = {
-                icon:     m.icon  || '📄',
-                tag:      m.tag,
-                label:    m.label || m.tag,
-                prompt:   m.prompt || '',
-                template: '',   // sandbox always starts blank
-                enabled:  true, // imported modules are active immediately
-            };
-
-            if (isConflict) {
-                const idx = s.customFields.findIndex(f => f.tag.toUpperCase() === m.tag);
-                if (idx !== -1) s.customFields[idx] = newField;
-            } else {
-                s.customFields.push(newField);
-                if (!s.blockOrder.includes(m.tag)) s.blockOrder.push(m.tag);
-            }
-            importedCount++;
-        }
-
-        if (importedCount === 0) {
-            toastr['info']('No modules were imported (all conflicts were skipped).', 'Fatbody Framework');
-            return;
-        }
-
-        saveSettings();
-        refreshOrderList();
-        syncMemoView();
-        toastr['success'](`Imported ${importedCount} custom module(s).`, 'Fatbody Framework');
+    if (parsed?.format !== 'fatbody-custom-module' || !Array.isArray(parsed?.modules)) {
+        toastr['error']("This doesn't look like a Fatbody module export.", 'Fatbody Framework');
+        return;
     }
 
-    // ───────────────────────────────────────────────────────────────────────────
+    // Normalize and filter out malformed entries
+    const incoming = parsed.modules.filter(m => {
+        if (!m.tag || typeof m.tag !== 'string') return false;
+        m.tag = m.tag.replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+        return m.tag.length > 0;
+    });
 
-    function refreshOrderList() {
-        const s = getSettings();
-        const list = document.getElementById('rpg_tracker_order_list');
-        if (!list) return;
+    if (incoming.length === 0) {
+        toastr['warning']('No valid modules found in the export.', 'Fatbody Framework');
+        return;
+    }
 
-        list.innerHTML = '';
+    const s = getSettings();
+    const existingTags = new Set((s.customFields || []).map(f => f.tag.toUpperCase()));
 
-        const getIcon = (tag) => {
-            if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
-            const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
-            return custom?.icon || '📄';
+    // Hard-block stock tag conflicts
+    const stockConflicts = incoming.filter(m => STOCK_TAGS.has(m.tag));
+    if (stockConflicts.length > 0) {
+        toastr['error'](
+            `Cannot import: [${stockConflicts.map(m => m.tag).join('], [')}] clash with built-in stock modules.`,
+            'Fatbody Framework'
+        );
+        return;
+    }
+
+    // Collect soft (custom) conflicts and resolve with a single popup
+    const softConflicts = incoming.filter(m => existingTags.has(m.tag));
+    let overwriteConflicts = false;
+
+    if (softConflicts.length > 0) {
+        const { Popup } = SillyTavern.getContext();
+        const tagList = softConflicts.map(m => `<b>[${m.tag}]</b>`).join(', ');
+        const choice = await Popup.show.confirm(
+            '⚠️ Import Conflicts',
+            `<p>${softConflicts.length} module(s) already exist: ${tagList}</p><p>What would you like to do?</p>`,
+            { okButton: 'Overwrite Existing', cancelButton: 'Skip Conflicts' }
+        );
+        if (choice === null || choice === undefined) return; // user dismissed
+        overwriteConflicts = (choice === 1);
+    }
+
+    if (!s.blockOrder) s.blockOrder = ['COMBAT', 'CHARACTER', 'PARTY', 'INVENTORY', 'ABILITIES', 'SPELLS', 'XP', 'TIME'];
+
+    let importedCount = 0;
+    for (const m of incoming) {
+        const isConflict = existingTags.has(m.tag);
+        if (isConflict && !overwriteConflicts) continue;
+
+        const newField = {
+            icon: m.icon || '📄',
+            tag: m.tag,
+            label: m.label || m.tag,
+            prompt: m.prompt || '',
+            template: '',   // sandbox always starts blank
+            enabled: true, // imported modules are active immediately
         };
 
-        if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
+        if (isConflict) {
+            const idx = s.customFields.findIndex(f => f.tag.toUpperCase() === m.tag);
+            if (idx !== -1) s.customFields[idx] = newField;
+        } else {
+            s.customFields.push(newField);
+            if (!s.blockOrder.includes(m.tag)) s.blockOrder.push(m.tag);
+        }
+        importedCount++;
+    }
 
-        // --- Sanitization Pass: Ensure unique tags and no stock conflicts ---
-        const seenTags = new Set(BLOCK_ORDER);
-        (s.customFields || []).forEach(f => {
-            let baseTag = f.tag.toUpperCase().replace(/[^A-Z0-9_]/g, '');
-            if (!baseTag) baseTag = 'CUSTOM';
-            let finalTag = baseTag;
-            let counter = 1;
-            while (seenTags.has(finalTag)) {
-                finalTag = `${baseTag}_${counter++}`;
-            }
-            if (f.tag !== finalTag) {
-                console.log(`[RPG Tracker] Sanitized tag: ${f.tag} -> ${finalTag}`);
-                f.tag = finalTag;
-            }
-            seenTags.add(finalTag);
-        });
+    if (importedCount === 0) {
+        toastr['info']('No modules were imported (all conflicts were skipped).', 'Fatbody Framework');
+        return;
+    }
 
-        // Add any missing tags to blockOrder
-        const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
-        [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
-            if (!s.blockOrder.includes(tag)) s.blockOrder.push(tag);
-        });
+    saveSettings();
+    refreshOrderList();
+    syncMemoView();
+    toastr['success'](`Imported ${importedCount} custom module(s).`, 'Fatbody Framework');
+}
 
-        // Current order, filtered for validity and optional module toggles
-        const validCustomTags = new Set(allCustomTags);
-        const order = s.blockOrder.filter(tag => {
-            const isStock = BLOCK_ORDER.includes(tag);
-            if (!isStock && !validCustomTags.has(tag)) return false;
+// ───────────────────────────────────────────────────────────────────────────
 
-            // Hide QUESTS if disabled in Narrator Config
-            if (tag === 'QUESTS' && s.syspromptModules?.quests === false) return false;
+function refreshOrderList() {
+    const s = getSettings();
+    const list = document.getElementById('rpg_tracker_order_list');
+    if (!list) return;
 
-            return true;
-        });
-        s.blockOrder = order;
+    list.innerHTML = '';
 
-        order.forEach((tag, index) => {
-            const isStock = BLOCK_ORDER.includes(tag);
-            const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
-            const field = isStock ? null : s.customFields[customIndex];
+    const getIcon = (tag) => {
+        if (BLOCK_ICONS[tag]) return BLOCK_ICONS[tag];
+        const custom = (s.customFields || []).find(f => f.tag.toUpperCase() === tag);
+        return custom?.icon || '📄';
+    };
 
-            const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
+    if (!s.blockOrder) s.blockOrder = [...BLOCK_ORDER];
 
-            const item = document.createElement('div');
-            item.className = 'flex-container gap-1 alignitemscenter rt-order-item';
-            item.style.padding = '5px';
-            item.style.background = isEnabled ? 'var(--black30a)' : 'transparent';
-            item.style.opacity = isEnabled ? '1' : '0.6';
-            item.style.borderRadius = '4px';
-            item.style.border = '1px solid var(--smartThemeBorderColor)';
+    // --- Sanitization Pass: Ensure unique tags and no stock conflicts ---
+    const seenTags = new Set(BLOCK_ORDER);
+    (s.customFields || []).forEach(f => {
+        let baseTag = f.tag.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+        if (!baseTag) baseTag = 'CUSTOM';
+        let finalTag = baseTag;
+        let counter = 1;
+        while (seenTags.has(finalTag)) {
+            finalTag = `${baseTag}_${counter++}`;
+        }
+        if (f.tag !== finalTag) {
+            console.log(`[RPG Tracker] Sanitized tag: ${f.tag} -> ${finalTag}`);
+            f.tag = finalTag;
+        }
+        seenTags.add(finalTag);
+    });
 
-            // 1. Checkbox
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.checked = isEnabled;
-            cb.style.margin = '0 5px';
-            cb.onchange = () => {
-                if (isStock) {
-                    s.modules[tag.toLowerCase()] = cb.checked;
-                } else {
-                    field.enabled = cb.checked;
-                }
-                saveSettings();
-                refreshOrderList();
-                refreshRenderedView();
-            };
+    // Add any missing tags to blockOrder
+    const allCustomTags = (s.customFields || []).map(f => f.tag.toUpperCase());
+    [...BLOCK_ORDER, ...allCustomTags].forEach(tag => {
+        if (!s.blockOrder.includes(tag)) s.blockOrder.push(tag);
+    });
 
-            // 2. Label
-            const label = document.createElement('span');
-            label.style.flex = '1';
-            label.style.fontSize = '12px';
-            label.style.cursor = 'default';
-            label.textContent = `${getIcon(tag)} ${tag}`;
+    // Current order, filtered for validity and optional module toggles
+    const validCustomTags = new Set(allCustomTags);
+    const order = s.blockOrder.filter(tag => {
+        const isStock = BLOCK_ORDER.includes(tag);
+        if (!isStock && !validCustomTags.has(tag)) return false;
 
-            // 3. Button Group
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'flex-container gap-1';
+        // Hide QUESTS if disabled in Narrator Config
+        if (tag === 'QUESTS' && s.syspromptModules?.quests === false) return false;
 
-            // Edit Button
-            const editBtn = document.createElement('button');
-            editBtn.className = 'menu_button interactable rt-order-btn';
-            editBtn.style.padding = '2px 6px';
-            editBtn.title = isStock ? 'Edit Prompt' : 'Edit Custom Field';
-            editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
-            editBtn.onclick = () => {
-                if (isStock) {
-                    let mod = tag.toLowerCase();
-                    let displayTag = tag;
-                    
-                    // Redirect QUESTS to quests_legacy if in legacy mode
-                    if (tag === 'QUESTS' && s.questLegacyMode) {
-                        mod = 'quests_legacy';
-                        displayTag = 'QUESTS (Legacy Mode)';
-                    }
+        return true;
+    });
+    s.blockOrder = order;
 
-                    if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
-                    openPromptEditor(
-                        displayTag,
-                        `Edit Default [${displayTag}] Prompt`,
-                        s.stockPrompts[mod] || DEFAULT_STOCK_PROMPTS[mod],
-                        DEFAULT_STOCK_PROMPTS[mod],
-                        (newVal) => {
-                            s.stockPrompts[mod] = newVal;
-                            saveSettings();
-                            toastr['success'](`[${displayTag}] prompt updated.`, 'RPG Tracker');
-                        }
-                    );
-                } else {
-                    openCustomFieldEditor(customIndex);
-                }
-            };
+    order.forEach((tag, index) => {
+        const isStock = BLOCK_ORDER.includes(tag);
+        const customIndex = s.customFields.findIndex(f => f.tag.toUpperCase() === tag);
+        const field = isStock ? null : s.customFields[customIndex];
 
-            // Reset Button (Stock only)
-            let resetBtn = null;
+        const isEnabled = isStock ? (s.modules[tag.toLowerCase()] ?? false) : (field?.enabled ?? false);
+
+        const item = document.createElement('div');
+        item.className = 'flex-container gap-1 alignitemscenter rt-order-item';
+        item.style.padding = '5px';
+        item.style.background = isEnabled ? 'var(--black30a)' : 'transparent';
+        item.style.opacity = isEnabled ? '1' : '0.6';
+        item.style.borderRadius = '4px';
+        item.style.border = '1px solid var(--smartThemeBorderColor)';
+
+        // 1. Checkbox
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = isEnabled;
+        cb.style.margin = '0 5px';
+        cb.onchange = () => {
             if (isStock) {
-                resetBtn = document.createElement('button');
-                resetBtn.className = 'menu_button interactable rt-order-btn';
-                resetBtn.style.padding = '2px 6px';
-                resetBtn.title = 'Reset Prompt to Default';
-                resetBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i>';
-                resetBtn.onclick = () => {
-                    let mod = tag.toLowerCase();
-                    if (tag === 'QUESTS' && s.questLegacyMode) mod = 'quests_legacy';
-                    
-                    if (confirm(`Reset [${tag}] prompt to default? This will lose any custom changes.`)) {
-                        if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
-                        s.stockPrompts[mod] = DEFAULT_STOCK_PROMPTS[mod];
-                        saveSettings();
-                        toastr['success'](`[${tag}] prompt reset.`, 'RPG Tracker');
-                    }
-                };
-            }
-
-            // Up/Down Arrows
-            const upBtn = document.createElement('button');
-            upBtn.className = 'menu_button interactable rt-order-btn';
-            upBtn.style.padding = '2px 6px';
-            upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
-            upBtn.disabled = index === 0;
-            upBtn.onclick = () => {
-                const newOrder = [...order];
-                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                s.blockOrder = newOrder;
-                saveSettings();
-                refreshOrderList();
-                refreshRenderedView();
-            };
-
-            const downBtn = document.createElement('button');
-            downBtn.className = 'menu_button interactable rt-order-btn';
-            downBtn.style.padding = '2px 6px';
-            downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
-            downBtn.disabled = index === order.length - 1;
-            downBtn.onclick = () => {
-                const newOrder = [...order];
-                [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
-                s.blockOrder = newOrder;
-                saveSettings();
-                refreshOrderList();
-                refreshRenderedView();
-            };
-
-            item.appendChild(cb);
-            item.appendChild(label);
-            btnGroup.appendChild(editBtn);
-            if (resetBtn) btnGroup.appendChild(resetBtn);
-            btnGroup.appendChild(upBtn);
-            btnGroup.appendChild(downBtn);
-            item.appendChild(btnGroup);
-            list.appendChild(item);
-        });
-    }
-
-    /**
-     * Rebuilds the system prompt by stripping out XML blocks that are
-     * disabled in settings.syspromptModules.
-     * @param {string} rawText
-     * @returns {string}
-     */
-    let _autoApplyTimer = null;
-    async function autoApplySysprompt() {
-        const s = getSettings();
-        if (s.customSysprompt) return;
-
-        const fileName = s.diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
-        let content;
-        try {
-            const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
-            if (response.ok) {
-                content = await response.text();
+                s.modules[tag.toLowerCase()] = cb.checked;
             } else {
-                throw new Error(`Server returned ${response.status}`);
+                field.enabled = cb.checked;
             }
-        } catch (err) {
-            console.warn(`[Fatbody Framework] autoApplySysprompt: could not fetch ${fileName}, using fallback:`, err);
-            content = RT_PROMPTS[fileName];
-        }
-        if (!content) return;
+            saveSettings();
+            refreshOrderList();
+            refreshRenderedView();
+        };
 
-        content = buildSysprompt(content);
-        const mainTextarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('main_prompt_quick_edit_textarea'));
-        if (mainTextarea) {
-            mainTextarea.value = content;
-            mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
-        }
-    }
+        // 2. Label
+        const label = document.createElement('span');
+        label.style.flex = '1';
+        label.style.fontSize = '12px';
+        label.style.cursor = 'default';
+        label.textContent = `${getIcon(tag)} ${tag}`;
 
-    function scheduleAutoApply() {
-        if (_autoApplyTimer) clearTimeout(_autoApplyTimer);
-        _autoApplyTimer = setTimeout(() => { _autoApplyTimer = null; autoApplySysprompt(); }, 400);
-    }
+        // 3. Button Group
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'flex-container gap-1';
 
-    function buildSysprompt(rawText) {
-        if (!rawText) return "";
-        const s = getSettings();
-        const mods = s.syspromptModules || {};
-        
-        // 1. Tag-based module stripping and Quest mode swap
-        let content = rawText
-            .replace(/<(\w[\w_-]*)>([\s\S]*?)<\/\1>/g, (match, tag) => {
-                if (mods[tag] === false) return '';
-                // Inject correct instructions for quests based on legacy mode
-                if (tag === 'quests') {
-                    let instruction = s.questLegacyMode ? QUESTS_NARRATOR_LEGACY : QUESTS_NARRATOR_MODERN;
-                    // Strip Mood guidance if Frustration is off
-                    if (!mods.questsFrustration) {
-                        instruction = instruction.replace(/Use the MOOD field.*?\./g, '');
-                    }
-                    // Strip Difficulty guidance if Difficulty is off
-                    if (!mods.questsDifficulty) {
-                        instruction = instruction.replace(/the difficulty \(Very Easy to Very Hard\), /g, '');
-                        instruction = instruction.replace(/Assign an appropriate difficulty \(Very Easy to Very Hard\) based on the narrative stakes\. /g, '');
-                    }
-                    return `<quests>\n${instruction.trim()}\n</quests>`;
+        // Edit Button
+        const editBtn = document.createElement('button');
+        editBtn.className = 'menu_button interactable rt-order-btn';
+        editBtn.style.padding = '2px 6px';
+        editBtn.title = isStock ? 'Edit Prompt' : 'Edit Custom Field';
+        editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+        editBtn.onclick = () => {
+            if (isStock) {
+                let mod = tag.toLowerCase();
+                let displayTag = tag;
+
+                // Redirect QUESTS to quests_legacy if in legacy mode
+                if (tag === 'QUESTS' && s.questLegacyMode) {
+                    mod = 'quests_legacy';
+                    displayTag = 'QUESTS (Legacy Mode)';
                 }
-                return match;
-            });
 
-        // 2. Inject current module instructions
-        const modulesText = buildModulesInstructionText(s);
-        content = content.replace("{{modulesText}}", modulesText);
+                if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
+                openPromptEditor(
+                    displayTag,
+                    `Edit Default [${displayTag}] Prompt`,
+                    s.stockPrompts[mod] || DEFAULT_STOCK_PROMPTS[mod],
+                    DEFAULT_STOCK_PROMPTS[mod],
+                    (newVal) => {
+                        s.stockPrompts[mod] = newVal;
+                        saveSettings();
+                        toastr['success'](`[${displayTag}] prompt updated.`, 'RPG Tracker');
+                    }
+                );
+            } else {
+                openCustomFieldEditor(customIndex);
+            }
+        };
 
-        // 3. Handle Quests Hardcore rules stripping (Narrator guidance)
-        if (!mods.questsDeadlines) {
-            // Strip deadline assignment rule and auto_fail guidance
-            content = content.replace(/- Assign an in-world Deadline.*\n/g, '');
-            content = content.replace(/- Set auto_fail to true for quests.*\n/g, '');
-            content = content.replace(/- If a duration is given.* Day N.*\n/g, '');
+        // Reset Button (Stock only)
+        let resetBtn = null;
+        if (isStock) {
+            resetBtn = document.createElement('button');
+            resetBtn.className = 'menu_button interactable rt-order-btn';
+            resetBtn.style.padding = '2px 6px';
+            resetBtn.title = 'Reset Prompt to Default';
+            resetBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i>';
+            resetBtn.onclick = () => {
+                let mod = tag.toLowerCase();
+                if (tag === 'QUESTS' && s.questLegacyMode) mod = 'quests_legacy';
+
+                if (confirm(`Reset [${tag}] prompt to default? This will lose any custom changes.`)) {
+                    if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
+                    s.stockPrompts[mod] = DEFAULT_STOCK_PROMPTS[mod];
+                    saveSettings();
+                    toastr['success'](`[${tag}] prompt reset.`, 'RPG Tracker');
+                }
+            };
         }
-        if (!mods.questsFrustration) {
-            // Strip frustration coefficient and mood rules
-            content = content.replace(/- Set a frustration_coefficient.*\n/g, '');
-            content = content.replace(/ {2}· 0\.4 = Very patient.*\n/g, '');
-            content = content.replace(/ {2}· 1\.0 = Normal.*\n/g, '');
-            content = content.replace(/ {2}· 3\.0 = Volatile.*\n/g, '');
-            content = content.replace(/- The NPC Mood evolves continuously.*\n/g, '');
-            // Also strip the 'past deadline' override rule — only applies when Frustration is active
-            content = content.replace(/- If a quest is time-sensitive and the deadline passes.*\n/g, '');
-        }
 
-        return content
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
+        // Up/Down Arrows
+        const upBtn = document.createElement('button');
+        upBtn.className = 'menu_button interactable rt-order-btn';
+        upBtn.style.padding = '2px 6px';
+        upBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+        upBtn.disabled = index === 0;
+        upBtn.onclick = () => {
+            const newOrder = [...order];
+            [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+            s.blockOrder = newOrder;
+            saveSettings();
+            refreshOrderList();
+            refreshRenderedView();
+        };
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'menu_button interactable rt-order-btn';
+        downBtn.style.padding = '2px 6px';
+        downBtn.innerHTML = '<i class="fa-solid fa-arrow-down"></i>';
+        downBtn.disabled = index === order.length - 1;
+        downBtn.onclick = () => {
+            const newOrder = [...order];
+            [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
+            s.blockOrder = newOrder;
+            saveSettings();
+            refreshOrderList();
+            refreshRenderedView();
+        };
+
+        item.appendChild(cb);
+        item.appendChild(label);
+        btnGroup.appendChild(editBtn);
+        if (resetBtn) btnGroup.appendChild(resetBtn);
+        btnGroup.appendChild(upBtn);
+        btnGroup.appendChild(downBtn);
+        item.appendChild(btnGroup);
+        list.appendChild(item);
+    });
+}
+
+/**
+ * Rebuilds the system prompt by stripping out XML blocks that are
+ * disabled in settings.syspromptModules.
+ * @param {string} rawText
+ * @returns {string}
+ */
+let _autoApplyTimer = null;
+async function autoApplySysprompt() {
+    const s = getSettings();
+    if (s.customSysprompt) return;
+
+    const fileName = s.diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
+    let content;
+    try {
+        const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+        if (response.ok) {
+            content = await response.text();
+        } else {
+            throw new Error(`Server returned ${response.status}`);
+        }
+    } catch (err) {
+        console.warn(`[Fatbody Framework] autoApplySysprompt: could not fetch ${fileName}, using fallback:`, err);
+        content = RT_PROMPTS[fileName];
+    }
+    if (!content) return;
+
+    content = buildSysprompt(content);
+    const mainTextarea = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+    if (mainTextarea) {
+        mainTextarea.value = content;
+        mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+}
+
+function scheduleAutoApply() {
+    if (_autoApplyTimer) clearTimeout(_autoApplyTimer);
+    _autoApplyTimer = setTimeout(() => { _autoApplyTimer = null; autoApplySysprompt(); }, 400);
+}
+
+function buildSysprompt(rawText) {
+    if (!rawText) return "";
+    const s = getSettings();
+    const mods = s.syspromptModules || {};
+
+    // 1. Tag-based module stripping and Quest mode swap
+    let content = rawText
+        .replace(/<(\w[\w_-]*)>([\s\S]*?)<\/\1>/g, (match, tag) => {
+            if (mods[tag] === false) return '';
+            // Inject correct instructions for quests based on legacy mode
+            if (tag === 'quests') {
+                let instruction = s.questLegacyMode ? QUESTS_NARRATOR_LEGACY : QUESTS_NARRATOR_MODERN;
+                // Strip Mood guidance if Frustration is off
+                if (!mods.questsFrustration) {
+                    instruction = instruction.replace(/Use the MOOD field.*?\./g, '');
+                }
+                // Strip Difficulty guidance if Difficulty is off
+                if (!mods.questsDifficulty) {
+                    instruction = instruction.replace(/the difficulty \(Very Easy to Very Hard\), /g, '');
+                    instruction = instruction.replace(/Assign an appropriate difficulty \(Very Easy to Very Hard\) based on the narrative stakes\. /g, '');
+                }
+                return `<quests>\n${instruction.trim()}\n</quests>`;
+            }
+            return match;
+        });
+
+    // 2. Inject current module instructions
+    const modulesText = buildModulesInstructionText(s);
+    content = content.replace("{{modulesText}}", modulesText);
+
+    // 3. Handle Quests Hardcore rules stripping (Narrator guidance)
+    if (!mods.questsDeadlines) {
+        // Strip deadline assignment rule and auto_fail guidance
+        content = content.replace(/- Assign an in-world Deadline.*\n/g, '');
+        content = content.replace(/- Set auto_fail to true for quests.*\n/g, '');
+        content = content.replace(/- If a duration is given.* Day N.*\n/g, '');
+    }
+    if (!mods.questsFrustration) {
+        // Strip frustration coefficient and mood rules
+        content = content.replace(/- Set a frustration_coefficient.*\n/g, '');
+        content = content.replace(/ {2}· 0\.4 = Very patient.*\n/g, '');
+        content = content.replace(/ {2}· 1\.0 = Normal.*\n/g, '');
+        content = content.replace(/ {2}· 3\.0 = Volatile.*\n/g, '');
+        content = content.replace(/- The NPC Mood evolves continuously.*\n/g, '');
+        // Also strip the 'past deadline' override rule — only applies when Frustration is active
+        content = content.replace(/- If a quest is time-sensitive and the deadline passes.*\n/g, '');
     }
 
-    /**
-     * Initialization
-     */
-    (async function init() {
-        // Guard against double-init (e.g. browser serving a cached copy of this script
-        // while the fresh copy also loads). Remove any stale panel/settings first.
-        document.getElementById('rpg-tracker-panel')?.remove();
-        document.querySelectorAll('.rpg-tracker-settings').forEach(el => el.remove());
+    return content
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+}
 
-        const ctx = SillyTavern.getContext();
-        const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
+/**
+ * Initialization
+ */
+(async function init() {
+    // Guard against double-init (e.g. browser serving a cached copy of this script
+    // while the fresh copy also loads). Remove any stale panel/settings first.
+    document.getElementById('rpg-tracker-panel')?.remove();
+    document.querySelectorAll('.rpg-tracker-settings').forEach(el => el.remove());
 
-        getSettings();
-        migrateCustomFields();
-        createPanel();
+    const ctx = SillyTavern.getContext();
+    const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
 
-        try {
-            // Load Settings UI using the dynamic folder name
-            // Use a cache-busting parameter to ensure we get the fresh file from the server
-            const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', { v: Date.now() });
-            // Third-party plugins should go to extensions_settings2 (right column) if available
-            if ($('#extensions_settings2').length) {
-                $('#extensions_settings2').append(html);
-            } else {
-                $('#extensions_settings').append(html);
+    getSettings();
+    migrateCustomFields();
+    createPanel();
+
+    try {
+        // Load Settings UI using the dynamic folder name
+        // Use a cache-busting parameter to ensure we get the fresh file from the server
+        const html = await renderExtensionTemplateAsync(`third-party/${FOLDER_NAME}`, 'settings', { v: Date.now() });
+        // Third-party plugins should go to extensions_settings2 (right column) if available
+        if ($('#extensions_settings2').length) {
+            $('#extensions_settings2').append(html);
+        } else {
+            $('#extensions_settings').append(html);
+        }
+
+        // Bind drawer toggles ONLY for our own content to avoid global conflicts
+        $('.rpg-tracker-settings').on('click', '.inline-drawer-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const drawer = $(this).closest('.inline-drawer');
+            const content = drawer.find('> .inline-drawer-content');
+            drawer.toggleClass('open');
+            content.stop(true, true).slideToggle(200);
+            $(this).find('.inline-drawer-icon').toggleClass('down');
+        });
+
+        const settings = getSettings();
+
+        // --- Automatic Stock Prompt Synchronization ---
+        // Always ensure stockPrompts exists — users without saved settings need defaults
+        if (!settings.stockPrompts) settings.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
+        {
+            let changed = false;
+
+            // Modern Quests: update if it has the old format (missing "progress" field)
+            if (settings.stockPrompts.quests &&
+                settings.stockPrompts.quests.includes('"id", "status"') &&
+                !settings.stockPrompts.quests.includes('"progress"')) {
+                settings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
+                console.log('[RPG Tracker] Synchronized modern quest prompt (added progress tracking).');
+                changed = true;
             }
 
-            // Bind drawer toggles ONLY for our own content to avoid global conflicts
-            $('.rpg-tracker-settings').on('click', '.inline-drawer-toggle', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const drawer = $(this).closest('.inline-drawer');
-                const content = drawer.find('> .inline-drawer-content');
-                const isOpening = !drawer.hasClass('open');
-                drawer.toggleClass('open');
-                content.stop(true, true).slideToggle(200, function() {
-                    // After the animation completes, recalculate autoSetHeight textareas so
-                    // they expand to their content height (avoids collapsed/zero-height bug)
-                    if (isOpening) {
-                        content.find('textarea.autoSetHeight').each(function() {
-                            $(this).css('height', '0px');
-                            $(this).css('height', ($(this).prop('scrollHeight') + 3) + 'px');
-                        });
+            // Legacy Quests: update if it's missing OBJ_TOTAL
+            if (settings.stockPrompts.quests_legacy &&
+                settings.stockPrompts.quests_legacy.includes('OBJ_ACTIVE') &&
+                !settings.stockPrompts.quests_legacy.includes('OBJ_TOTAL')) {
+                settings.stockPrompts.quests_legacy = DEFAULT_STOCK_PROMPTS.quests_legacy;
+                console.log('[RPG Tracker] Synchronized legacy quest prompt (added progress tracking).');
+                changed = true;
+            }
+
+            // Ensure quests_legacy slot always exists as a reference
+            if (!settings.stockPrompts.quests_legacy) {
+                settings.stockPrompts.quests_legacy = DEFAULT_STOCK_PROMPTS.quests_legacy;
+                changed = true;
+            }
+
+            // ── Definitive quest prompt selection at init ────────────────────
+            // Write the correct prompt into stockPrompts.quests based on questLegacyMode.
+            // This is the authoritative source — the runtime swap in buildModulesInstructionText
+            // is a belt-and-suspenders backup, but this guarantees correctness at startup.
+            if (settings.questLegacyMode) {
+                const isDeadlines = !!settings.syspromptModules?.questsDeadlines;
+                const isFrustration = !!settings.syspromptModules?.questsFrustration;
+                let legacyPrompt = settings.stockPrompts.quests_legacy || DEFAULT_STOCK_PROMPTS.quests_legacy;
+                if (!isDeadlines) legacyPrompt = legacyPrompt.replace(/\n\s*DEADLINE:.*?\n/g, '\n');
+                if (!isFrustration) legacyPrompt = legacyPrompt.replace(/\n\s*FRUSTRATION_COEFF:.*?\n/g, '\n');
+                if (!settings.stockPrompts.quests || !settings.stockPrompts.quests.includes('OBJ_ACTIVE')) {
+                    settings.stockPrompts.quests = legacyPrompt;
+                    console.log('[RPG Tracker] Init: wrote LEGACY prompt into quests slot (questLegacyMode=true).');
+                    changed = true;
+                }
+            } else {
+                // Ensure modern/JSON prompt is in the quests slot
+                if (!settings.stockPrompts.quests || (settings.stockPrompts.quests.includes('OBJ_ACTIVE') &&
+                    !settings.stockPrompts.quests.includes('updates'))) {
+                    settings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
+                    console.log('[RPG Tracker] Init: wrote MODERN prompt into quests slot (questLegacyMode=false).');
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                saveSettings();
+            }
+
+            // Diagnostic: confirm the final quest mode state at init
+            console.log(`[RPG Tracker] Quest mode at init: questLegacyMode=${settings.questLegacyMode}, quests slot=${settings.stockPrompts.quests?.includes?.('updates') ? 'MODERN/JSON' : settings.stockPrompts.quests?.includes?.('OBJ_ACTIVE') ? 'LEGACY' : 'UNKNOWN'}`);
+
+            // Retroactive Log Cleanup: replace generic messages with more descriptive ones
+            if (settings.routerLog && settings.routerLog.length > 0) {
+                let cleaned = false;
+                settings.routerLog.forEach(entry => {
+                    if (entry.reason === "Tag-based update.") {
+                        entry.reason = "Processed narrative entities (Legacy Log).";
+                        cleaned = true;
                     }
                 });
-                $(this).find('.inline-drawer-icon').toggleClass('down');
-            });
-
-            // Live auto-grow for autoSetHeight textareas inside our settings
-            $('.rpg-tracker-settings').on('input', 'textarea.autoSetHeight', function() {
-                $(this).css('height', '0px');
-                $(this).css('height', ($(this).prop('scrollHeight') + 3) + 'px');
-            });
-
-
-            const settings = getSettings();
-
-            // --- Automatic Stock Prompt Synchronization ---
-            // Always ensure stockPrompts exists — users without saved settings need defaults
-            if (!settings.stockPrompts) settings.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
-            {
-                let changed = false;
-
-                // Modern Quests: update if it has the old format (missing "progress" field)
-                if (settings.stockPrompts.quests &&
-                    settings.stockPrompts.quests.includes('"id", "status"') &&
-                    !settings.stockPrompts.quests.includes('"progress"')) {
-                    settings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
-                    console.log('[RPG Tracker] Synchronized modern quest prompt (added progress tracking).');
-                    changed = true;
-                }
-
-                // Legacy Quests: update if it's missing OBJ_TOTAL
-                if (settings.stockPrompts.quests_legacy &&
-                    settings.stockPrompts.quests_legacy.includes('OBJ_ACTIVE') &&
-                    !settings.stockPrompts.quests_legacy.includes('OBJ_TOTAL')) {
-                    settings.stockPrompts.quests_legacy = DEFAULT_STOCK_PROMPTS.quests_legacy;
-                    console.log('[RPG Tracker] Synchronized legacy quest prompt (added progress tracking).');
-                    changed = true;
-                }
-
-                // Ensure quests_legacy slot always exists as a reference
-                if (!settings.stockPrompts.quests_legacy) {
-                    settings.stockPrompts.quests_legacy = DEFAULT_STOCK_PROMPTS.quests_legacy;
-                    changed = true;
-                }
-
-                // ── Definitive quest prompt selection at init ────────────────────
-                // Write the correct prompt into stockPrompts.quests based on questLegacyMode.
-                // This is the authoritative source — the runtime swap in buildModulesInstructionText
-                // is a belt-and-suspenders backup, but this guarantees correctness at startup.
-                if (settings.questLegacyMode) {
-                    const isDeadlines = !!settings.syspromptModules?.questsDeadlines;
-                    const isFrustration = !!settings.syspromptModules?.questsFrustration;
-                    let legacyPrompt = settings.stockPrompts.quests_legacy || DEFAULT_STOCK_PROMPTS.quests_legacy;
-                    if (!isDeadlines) legacyPrompt = legacyPrompt.replace(/\n\s*DEADLINE:.*?\n/g, '\n');
-                    if (!isFrustration) legacyPrompt = legacyPrompt.replace(/\n\s*FRUSTRATION_COEFF:.*?\n/g, '\n');
-                    if (!settings.stockPrompts.quests || !settings.stockPrompts.quests.includes('OBJ_ACTIVE')) {
-                        settings.stockPrompts.quests = legacyPrompt;
-                        console.log('[RPG Tracker] Init: wrote LEGACY prompt into quests slot (questLegacyMode=true).');
-                        changed = true;
-                    }
-                } else {
-                    // Ensure modern/JSON prompt is in the quests slot
-                    if (!settings.stockPrompts.quests || (settings.stockPrompts.quests.includes('OBJ_ACTIVE') &&
-                        !settings.stockPrompts.quests.includes('updates'))) {
-                        settings.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
-                        console.log('[RPG Tracker] Init: wrote MODERN prompt into quests slot (questLegacyMode=false).');
-                        changed = true;
-                    }
-                }
-
-                if (changed) {
-                    saveSettings();
-                }
-
-                // Diagnostic: confirm the final quest mode state at init
-                console.log(`[RPG Tracker] Quest mode at init: questLegacyMode=${settings.questLegacyMode}, quests slot=${settings.stockPrompts.quests?.includes?.('updates') ? 'MODERN/JSON' : settings.stockPrompts.quests?.includes?.('OBJ_ACTIVE') ? 'LEGACY' : 'UNKNOWN'}`);
-
-                // Retroactive Log Cleanup: replace generic messages with more descriptive ones
-                if (settings.routerLog && settings.routerLog.length > 0) {
-                    let cleaned = false;
-                    settings.routerLog.forEach(entry => {
-                        if (entry.reason === "Tag-based update.") {
-                            entry.reason = "Processed narrative entities (Legacy Log).";
-                            cleaned = true;
-                        }
-                    });
-                    if (cleaned) saveSettings();
-                }
+                if (cleaned) saveSettings();
             }
+        }
 
-            $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
-                settings.enabled = !!$(this).prop('checked');
-                saveSettings();
-                updatePanelStatus();
-            });
+        $('#rpg_tracker_enabled').prop('checked', settings.enabled).on('change', function () {
+            settings.enabled = !!$(this).prop('checked');
+            saveSettings();
+            updatePanelStatus();
+        });
 
-            $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
-                settings.debugMode = !!$(this).prop('checked');
-                saveSettings();
-            });
+        $('#rpg_tracker_debug').prop('checked', settings.debugMode).on('change', function () {
+            settings.debugMode = !!$(this).prop('checked');
+            saveSettings();
+        });
 
-            // RNG Help Popup Trigger (Settings)
-            $('.rt-rng-help-icon').on('click', (e) => {
-                e.stopPropagation();
-                showRngExplanation();
-            });
+        // RNG Help Popup Trigger (Settings)
+        $('.rt-rng-help-icon').on('click', (e) => {
+            e.stopPropagation();
+            showRngExplanation();
+        });
 
-            $('#rpg_tracker_legacy_dice').prop('checked', settings.legacyDiceNaming).on('change', function () {
-                settings.legacyDiceNaming = !!$(this).prop('checked');
-                saveSettings();
-                registerDiceFunctionTool();
-                registerDiceSlashCommand();
-                toastr['info']("Dice logic updated.", "RPG Tracker");
-            });
-
-            $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
-                settings.diceFunctionTool = !!$(this).prop('checked');
-                saveSettings();
-                registerDiceFunctionTool();
-            });
-
-            $('#rpg_tracker_chat_link_enabled').on('change', function () {
-                const s = getSettings();
-                const turningOn = !!$(this).prop('checked');
-                
-                // If we're turning it on from the settings menu, just simulate the button click logic
-                // but keep it simple here. The panel button is the primary toggle.
-                s.chatLinkEnabled = turningOn;
-                saveSettings();
-                updateChatLinkUI();
-                
-                if (turningOn && _currentChatId) {
-                    const saved = s.chatStates?.[_currentChatId];
-                    if (saved && saved.currentMemo && s.currentMemo && s.currentMemo !== saved.currentMemo) {
-                        // In settings we'll just do the safe silent restore if they checked the box
-                        // because async confirms in jQuery 'change' events can be janky.
-                        // The panel button handles the explicit decision better.
-                        loadChatState(_currentChatId);
-                    } else {
-                        const found = loadChatState(_currentChatId);
-                        if (!found) saveChatState(_currentChatId);
-                    }
-                }
-            });
-
-            $('#rpg_tracker_clear_chat_states').on('click', function () {
-                const s = getSettings();
-                const count = Object.keys(s.chatStates || {}).length;
-                if (count === 0) return toastr['info']('No saved chat states to clear.', 'RPG Tracker');
-                if (confirm(`Clear ALL ${count} saved chat state(s)?\n\nThis removes the auto-saved tracker data for every chat. Your current live state is unaffected.\n\nProceed?`)) {
-                    s.chatStates = {};
-                    saveSettings();
-                    toastr['success'](`Cleared ${count} chat state(s).`, 'RPG Tracker');
-                }
-            });
-
-            // ─── Event Hooks ───
-            eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
-            eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
-
-            // ─── Chat Link ───
-            eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-            // Bootstrap: restore state for whichever chat is already open
-            const bootChatId = ctx.getCurrentChatId?.() || null;
-            _currentChatId = bootChatId;
-            if (bootChatId && settings.chatLinkEnabled) {
-                loadChatState(bootChatId);
-            }
-            // Always run activation when routerEnabled — regardless of chatLinkEnabled —
-            // so the correct lorebook stack is live from the very first message.
-            if (settings.routerEnabled && bootChatId) {
-                const bootBooks = settings.chatStates?.[bootChatId]?.campaignBooks;
-                if (bootBooks?.length && typeof ctx.executeSlashCommandsWithOptions === 'function') {
-                    // Fast path: exact book list known — skip the slow registry scan.
-                    (async () => {
-                        for (const name of bootBooks) {
-                            await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${name}"`).catch(() => {});
-                        }
-                    })();
-                } else {
-                    // Fallback for first-time chats where no saved book list exists yet.
-                    syncCampaignPrefixAndWorldsForChat(bootChatId, 'BOOTSTRAP');
-                }
-            }
-
-            // ─── Dice System ───
-            installInterceptor();
-            installRouterInterceptor();
-
-            // Ensure managed lorebook entries have disable:true so ST's native keyword
-            // scanner never injects them. Fire-and-forget — non-blocking on startup.
-            const s = getSettings();
-            if (s.routerEnabled) disableManagedEntries().catch(e => console.warn('[RPG Tracker] disableManagedEntries on init failed:', e));
-
+        $('#rpg_tracker_legacy_dice').prop('checked', settings.legacyDiceNaming).on('change', function () {
+            settings.legacyDiceNaming = !!$(this).prop('checked');
+            saveSettings();
             registerDiceFunctionTool();
             registerDiceSlashCommand();
+            toastr['info']("Dice logic updated.", "RPG Tracker");
+        });
 
-            // ─── Quest System ───
-            import('./quests.js').then(({ registerLogQuestTool, installQuestDebugTools, computeFrustration }) => {
-                registerLogQuestTool();
-                installQuestDebugTools();
-                // Expose for renderQuestLog (renderer can't import dynamically)
-                // getQuestMood is from memo-processor.js (no circular dep)
-                globalThis.__rpgQuestUtils = { computeFrustration, getQuestMood };
-            }).catch(e => console.error('[RPG Tracker] quests.js failed to load:', e));
+        $('#rpg_tracker_dice_function_tool').prop('checked', settings.diceFunctionTool).on('change', function () {
+            settings.diceFunctionTool = !!$(this).prop('checked');
+            saveSettings();
+            registerDiceFunctionTool();
+        });
 
-            initializeDebugViewer();
+        $('#rpg_tracker_chat_link_enabled').on('change', function () {
+            const s = getSettings();
+            const turningOn = !!$(this).prop('checked');
 
-            // Connection Settings
-            const sourceSelect = $('#rpg_tracker_connection_source');
-            const profileGroup = $('#rpg_tracker_profile_group');
-            const profileSelect = $('#rpg_tracker_connection_profile');
-            const ollamaGroup = $('#rpg_tracker_ollama_group');
-            const openaiGroup = $('#rpg_tracker_openai_group');
+            // If we're turning it on from the settings menu, just simulate the button click logic
+            // but keep it simple here. The panel button is the primary toggle.
+            s.chatLinkEnabled = turningOn;
+            saveSettings();
+            updateChatLinkUI();
 
-
-            function updateConnectionPanels() {
-                const source = sourceSelect.val();
-                profileGroup.toggle(source === 'profile');
-                ollamaGroup.toggle(source === 'ollama');
-                openaiGroup.toggle(source === 'openai');
+            if (turningOn && _currentChatId) {
+                const saved = s.chatStates?.[_currentChatId];
+                if (saved && saved.currentMemo && s.currentMemo && s.currentMemo !== saved.currentMemo) {
+                    // In settings we'll just do the safe silent restore if they checked the box
+                    // because async confirms in jQuery 'change' events can be janky.
+                    // The panel button handles the explicit decision better.
+                    loadChatState(_currentChatId);
+                } else {
+                    const found = loadChatState(_currentChatId);
+                    if (!found) saveChatState(_currentChatId);
+                }
             }
+        });
 
-            sourceSelect.val(settings.connectionSource).on('change', function () {
-                settings.connectionSource = $(this).val();
-                updateConnectionPanels();
+        $('#rpg_tracker_clear_chat_states').on('click', function () {
+            const s = getSettings();
+            const count = Object.keys(s.chatStates || {}).length;
+            if (count === 0) return toastr['info']('No saved chat states to clear.', 'RPG Tracker');
+            if (confirm(`Clear ALL ${count} saved chat state(s)?\n\nThis removes the auto-saved tracker data for every chat. Your current live state is unaffected.\n\nProceed?`)) {
+                s.chatStates = {};
                 saveSettings();
-            });
+                toastr['success'](`Cleared ${count} chat state(s).`, 'RPG Tracker');
+            }
+        });
+
+        // ─── Event Hooks ───
+        eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+        eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+
+        // ─── Chat Link ───
+        eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
+        // Bootstrap: restore state for whichever chat is already open
+        const bootChatId = ctx.getCurrentChatId?.() || null;
+        _currentChatId = bootChatId;
+        if (bootChatId && settings.chatLinkEnabled) {
+            loadChatState(bootChatId);
+        }
+        // Always run activation when routerEnabled — regardless of chatLinkEnabled —
+        // so the correct lorebook stack is live from the very first message.
+        if (settings.routerEnabled && bootChatId) {
+            const bootBooks = settings.chatStates?.[bootChatId]?.campaignBooks;
+            if (bootBooks?.length && typeof ctx.executeSlashCommandsWithOptions === 'function') {
+                // Fast path: exact book list known — skip the slow registry scan.
+                (async () => {
+                    for (const name of bootBooks) {
+                        await ctx.executeSlashCommandsWithOptions(`/world state=on silent=true "${name}"`).catch(() => { });
+                    }
+                })();
+            } else {
+                // Fallback for first-time chats where no saved book list exists yet.
+                syncCampaignPrefixAndWorldsForChat(bootChatId, 'BOOTSTRAP');
+            }
+        }
+
+        // ─── Dice System ───
+        installInterceptor();
+        installRouterInterceptor();
+
+        // Ensure managed lorebook entries have disable:true so ST's native keyword
+        // scanner never injects them. Fire-and-forget — non-blocking on startup.
+        const s = getSettings();
+        if (s.routerEnabled) disableManagedEntries().catch(e => console.warn('[RPG Tracker] disableManagedEntries on init failed:', e));
+
+        registerDiceFunctionTool();
+        registerDiceSlashCommand();
+
+        // ─── Quest System ───
+        import('./quests.js').then(({ registerLogQuestTool, installQuestDebugTools, computeFrustration }) => {
+            registerLogQuestTool();
+            installQuestDebugTools();
+            // Expose for renderQuestLog (renderer can't import dynamically)
+            // getQuestMood is from memo-processor.js (no circular dep)
+            globalThis.__rpgQuestUtils = { computeFrustration, getQuestMood };
+        }).catch(e => console.error('[RPG Tracker] quests.js failed to load:', e));
+
+        initializeDebugViewer();
+
+        // Connection Settings
+        const sourceSelect = $('#rpg_tracker_connection_source');
+        const profileGroup = $('#rpg_tracker_profile_group');
+        const profileSelect = $('#rpg_tracker_connection_profile');
+        const ollamaGroup = $('#rpg_tracker_ollama_group');
+        const openaiGroup = $('#rpg_tracker_openai_group');
+
+
+        function updateConnectionPanels() {
+            const source = sourceSelect.val();
+            profileGroup.toggle(source === 'profile');
+            ollamaGroup.toggle(source === 'ollama');
+            openaiGroup.toggle(source === 'openai');
+        }
+
+        sourceSelect.val(settings.connectionSource).on('change', function () {
+            settings.connectionSource = $(this).val();
             updateConnectionPanels();
+            saveSettings();
+        });
+        updateConnectionPanels();
 
-            // Ollama
-            $('#rpg_tracker_ollama_url').val(settings.ollamaUrl).on('input', function () {
-                settings.ollamaUrl = $(this).val();
-                saveSettings();
-            });
-            const ollamaModelSelect = $('#rpg_tracker_ollama_model');
-            ollamaModelSelect.val(settings.ollamaModel).on('change', function () {
-                settings.ollamaModel = $(this).val();
-                saveSettings();
-            });
+        // Ollama
+        $('#rpg_tracker_ollama_url').val(settings.ollamaUrl).on('input', function () {
+            settings.ollamaUrl = $(this).val();
+            saveSettings();
+        });
+        const ollamaModelSelect = $('#rpg_tracker_ollama_model');
+        ollamaModelSelect.val(settings.ollamaModel).on('change', function () {
+            settings.ollamaModel = $(this).val();
+            saveSettings();
+        });
 
-            async function refreshOllamaModelsList() {
-                const url = $('#rpg_tracker_ollama_url').val();
-                if (!url) return toastr['info']("Please enter an Ollama URL first.");
-                try {
-                    toastr['info']("Fetching Ollama models...");
-                    const models = await fetchOllamaModels(url);
-                    ollamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
-                    models.forEach(m => {
-                        ollamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
-                    });
-                    ollamaModelSelect.val(settings.ollamaModel);
-                    toastr['success']("Ollama models updated.");
-                } catch (e) {
-                    console.error("[RPG Tracker] Ollama fetch failed:", e);
-                    toastr['error']("Failed to fetch Ollama models. Check console.");
-                }
+        async function refreshOllamaModelsList() {
+            const url = $('#rpg_tracker_ollama_url').val();
+            if (!url) return toastr['info']("Please enter an Ollama URL first.");
+            try {
+                toastr['info']("Fetching Ollama models...");
+                const models = await fetchOllamaModels(url);
+                ollamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                models.forEach(m => {
+                    ollamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
+                });
+                ollamaModelSelect.val(settings.ollamaModel);
+                toastr['success']("Ollama models updated.");
+            } catch (e) {
+                console.error("[RPG Tracker] Ollama fetch failed:", e);
+                toastr['error']("Failed to fetch Ollama models. Check console.");
             }
-            $('#rpg_tracker_ollama_refresh').on('click', refreshOllamaModelsList);
+        }
+        $('#rpg_tracker_ollama_refresh').on('click', refreshOllamaModelsList);
 
-            // OpenAI
-            $('#rpg_tracker_openai_url').val(settings.openaiUrl).on('input', function () {
-                settings.openaiUrl = $(this).val();
-                saveSettings();
-            });
-            $('#rpg_tracker_openai_key').val(settings.openaiKey).on('input', function () {
-                settings.openaiKey = $(this).val();
-                saveSettings();
-            });
+        // OpenAI
+        $('#rpg_tracker_openai_url').val(settings.openaiUrl).on('input', function () {
+            settings.openaiUrl = $(this).val();
+            saveSettings();
+        });
+        $('#rpg_tracker_openai_key').val(settings.openaiKey).on('input', function () {
+            settings.openaiKey = $(this).val();
+            saveSettings();
+        });
 
-            const openaiModelSelect = $('#rpg_tracker_openai_model');
-            const openaiModelManual = $('#rpg_tracker_openai_model_manual');
+        const openaiModelSelect = $('#rpg_tracker_openai_model');
+        const openaiModelManual = $('#rpg_tracker_openai_model_manual');
 
-            // The effective model is: manual input (if filled) > dropdown selection
-            function getOpenAIModel() {
-                const manual = String(openaiModelManual.val() || '').trim();
-                return manual || String(openaiModelSelect.val() || '') || '';
+        // The effective model is: manual input (if filled) > dropdown selection
+        function getOpenAIModel() {
+            const manual = String(openaiModelManual.val() || '').trim();
+            return manual || String(openaiModelSelect.val() || '') || '';
+        }
+
+        // Initialize: if saved model isn't in dropdown yet, show it in the manual field
+        openaiModelManual.val(settings.openaiModel || '');
+        openaiModelSelect.on('change', function () {
+            const val = $(this).val();
+            if (val) {
+                // Dropdown selected — clear manual, save selection
+                openaiModelManual.val('');
+                settings.openaiModel = val;
+            } else {
+                settings.openaiModel = String(openaiModelManual.val() || '').trim() || '';
             }
+            saveSettings();
+        });
+        openaiModelManual.on('input', function () {
+            const manual = String($(this).val() || '').trim();
+            if (manual) {
+                // Manual overrides dropdown — deselect it visually
+                openaiModelSelect.val('');
+            }
+            settings.openaiModel = manual || openaiModelSelect.val() || '';
+            saveSettings();
+        });
 
-            // Initialize: if saved model isn't in dropdown yet, show it in the manual field
-            openaiModelManual.val(settings.openaiModel || '');
-            openaiModelSelect.on('change', function () {
-                const val = $(this).val();
-                if (val) {
-                    // Dropdown selected — clear manual, save selection
+        async function refreshOpenAIModelsList() {
+            const url = $('#rpg_tracker_openai_url').val();
+            const key = $('#rpg_tracker_openai_key').val();
+            if (!url) return toastr['info']("Please enter an Endpoint URL first.");
+            try {
+                toastr['info']("Fetching models from endpoint...");
+                const models = await fetchOpenAIModels(url, key);
+                openaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                models.forEach(m => {
+                    const id = typeof m === 'string' ? m : (m.id || m.name);
+                    if (id) openaiModelSelect.append($('<option></option>').val(id).text(id));
+                });
+                // Restore saved selection
+                const saved = settings.openaiModel;
+                if (saved && openaiModelSelect.find(`option[value="${saved}"]`).length) {
+                    openaiModelSelect.val(saved);
                     openaiModelManual.val('');
-                    settings.openaiModel = val;
-                } else {
-                    settings.openaiModel = String(openaiModelManual.val() || '').trim() || '';
                 }
-                saveSettings();
-            });
-            openaiModelManual.on('input', function () {
-                const manual = String($(this).val() || '').trim();
-                if (manual) {
-                    // Manual overrides dropdown — deselect it visually
-                    openaiModelSelect.val('');
-                }
-                settings.openaiModel = manual || openaiModelSelect.val() || '';
-                saveSettings();
-            });
-
-            async function refreshOpenAIModelsList() {
-                const url = $('#rpg_tracker_openai_url').val();
-                const key = $('#rpg_tracker_openai_key').val();
-                if (!url) return toastr['info']("Please enter an Endpoint URL first.");
-                try {
-                    toastr['info']("Fetching models from endpoint...");
-                    const models = await fetchOpenAIModels(url, key);
-                    openaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
-                    models.forEach(m => {
-                        const id = typeof m === 'string' ? m : (m.id || m.name);
-                        if (id) openaiModelSelect.append($('<option></option>').val(id).text(id));
-                    });
-                    // Restore saved selection
-                    const saved = settings.openaiModel;
-                    if (saved && openaiModelSelect.find(`option[value="${saved}"]`).length) {
-                        openaiModelSelect.val(saved);
-                        openaiModelManual.val('');
-                    }
-                    toastr['success'](`${models.length} model(s) found.`);
-                } catch (e) {
-                    console.error("[RPG Tracker] OpenAI fetch failed:", e);
-                    // Show a short toast; full details logged to console
-                    toastr['warning'](
-                        "Cannot auto-detect models (CORS). Type the model name manually below, or enable enableCorsProxy: true in ST's config.yaml.",
-                        "Model Sniffing Unavailable",
-                        { timeOut: 8000 }
-                    );
-                }
-            }
-            $('#rpg_tracker_openai_refresh').on('click', refreshOpenAIModelsList);
-
-            $('#rpg_tracker_openai_test').on('click', async function () {
-                const url = $('#rpg_tracker_openai_url').val();
-                const key = $('#rpg_tracker_openai_key').val();
-                const model = getOpenAIModel();
-                if (!url) return toastr['info']("Enter the Endpoint URL first.");
-                if (!model) return toastr['info']("Enter or select a model name first.");
-                toastr['info']("Testing OpenAI connection...");
-                const result = await testOpenAIConnection(url, key, model);
-                if (result.success) {
-                    toastr['success'](result.message);
-                    await refreshOpenAIModelsList();
-                } else {
-                    toastr['error'](result.message);
-                }
-            });
-
-
-
-            // Advanced Options
-            const lookbackInput = $('#rpg_tracker_lookback_messages');
-            if (lookbackInput.length) {
-                lookbackInput.val(settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2).on('input', function () {
-                    settings.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 2;
-                    saveSettings();
-                });
-            }
-            const historyCountInput = $('#rpg_tracker_history_count');
-            if (historyCountInput.length) {
-                historyCountInput.val(settings.trackerHistoryCount !== undefined ? settings.trackerHistoryCount : 1).on('input', function () {
-                    settings.trackerHistoryCount = parseInt(/** @type {string} */($(this).val())) || 1;
-                    saveSettings();
-                });
-            }
-            const fullAuditMaxTokensInput = $('#rpg_tracker_full_audit_max_tokens');
-            if (fullAuditMaxTokensInput.length) {
-                fullAuditMaxTokensInput.val(settings.fullAuditMaxTokens !== undefined ? settings.fullAuditMaxTokens : 32000).on('input', function () {
-                    settings.fullAuditMaxTokens = parseInt(/** @type {string} */($(this).val())) || 32000;
-                    saveSettings();
-                });
-            }
-            const stateRunEveryInput = $('#rpg_tracker_state_run_every');
-            if (stateRunEveryInput.length) {
-                stateRunEveryInput.val(settings.stateTrackerRunEvery !== undefined ? settings.stateTrackerRunEvery : 1).on('input', function () {
-                    settings.stateTrackerRunEvery = Math.max(1, parseInt(/** @type {string} */($(this).val())) || 1);
-                    saveSettings();
-                });
-            }
-
-            // ── Experimental Features ──
-            $('#rpg_tracker_experimental_full_review').prop('checked', !!settings.experimentalFullReviewMode).on('change', function () {
-                settings.experimentalFullReviewMode = !!$(this).prop('checked');
-                saveSettings();
-                toastr['info'](
-                    settings.experimentalFullReviewMode
-                        ? 'Full Review Mode enabled. The State Tracker will now output ALL sections on each update.'
-                        : 'Full Review Mode disabled. The State Tracker will only output changed sections.',
-                    'Experimental Features'
+                toastr['success'](`${models.length} model(s) found.`);
+            } catch (e) {
+                console.error("[RPG Tracker] OpenAI fetch failed:", e);
+                // Show a short toast; full details logged to console
+                toastr['warning'](
+                    "Cannot auto-detect models (CORS). Type the model name manually below, or enable enableCorsProxy: true in ST's config.yaml.",
+                    "Model Sniffing Unavailable",
+                    { timeOut: 8000 }
                 );
+            }
+        }
+        $('#rpg_tracker_openai_refresh').on('click', refreshOpenAIModelsList);
+
+        $('#rpg_tracker_openai_test').on('click', async function () {
+            const url = $('#rpg_tracker_openai_url').val();
+            const key = $('#rpg_tracker_openai_key').val();
+            const model = getOpenAIModel();
+            if (!url) return toastr['info']("Enter the Endpoint URL first.");
+            if (!model) return toastr['info']("Enter or select a model name first.");
+            toastr['info']("Testing OpenAI connection...");
+            const result = await testOpenAIConnection(url, key, model);
+            if (result.success) {
+                toastr['success'](result.message);
+                await refreshOpenAIModelsList();
+            } else {
+                toastr['error'](result.message);
+            }
+        });
+
+
+
+        // Advanced Options
+        const lookbackInput = $('#rpg_tracker_lookback_messages');
+        if (lookbackInput.length) {
+            lookbackInput.val(settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2).on('input', function () {
+                settings.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 2;
+                saveSettings();
             });
+        }
+        const historyCountInput = $('#rpg_tracker_history_count');
+        if (historyCountInput.length) {
+            historyCountInput.val(settings.trackerHistoryCount !== undefined ? settings.trackerHistoryCount : 1).on('input', function () {
+                settings.trackerHistoryCount = parseInt(/** @type {string} */($(this).val())) || 1;
+                saveSettings();
+            });
+        }
+        const fullAuditMaxTokensInput = $('#rpg_tracker_full_audit_max_tokens');
+        if (fullAuditMaxTokensInput.length) {
+            fullAuditMaxTokensInput.val(settings.fullAuditMaxTokens !== undefined ? settings.fullAuditMaxTokens : 32000).on('input', function () {
+                settings.fullAuditMaxTokens = parseInt(/** @type {string} */($(this).val())) || 32000;
+                saveSettings();
+            });
+        }
+        const stateRunEveryInput = $('#rpg_tracker_state_run_every');
+        if (stateRunEveryInput.length) {
+            stateRunEveryInput.val(settings.stateTrackerRunEvery !== undefined ? settings.stateTrackerRunEvery : 1).on('input', function () {
+                settings.stateTrackerRunEvery = Math.max(1, parseInt(/** @type {string} */($(this).val())) || 1);
+                saveSettings();
+            });
+        }
 
-            // ── Lorebook Context UI ──
-            async function refreshLorebookList() {
-                const $container = $('#rpg_tracker_lorebook_list');
-                $container.empty();
-                const stCtx = SillyTavern.getContext();
-                let worldNames = [];
-                try {
+        // ── Experimental Features ──
+        // Migration: old experimentalFullReviewMode → experimentalHalfReviewMode
+        if (settings.experimentalFullReviewMode && !settings.experimentalHalfReviewMode && !settings._reviewModeMigrated) {
+            settings.experimentalHalfReviewMode = true;
+            settings.experimentalFullReviewMode = false;
+            settings._reviewModeMigrated = true;
+            saveSettings();
+            if (settings.debugMode) console.log('[RPG Tracker] Migrated old Full Review Mode → Half Review Mode.');
+        }
+
+        $('#rpg_tracker_experimental_half_review').prop('checked', !!settings.experimentalHalfReviewMode).on('change', function () {
+            settings.experimentalHalfReviewMode = !!$(this).prop('checked');
+            if (settings.experimentalHalfReviewMode && settings.experimentalFullReviewMode) {
+                settings.experimentalFullReviewMode = false;
+                $('#rpg_tracker_experimental_full_review').prop('checked', false);
+            }
+            saveSettings();
+            toastr['info'](
+                settings.experimentalHalfReviewMode
+                    ? 'Half Review Mode enabled. The State Tracker will output ALL sections using regex-adjusted prompts.'
+                    : 'Half Review Mode disabled. The State Tracker will only output changed sections.',
+                'Experimental Features'
+            );
+        });
+
+        $('#rpg_tracker_experimental_full_review').prop('checked', !!settings.experimentalFullReviewMode).on('change', function () {
+            settings.experimentalFullReviewMode = !!$(this).prop('checked');
+            if (settings.experimentalFullReviewMode && settings.experimentalHalfReviewMode) {
+                settings.experimentalHalfReviewMode = false;
+                $('#rpg_tracker_experimental_half_review').prop('checked', false);
+            }
+            saveSettings();
+            toastr['info'](
+                settings.experimentalFullReviewMode
+                    ? 'FULL Review Mode enabled. The State Tracker will AGGRESSIVELY force complete state output for every section including custom fields.'
+                    : 'Full Review Mode disabled. The State Tracker will only output changed sections.',
+                'Experimental Features'
+            );
+        });
+
+        // ── Lorebook Context UI ──
+        async function refreshLorebookList() {
+            const $container = $('#rpg_tracker_lorebook_list');
+            $container.empty();
+            const stCtx = SillyTavern.getContext();
+            let worldNames = [];
+            try {
+                worldNames = stCtx.getWorldInfoNames?.() ?? [];
+
+                // If empty, the in-memory world_names may not be populated yet.
+                // Force a backend refresh and retry.
+                if (!worldNames.length && stCtx.updateWorldInfoList) {
+                    if (settings.debugMode) console.log('[RPG Tracker] world_names empty — forcing backend refresh…');
+                    await stCtx.updateWorldInfoList();
                     worldNames = stCtx.getWorldInfoNames?.() ?? [];
+                }
 
-                    // If empty, the in-memory world_names may not be populated yet.
-                    // Force a backend refresh and retry.
-                    if (!worldNames.length && stCtx.updateWorldInfoList) {
-                        if (settings.debugMode) console.log('[RPG Tracker] world_names empty — forcing backend refresh…');
-                        await stCtx.updateWorldInfoList();
-                        worldNames = stCtx.getWorldInfoNames?.() ?? [];
-                    }
-
-                    // Final fallback: direct backend fetch (covers edge cases and older ST versions)
-                    if (!worldNames.length) {
-                        if (settings.debugMode) console.log('[RPG Tracker] world_names still empty — falling back to direct API fetch…');
-                        try {
-                            const resp = await fetch('/api/settings/get', {
-                                method: 'POST',
-                                headers: stCtx.getRequestHeaders(),
-                                body: JSON.stringify({}),
-                            });
-                            if (resp.ok) {
-                                const data = await resp.json();
-                                worldNames = data.world_names ?? [];
-                            }
-                        } catch (fetchErr) {
-                            console.warn('[RPG Tracker] Direct world_names fetch failed:', fetchErr);
+                // Final fallback: direct backend fetch (covers edge cases and older ST versions)
+                if (!worldNames.length) {
+                    if (settings.debugMode) console.log('[RPG Tracker] world_names still empty — falling back to direct API fetch…');
+                    try {
+                        const resp = await fetch('/api/settings/get', {
+                            method: 'POST',
+                            headers: stCtx.getRequestHeaders(),
+                            body: JSON.stringify({}),
+                        });
+                        if (resp.ok) {
+                            const data = await resp.json();
+                            worldNames = data.world_names ?? [];
                         }
+                    } catch (fetchErr) {
+                        console.warn('[RPG Tracker] Direct world_names fetch failed:', fetchErr);
                     }
-                } catch (e) {
-                    console.warn('[RPG Tracker] getWorldInfoNames() failed:', e);
                 }
+            } catch (e) {
+                console.warn('[RPG Tracker] getWorldInfoNames() failed:', e);
+            }
 
-                if (!worldNames || worldNames.length === 0) {
-                    $container.append('<i style="opacity:0.6;">No lorebooks found.</i>');
-                    return;
-                }
+            if (!worldNames || worldNames.length === 0) {
+                $container.append('<i style="opacity:0.6;">No lorebooks found.</i>');
+                return;
+            }
 
-                const currentFilter = settings.lorebookFilter || [];
-                const sortedBooks = [...worldNames].sort();
+            const currentFilter = settings.lorebookFilter || [];
+            const sortedBooks = [...worldNames].sort();
 
-                sortedBooks.forEach(bookName => {
-                    const isChecked = currentFilter.includes(bookName);
-                    const $item = $(`<label class="checkbox_label" style="font-size: 0.9em;">
+            sortedBooks.forEach(bookName => {
+                const isChecked = currentFilter.includes(bookName);
+                const $item = $(`<label class="checkbox_label" style="font-size: 0.9em;">
                         <input type="checkbox" data-book="${bookName}" ${isChecked ? 'checked' : ''} />
                         <span>${bookName}</span>
                     </label>`);
 
-                    $item.find('input').on('change', function () {
-                        const book = $(this).data('book');
-                        if (!Array.isArray(settings.lorebookFilter)) settings.lorebookFilter = [];
-                        if ($(this).prop('checked')) {
-                            if (!settings.lorebookFilter.includes(book)) {
-                                settings.lorebookFilter.push(book);
-                            }
-                        } else {
-                            settings.lorebookFilter = settings.lorebookFilter.filter(b => b !== book);
+                $item.find('input').on('change', function () {
+                    const book = $(this).data('book');
+                    if (!Array.isArray(settings.lorebookFilter)) settings.lorebookFilter = [];
+                    if ($(this).prop('checked')) {
+                        if (!settings.lorebookFilter.includes(book)) {
+                            settings.lorebookFilter.push(book);
                         }
-                        saveSettings();
-                    });
-                    $container.append($item);
-                });
-            }
-
-            $('#rpg_tracker_ctx_worldinfo').prop('checked', settings.ctxWorldInfo ?? false).on('change', async function () {
-                settings.ctxWorldInfo = !!$(this).prop('checked');
-                if (settings.ctxWorldInfo) await refreshLorebookList();
-                $('#rpg_tracker_lorebook_filter_group').toggle(settings.ctxWorldInfo);
-                saveSettings();
-            }).trigger('change');
-
-            $('#rpg_tracker_lorebook_list_refresh').on('click', async function () {
-                await refreshLorebookList();
-            });
-
-            // Theme Select + Wizard
-            const themeSelect = $('#rpg_tracker_theme_select');
-            themeSelect.val(settings.trackerTheme || 'rt-theme-native');
-
-            const wizardBlock = document.getElementById('rpg_tracker_theme_wizard_block');
-            const showHideWizard = (theme) => {
-                if (wizardBlock) wizardBlock.style.display = theme === 'rt-theme-custom' ? 'block' : 'none';
-            };
-            showHideWizard(settings.trackerTheme || 'rt-theme-native');
-
-            // Theme Wizard buttons
-            document.getElementById('rpg_tracker_theme_generate')?.addEventListener('click', () => {
-                openThemeWizard(false);
-            });
-            document.getElementById('rpg_tracker_theme_iterate')?.addEventListener('click', () => {
-                if (!settings.customTheme) {
-                    toastr['info']('No custom theme to iterate on. Generating a new one instead.', 'Theme Wizard');
-                    openThemeWizard(false);
-                } else {
-                    openThemeWizard(true);
-                }
-            });
-
-            // Restore saved custom theme on settings load
-            if (settings.customTheme) applyCustomTheme(settings.customTheme);
-
-            themeSelect.on('change', function () {
-                const newTheme = String($(this).val());
-                settings.trackerTheme = newTheme;
-                saveSettings();
-                showHideWizard(newTheme);
-                const panel = document.getElementById('rpg-tracker-panel');
-                if (panel) {
-                    const isCollapsed = panel.classList.contains('rt-panel-collapsed');
-                    panel.className = `rpg-tracker-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`;
-                    if (!settings.enabled) panel.classList.add('is-disabled');
-                }
-                document.querySelectorAll('.rpg-tracker-detached-panel, .rpg-tracker-agent-panel').forEach(dp => {
-                    const isCollapsed = dp.classList.contains('rt-panel-collapsed');
-                    dp.className = dp.classList.contains('rpg-tracker-agent-panel') 
-                        ? `rpg-tracker-panel rpg-tracker-agent-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`
-                        : `rpg-tracker-panel rpg-tracker-detached-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`;
-                });
-            });
-
-            document.getElementById('rpg_tracker_theme_save')?.addEventListener('click', () => {
-                if (!settings.customTheme) {
-                    toastr['warning']('No custom theme to save. Generate one first!', 'Theme Wizard');
-                    return;
-                }
-                const name = prompt('Enter a name for this theme:', 'My Custom Theme');
-                if (name && name.trim()) {
-                    const trimmedName = name.trim();
-                    if (settings.savedThemes && settings.savedThemes[trimmedName]) {
-                        if (!confirm(`A theme named "${trimmedName}" already exists. Overwrite?`)) return;
+                    } else {
+                        settings.lorebookFilter = settings.lorebookFilter.filter(b => b !== book);
                     }
-                    if (!settings.savedThemes) settings.savedThemes = {};
-                    settings.savedThemes[trimmedName] = JSON.parse(JSON.stringify(settings.customTheme));
                     saveSettings();
-                    refreshSavedThemesList();
-                    toastr['success'](`Saved "${name}" to library.`, 'Theme Library');
-                }
+                });
+                $container.append($item);
             });
-            document.getElementById('rpg_tracker_theme_wizard_undo')?.addEventListener('click', () => {
-                if (themeUndoStack.length === 0) {
-                    toastr['info']('No steps to undo.', 'Theme Wizard');
+        }
+
+        $('#rpg_tracker_ctx_worldinfo').prop('checked', settings.ctxWorldInfo ?? false).on('change', async function () {
+            settings.ctxWorldInfo = !!$(this).prop('checked');
+            if (settings.ctxWorldInfo) await refreshLorebookList();
+            $('#rpg_tracker_lorebook_filter_group').toggle(settings.ctxWorldInfo);
+            saveSettings();
+        }).trigger('change');
+
+        $('#rpg_tracker_lorebook_list_refresh').on('click', async function () {
+            await refreshLorebookList();
+        });
+
+        // Theme Select + Wizard
+        const themeSelect = $('#rpg_tracker_theme_select');
+        themeSelect.val(settings.trackerTheme || 'rt-theme-native');
+
+        const wizardBlock = document.getElementById('rpg_tracker_theme_wizard_block');
+        const showHideWizard = (theme) => {
+            if (wizardBlock) wizardBlock.style.display = theme === 'rt-theme-custom' ? 'block' : 'none';
+        };
+        showHideWizard(settings.trackerTheme || 'rt-theme-native');
+
+        // Theme Wizard buttons
+        document.getElementById('rpg_tracker_theme_generate')?.addEventListener('click', () => {
+            openThemeWizard(false);
+        });
+        document.getElementById('rpg_tracker_theme_iterate')?.addEventListener('click', () => {
+            if (!settings.customTheme) {
+                toastr['info']('No custom theme to iterate on. Generating a new one instead.', 'Theme Wizard');
+                openThemeWizard(false);
+            } else {
+                openThemeWizard(true);
+            }
+        });
+
+        // Restore saved custom theme on settings load
+        if (settings.customTheme) applyCustomTheme(settings.customTheme);
+
+        themeSelect.on('change', function () {
+            const newTheme = String($(this).val());
+            settings.trackerTheme = newTheme;
+            saveSettings();
+            showHideWizard(newTheme);
+            const panel = document.getElementById('rpg-tracker-panel');
+            if (panel) {
+                const isCollapsed = panel.classList.contains('rt-panel-collapsed');
+                panel.className = `rpg-tracker-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`;
+                if (!settings.enabled) panel.classList.add('is-disabled');
+            }
+            document.querySelectorAll('.rpg-tracker-detached-panel, .rpg-tracker-agent-panel').forEach(dp => {
+                const isCollapsed = dp.classList.contains('rt-panel-collapsed');
+                dp.className = dp.classList.contains('rpg-tracker-agent-panel')
+                    ? `rpg-tracker-panel rpg-tracker-agent-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`
+                    : `rpg-tracker-panel rpg-tracker-detached-panel ${isCollapsed ? 'rt-panel-collapsed ' : ''}${newTheme}`;
+            });
+        });
+
+        document.getElementById('rpg_tracker_theme_save')?.addEventListener('click', () => {
+            if (!settings.customTheme) {
+                toastr['warning']('No custom theme to save. Generate one first!', 'Theme Wizard');
+                return;
+            }
+            const name = prompt('Enter a name for this theme:', 'My Custom Theme');
+            if (name && name.trim()) {
+                const trimmedName = name.trim();
+                if (settings.savedThemes && settings.savedThemes[trimmedName]) {
+                    if (!confirm(`A theme named "${trimmedName}" already exists. Overwrite?`)) return;
+                }
+                if (!settings.savedThemes) settings.savedThemes = {};
+                settings.savedThemes[trimmedName] = JSON.parse(JSON.stringify(settings.customTheme));
+                saveSettings();
+                refreshSavedThemesList();
+                toastr['success'](`Saved "${name}" to library.`, 'Theme Library');
+            }
+        });
+        document.getElementById('rpg_tracker_theme_wizard_undo')?.addEventListener('click', () => {
+            if (themeUndoStack.length === 0) {
+                toastr['info']('No steps to undo.', 'Theme Wizard');
+                return;
+            }
+            const prev = themeUndoStack.pop();
+            settings.customTheme = prev;
+            saveSettings();
+            applyCustomTheme(prev);
+            const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.style.color = 'inherit';
+                statusEl.textContent = `Undone last change. (${themeUndoStack.length} steps remaining)`;
+            }
+        });
+
+        refreshSavedThemesList();
+
+        const fontSizeInput = $('#rpg_tracker_font_size');
+        const fontSizeVal = $('#rpg_tracker_font_size_val');
+        fontSizeInput.val(settings.fontSize || 13);
+        if (fontSizeVal.length) fontSizeVal.text((settings.fontSize || 13) + 'px');
+
+        fontSizeInput.on('input', function () {
+            const val = parseInt(String($(this).val()));
+            if (isNaN(val) || val < 8 || val > 32) return;
+            if (fontSizeVal.length) fontSizeVal.text(val + 'px');
+            settings.fontSize = val;
+            saveSettings();
+            updateTrackerFontSize(val);
+        });
+
+        const agentFontSizeInput = $('#rpg_agent_font_size');
+        const agentFontSizeVal = $('#rpg_agent_font_size_val');
+        agentFontSizeInput.val(settings.agentFontSize || 13);
+        if (agentFontSizeVal.length) agentFontSizeVal.text((settings.agentFontSize || 13) + 'px');
+
+        agentFontSizeInput.on('input', function () {
+            const val = parseInt(String($(this).val()));
+            if (isNaN(val) || val < 8 || val > 32) return;
+            if (agentFontSizeVal.length) agentFontSizeVal.text(val + 'px');
+            settings.agentFontSize = val;
+            saveSettings();
+            updateAgentFontSize(val);
+        });
+
+        // Populate profiles using handleDropdown (fills real internal IDs, not names)
+        if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
+            profileSelect.val(settings.connectionProfileId);
+        } else {
+            // Fallback for older ST: /profile-list returns names only
+            const profiles = await getConnectionProfiles();
+            profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
+            profiles.forEach(p => {
+                profileSelect.append($('<option></option>').val(p).text(p));
+            });
+            profileSelect.val(settings.connectionProfileId);
+        }
+        profileSelect.on('change', function () {
+            settings.connectionProfileId = $(this).val();
+            saveSettings();
+        });
+
+        // Populate presets
+        const presetSelect = $('#rpg_tracker_completion_preset');
+        const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
+        if (pm && typeof pm.getAllPresets === 'function') {
+            const presets = pm.getAllPresets();
+            presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+            presets.forEach(p => {
+                presetSelect.append($('<option></option>').val(p).text(p));
+            });
+            presetSelect.val(settings.completionPresetId || '');
+        } else {
+            presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+            if (settings.completionPresetId) {
+                presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
+                presetSelect.val(settings.completionPresetId);
+            }
+        }
+        presetSelect.on('change', function () {
+            settings.completionPresetId = $(this).val();
+            saveSettings();
+        });
+
+        // Initial order list refresh
+        refreshOrderList();
+
+        $('#rpg_tracker_add_custom_field').on('click', function () {
+            const settings = getSettings();
+            if (!settings.customFields) settings.customFields = [];
+
+            let newTag = 'NEW_FIELD';
+            let counter = 1;
+            const isTagTaken = (tag) => BLOCK_ORDER.includes(tag) || settings.customFields.some(f => f.tag.toUpperCase() === tag);
+
+            while (isTagTaken(counter === 1 ? newTag : `${newTag}_${counter}`)) {
+                counter++;
+            }
+            if (counter > 1) newTag = `${newTag}_${counter}`;
+
+            settings.customFields.push({
+                tag: newTag, label: 'New Field', icon: '📝',
+                prompt: '',
+                template: EXAMPLES + '\n\n' + COLOR_EXAMPLES,
+                enabled: true
+            });
+            refreshOrderList();
+            saveSettings();
+        });
+
+        // ── AI Custom Field Creator ──
+        $('#rpg_tracker_add_custom_field_ai').on('click', async function () {
+            const { Popup, POPUP_TYPE } = SillyTavern.getContext();
+            const settings = getSettings();
+            if (!settings.customFields) settings.customFields = [];
+
+            const inputContent = `
+                    <div style="display:flex; flex-direction:column; gap:10px; min-width:min(500px, 90vw);">
+                        <div style="font-size:13px; opacity:0.9; font-weight:bold;">🪄 AI Custom Field Creator</div>
+                        <div style="font-size:11px; opacity:0.7; line-height:1.4;">
+                            Describe what you want to track in plain language. The AI will generate a field name, icon, prompt instruction, and rendering template.
+                        </div>
+                        <textarea id="rt_ai_field_desc" rows="4" class="text_pole"
+                            style="font-size:12px; resize:vertical; width:100%;"
+                            placeholder="Example: A corruption tracker that goes up when the player does evil acts. Show it as a bar out of 100 and list corruption effects as pills."></textarea>
+                    </div>
+                `;
+
+            let description = '';
+            setTimeout(() => {
+                const textarea = document.getElementById('rt_ai_field_desc');
+                if (textarea) {
+                    textarea.addEventListener('input', () => { description = textarea.value.trim(); });
+                }
+            }, 100);
+
+            const inputResult = await Popup.show.confirm('Describe Your Custom Field', inputContent, { okButton: 'Generate', cancelButton: 'Cancel' });
+            if (!inputResult) return;
+
+            if (!description) {
+                toastr['warning']('Please describe what you want to track.', 'AI Field Creator');
+                return;
+            }
+
+            const existingTags = BLOCK_ORDER.concat(settings.customFields.map(f => f.tag.toUpperCase()));
+            const aiPrompt = `You are a configuration generator for a game state tracker extension.
+
+The user's current system prompt is provided below for reference. If the user's requested tracking field relates to an existing mechanic in this system prompt, base your instructions off that system. If it doesn't, proceed as usual:
+<current_prompt>
+${document.getElementById('main_prompt_quick_edit_textarea')?.value || settings.systemPromptTemplate || ''}
+</current_prompt>
+
+The user wants to create a custom tracking field. Their description:
+"${description}"
+
+Available rendering tags (MUST use at least one in the template). Tags can be placed inline (e.g., 'Health: ((BAR)) 50/100'). Pill tags optionally support parenthesis text for descriptions (e.g. 'Status: ((PILLS)) Sleeping (Unconscious)'):
+${RENDERING_TAGS_LIBRARY.map(t => '- ' + t).join('\n')}
+
+Existing Field IDs (DO NOT use these for the new field's ID): ${existingTags.join(', ')}
+
+Return ONLY a valid JSON object with these fields:
+{
+  "tag": "UPPERCASE_FIELD_ID",
+  "label": "Human Readable Label",
+  "icon": "single emoji",
+  "prompt": "Instruction text telling the AI model what to track and exactly how to format it. MUST include a newline, then a literal 'FORMAT:' section, then a newline, then an 'EXAMPLE:' section.",
+  "template": "Example output showing rendering markers. MUST use at least one ((MARKER)) tag. Show realistic example data."
+}
+
+RULES:
+- 'tag' (the field ID) must be UPPERCASE, no spaces, use underscores
+- 'tag' (the field ID) must NOT conflict with the Existing Field IDs listed above
+- You are ENCOURAGED to use any of the available rendering tags, even if they are used by other fields
+- icon must be a single emoji
+- prompt should start with 1-3 sentences of clear and specific instructions
+- prompt MUST include a newline, then 'FORMAT:', then the required layout with rendering markers
+- prompt MUST include a newline, then 'EXAMPLE:', then a realistic made up example of how it should look
+- The AI during gameplay only sees 'prompt', it does NOT see 'template'
+- template MUST use rendering tags — this is just the UI preview for the user. It should match the EXAMPLE you provided in the prompt.
+- NEVER use asterisks (**) for bolding, highlighting, or emphasis. They have no rendering support and break the output. Use ((HIGHLIGHT)) or rendering tags instead.
+- Return ONLY the JSON. No explanation, no markdown fences.`;
+
+            toastr['info']('Generating custom field with AI...', 'AI Field Creator', { timeOut: 3000 });
+            try {
+                const result = await sendStateRequest(settings, 'You are a JSON configuration generator. Return ONLY valid JSON.', aiPrompt);
+                if (!result) throw new Error('No response from AI');
+
+                // Extract JSON from the response (handle markdown fences)
+                let jsonStr = result.trim();
+                const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+                if (fenceMatch) jsonStr = fenceMatch[1].trim();
+
+                const parsed = JSON.parse(jsonStr);
+                if (!parsed.tag || !parsed.label || !parsed.icon || !parsed.prompt || !parsed.template) {
+                    throw new Error('AI returned incomplete field config');
+                }
+
+                // Validate tag doesn't conflict
+                const normalTag = parsed.tag.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+                if (existingTags.includes(normalTag)) {
+                    parsed.tag = normalTag + '_' + Date.now().toString(36).slice(-3).toUpperCase();
+                } else {
+                    parsed.tag = normalTag;
+                }
+
+                // Show preview for approval
+                const previewContent = `
+                        <div style="display:flex; flex-direction:column; gap:10px; min-width:min(500px, 90vw);">
+                            <div style="font-size:13px; font-weight:bold;">🪄 AI Generated Custom Field</div>
+                            <div style="border: 1px solid rgba(255,255,255,0.15); border-radius:8px; padding:12px; background:rgba(255,255,255,0.03);">
+                                <div><b>Tag:</b> [${escapeHtml(parsed.tag)}]</div>
+                                <div><b>Label:</b> ${escapeHtml(parsed.icon)} ${escapeHtml(parsed.label)}</div>
+                                <div style="margin-top:6px;"><b>AI Prompt:</b></div>
+                                <div style="font-size:11px; opacity:0.8; white-space:pre-wrap; padding:6px 8px; background:rgba(0,0,0,0.2); border-radius:4px; margin-top:2px;">${escapeHtml(parsed.prompt)}</div>
+                                <div style="margin-top:6px;"><b>Example Template:</b></div>
+                                <div style="font-size:11px; opacity:0.8; white-space:pre-wrap; padding:6px 8px; background:rgba(0,0,0,0.2); border-radius:4px; margin-top:2px; font-family:monospace;">${escapeHtml(parsed.template)}</div>
+                            </div>
+                        </div>
+                    `;
+
+                const approved = await Popup.show.confirm('Accept Custom Field?', previewContent);
+                if (!approved) {
+                    toastr['info']('Custom field creation cancelled.', 'AI Field Creator');
                     return;
                 }
-                const prev = themeUndoStack.pop();
-                settings.customTheme = prev;
-                saveSettings();
-                applyCustomTheme(prev);
-                const statusEl = document.getElementById('rpg_tracker_theme_wizard_status');
-                if (statusEl) { 
-                    statusEl.style.display = 'block'; 
-                    statusEl.style.color = 'inherit'; 
-                    statusEl.textContent = `Undone last change. (${themeUndoStack.length} steps remaining)`; 
-                }
-            });
-
-            refreshSavedThemesList();
-
-            const fontSizeInput = $('#rpg_tracker_font_size');
-            const fontSizeVal = $('#rpg_tracker_font_size_val');
-            fontSizeInput.val(settings.fontSize || 13);
-            if (fontSizeVal.length) fontSizeVal.text((settings.fontSize || 13) + 'px');
-
-            fontSizeInput.on('input', function() {
-                const val = parseInt(String($(this).val()));
-                if (isNaN(val) || val < 8 || val > 32) return;
-                if (fontSizeVal.length) fontSizeVal.text(val + 'px');
-                settings.fontSize = val;
-                saveSettings();
-                updateTrackerFontSize(val);
-            });
-
-            const agentFontSizeInput = $('#rpg_agent_font_size');
-            const agentFontSizeVal = $('#rpg_agent_font_size_val');
-            agentFontSizeInput.val(settings.agentFontSize || 13);
-            if (agentFontSizeVal.length) agentFontSizeVal.text((settings.agentFontSize || 13) + 'px');
-
-            agentFontSizeInput.on('input', function() {
-                const val = parseInt(String($(this).val()));
-                if (isNaN(val) || val < 8 || val > 32) return;
-                if (agentFontSizeVal.length) agentFontSizeVal.text(val + 'px');
-                settings.agentFontSize = val;
-                saveSettings();
-                updateAgentFontSize(val);
-            });
-
-            // Populate profiles using handleDropdown (fills real internal IDs, not names)
-            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profileSelect[0]);
-                profileSelect.val(settings.connectionProfileId);
-            } else {
-                // Fallback for older ST: /profile-list returns names only
-                const profiles = await getConnectionProfiles();
-                profileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
-                profiles.forEach(p => {
-                    profileSelect.append($('<option></option>').val(p).text(p));
-                });
-                profileSelect.val(settings.connectionProfileId);
-            }
-            profileSelect.on('change', function () {
-                settings.connectionProfileId = $(this).val();
-                saveSettings();
-            });
-
-            // Populate presets
-            const presetSelect = $('#rpg_tracker_completion_preset');
-            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
-            if (pm && typeof pm.getAllPresets === 'function') {
-                const presets = pm.getAllPresets();
-                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-                presets.forEach(p => {
-                    presetSelect.append($('<option></option>').val(p).text(p));
-                });
-                presetSelect.val(settings.completionPresetId || '');
-            } else {
-                presetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-                if (settings.completionPresetId) {
-                    presetSelect.append($('<option></option>').val(settings.completionPresetId).text(settings.completionPresetId));
-                    presetSelect.val(settings.completionPresetId);
-                }
-            }
-            presetSelect.on('change', function () {
-                settings.completionPresetId = $(this).val();
-                saveSettings();
-            });
-
-            // Initial order list refresh
-            refreshOrderList();
-
-            $('#rpg_tracker_add_custom_field').on('click', function () {
-                const settings = getSettings();
-                if (!settings.customFields) settings.customFields = [];
-
-                let newTag = 'NEW_FIELD';
-                let counter = 1;
-                const isTagTaken = (tag) => BLOCK_ORDER.includes(tag) || settings.customFields.some(f => f.tag.toUpperCase() === tag);
-
-                while (isTagTaken(counter === 1 ? newTag : `${newTag}_${counter}`)) {
-                    counter++;
-                }
-                if (counter > 1) newTag = `${newTag}_${counter}`;
 
                 settings.customFields.push({
-                    tag: newTag, label: 'New Field', icon: '📝',
-                    prompt: '',
-                    template: EXAMPLES + '\n\n' + COLOR_EXAMPLES,
+                    tag: parsed.tag,
+                    label: parsed.label,
+                    icon: parsed.icon,
+                    prompt: parsed.prompt,
+                    template: parsed.template,
                     enabled: true
                 });
                 refreshOrderList();
                 saveSettings();
-            });
+                toastr['success'](`Custom field "${parsed.label}" created!`, 'AI Field Creator');
+            } catch (err) {
+                console.error('[RPG Tracker] AI Field Creator error:', err);
+                toastr['error'](`Failed to create field: ${err.message}`, 'AI Field Creator');
+            }
+        });
 
-            $('#rpg_tracker_export_all_modules').on('click', () => {
-                const s = getSettings();
-                if (!s.customFields || s.customFields.length === 0) {
-                    toastr['info']('No custom modules to export.', 'Fatbody Framework');
-                    return;
-                }
-                exportModules(s.customFields);
-            });
+        $('#rpg_tracker_export_all_modules').on('click', () => {
+            const s = getSettings();
+            if (!s.customFields || s.customFields.length === 0) {
+                toastr['info']('No custom modules to export.', 'Fatbody Framework');
+                return;
+            }
+            exportModules(s.customFields);
+        });
 
-            $('#rpg_tracker_import_modules').on('click', async () => {
-                const { Popup } = SillyTavern.getContext();
-                let pastedValue = '';
+        $('#rpg_tracker_import_modules').on('click', async () => {
+            const { Popup } = SillyTavern.getContext();
+            let pastedValue = '';
 
-                // Attach the file input directly to body so the OS file picker
-                // doesn't steal focus away from the popup and trigger its "outside click" dismiss.
-                const fileInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
-                fileInput.type = 'file';
-                fileInput.accept = '.json';
-                fileInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
-                document.body.appendChild(fileInput);
+            // Attach the file input directly to body so the OS file picker
+            // doesn't steal focus away from the popup and trigger its "outside click" dismiss.
+            const fileInput = /** @type {HTMLInputElement} */ (document.createElement('input'));
+            fileInput.type = 'file';
+            fileInput.accept = '.json';
+            fileInput.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
+            document.body.appendChild(fileInput);
 
-                const content = `
+            const content = `
                     <div style="display:flex; flex-direction:column; gap:8px; min-width:min(500px, 90vw);">
                         <p style="margin:0; font-size:12px; opacity:0.7;">
                             Paste the module export code (JSON) below or load it from a file.
@@ -7036,874 +7066,1035 @@ Rules:
                     </div>
                 `;
 
-                setTimeout(() => {
-                    const fileBtn = document.getElementById('rt_import_file_btn');
-                    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_import_blob'));
+            setTimeout(() => {
+                const fileBtn = document.getElementById('rt_import_file_btn');
+                const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('rt_import_blob'));
 
-                    if (textarea) {
-                        textarea.addEventListener('input', () => {
-                            pastedValue = textarea.value;
-                        });
-                    }
-
-                    if (fileBtn) {
-                        fileBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            fileInput.click();
-                        });
-                    }
-
-                    fileInput.addEventListener('change', () => {
-                        const file = fileInput.files?.[0];
-                        if (!file) return;
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                            const text = String(ev.target?.result || '');
-                            pastedValue = text;
-                            if (textarea) textarea.value = text;
-                        };
-                        reader.readAsText(file);
-                        fileInput.value = ''; // allow re-selecting same file
+                if (textarea) {
+                    textarea.addEventListener('input', () => {
+                        pastedValue = textarea.value;
                     });
-                }, 100);
-
-                const result = await Popup.show.confirm('📥 Import Custom Module(s)', content, { okButton: 'Import', cancelButton: 'Cancel' });
-                document.body.removeChild(fileInput);
-
-                if (result && pastedValue.trim()) {
-                    await importModulesFromJson(pastedValue);
-                }
-            });
-
-            $('#rpg_tracker_delete_all_custom_modules').on('click', function () {
-                const s = getSettings();
-                if (!s.customFields || s.customFields.length === 0) return toastr['info']('No custom modules to delete.', 'RPG Tracker');
-
-                if (confirm(`Delete ALL (${s.customFields.length}) custom modules?\n\nThis will also remove their data from the current tracker state. Stock modules (COMBAT, CHARACTER, etc.) will not be touched.\n\nProceed?`)) {
-                    const customTags = new Set(s.customFields.map(f => f.tag.toUpperCase()));
-
-                    // Clear fields
-                    s.customFields = [];
-
-                    // Clean block order
-                    if (s.blockOrder) {
-                        s.blockOrder = s.blockOrder.filter(tag => !customTags.has(tag.toUpperCase()));
-                    }
-
-                    // Clean current memo
-                    const memoBlocks = parseMemoBlocks(s.currentMemo || '');
-                    let changed = false;
-                    for (const tag of customTags) {
-                        if (memoBlocks[tag] !== undefined) {
-                            delete memoBlocks[tag];
-                            changed = true;
-                        }
-                    }
-
-                    if (changed) {
-                        s.currentMemo = Object.entries(memoBlocks)
-                            .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
-                            .join('\n\n');
-                        updateUIMemo(s.currentMemo);
-                    }
-
-                    saveSettings();
-                    refreshOrderList();
-                    syncMemoView();
-                    toastr['success']('All custom modules deleted.', 'RPG Tracker');
-                }
-            });
-
-            $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
-                settings.systemPromptTemplate = $(this).val();
-                saveSettings();
-            });
-
-            $('#rpg_tracker_btn_reset_prompt').on('click', function () {
-                if (!confirm('Reset the State Model prompt to the built-in default?')) return;
-                // Re-read the default from the defaults object by temporarily clearing the stored value
-                const { extensionSettings } = SillyTavern.getContext();
-                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
-                const freshSettings = getSettings(); // re-merges defaults
-                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
-                saveSettings();
-                toastr['success']('Core prompt reset to default.', 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
-                if (!confirm('This will reset the Module Prompts, Active Modules, and Module Order to their factory defaults. Custom modules will be moved to the bottom of the list. Your Core Prompt will not be affected. Proceed?')) return;
-                const { extensionSettings } = SillyTavern.getContext();
-                delete extensionSettings[MODULE_NAME].stockPrompts;
-                delete extensionSettings[MODULE_NAME].blockOrder;
-                delete extensionSettings[MODULE_NAME].modules;
-                refreshOrderList();
-                saveSettings();
-                toastr['success']('Stock modules, order, and prompts reset to factory defaults.', 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_btn_update_sysprompt').on('click', async function () {
-                const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
-                let content;
-                try {
-                    const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
-                    if (response.ok) {
-                        content = await response.text();
-                    } else {
-                        throw new Error(`Server returned ${response.status}`);
-                    }
-                } catch (err) {
-                    console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
-                    content = RT_PROMPTS[fileName];
                 }
 
-                if (!content) {
-                    toastr['error']('Could not load sysprompt.txt. Main prompt was NOT updated.', 'RPG Tracker');
-                    return;
+                if (fileBtn) {
+                    fileBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        fileInput.click();
+                    });
                 }
 
-                content = buildSysprompt(content);
-
-                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
-                if (mainTextarea) {
-                    mainTextarea.value = content;
-                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
-                    toastr['success']('Main sysprompt updated! \u2705', 'RPG Tracker');
-                } else {
-                    await navigator.clipboard.writeText(content).catch(() => {});
-                    toastr['info']('Quick-edit textarea not found. Sysprompt copied to clipboard — paste it manually into your Main prompt.', 'RPG Tracker');
-                }
-            });
-
-            $('#rpg_tracker_btn_reset_and_apply_sysprompt').on('click', async function () {
-                if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
-
-                const { extensionSettings } = SillyTavern.getContext();
-
-                // 1. Reset Core prompt
-                delete extensionSettings[MODULE_NAME].systemPromptTemplate;
-                const freshSettings = getSettings();
-                $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
-
-                // 2. Reset stock modules, order, active modules
-                delete extensionSettings[MODULE_NAME].stockPrompts;
-                delete extensionSettings[MODULE_NAME].blockOrder;
-                delete extensionSettings[MODULE_NAME].modules;
-                
-                // Re-merge defaults
-                const finalSettings = getSettings();
-                
-                // If legacy mode is on, the prompt is applied at runtime by buildModulesInstructionText
-                // (no explicit call needed)
-                
-                refreshOrderList();
-                saveSettings();
-
-                // 3. Fetch sysprompt and apply to ST Quick Prompt "Main"
-                const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
-                let content;
-                try {
-                    const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
-                    if (response.ok) {
-                        content = await response.text();
-                        console.log(`[Fatbody Framework] Loaded ${fileName} from live file for auto-apply.`);
-                    } else {
-                        throw new Error(`Server returned ${response.status}`);
-                    }
-                } catch (err) {
-                    console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
-                    content = RT_PROMPTS[fileName];
-                }
-
-                if (!content) {
-                    toastr['error']('Could not load sysprompt.txt. Reset completed but Main prompt was NOT updated.', 'RPG Tracker');
-                    return;
-                }
-
-                content = buildSysprompt(content);
-
-                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
-                if (mainTextarea) {
-                    mainTextarea.value = content;
-                    // Fire blur to trigger ST's handleQuickEditSave listener
-                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
-                    toastr['success']('All prompts reset & Main sysprompt applied! \u2705', 'RPG Tracker');
-                } else {
-                    // Fallback: ST might not be in OpenAI mode, so the quick-edit textarea may not exist.
-                    // Copy to clipboard as a graceful fallback.
-                    const ta = document.createElement('textarea');
-                    ta.value = content;
-                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
-                    document.body.appendChild(ta);
-                    ta.focus();
-                    ta.select();
-                    try {
-                        document.execCommand('copy');
-                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found. Sysprompt copied to clipboard — paste it manually and enable function calls in the completion preset!', 'RPG Tracker');
-                    } catch (e) {
-                        toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found and clipboard copy failed. Use the SYSPROMPT button to copy manually.', 'RPG Tracker');
-                    } finally {
-                        document.body.removeChild(ta);
-                    }
-                }
-            });
-
-            // ── Sysprompt Section Toggles ──
-            const _syspromptModDefs = [
-                { key: 'loot',          id: 'rpg_sysprompt_mod_loot' },
-                { key: 'random_events', id: 'rpg_sysprompt_mod_random_events' },
-                { key: 'resting',       id: 'rpg_sysprompt_mod_resting' },
-                { key: 'quests',        id: 'rpg_sysprompt_mod_quests' },
-            ];
-            _syspromptModDefs.forEach(({ key, id }) => {
-                const s = getSettings();
-                const val = s.syspromptModules?.[key] ?? true;
-                $(`#${id}`).prop('checked', val).on('change', function () {
-                    const fresh = getSettings();
-                    if (!fresh.syspromptModules) fresh.syspromptModules = {};
-                    fresh.syspromptModules[key] = !!$(this).prop('checked');
-
-                    if (key === 'quests') {
-                        $('#rpg_quests_options').toggle(!!$(this).prop('checked'));
-                        registerLogQuestTool();
-                        refreshOrderList();
-                    }
-
-                    saveSettings();
-                    scheduleAutoApply();
+                fileInput.addEventListener('change', () => {
+                    const file = fileInput.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const text = String(ev.target?.result || '');
+                        pastedValue = text;
+                        if (textarea) textarea.value = text;
+                    };
+                    reader.readAsText(file);
+                    fileInput.value = ''; // allow re-selecting same file
                 });
+            }, 100);
+
+            const result = await Popup.show.confirm('📥 Import Custom Module(s)', content, { okButton: 'Import', cancelButton: 'Cancel' });
+            document.body.removeChild(fileInput);
+
+            if (result && pastedValue.trim()) {
+                await importModulesFromJson(pastedValue);
+            }
+        });
+
+        $('#rpg_tracker_delete_all_custom_modules').on('click', function () {
+            const s = getSettings();
+            if (!s.customFields || s.customFields.length === 0) return toastr['info']('No custom modules to delete.', 'RPG Tracker');
+
+            if (confirm(`Delete ALL (${s.customFields.length}) custom modules?\n\nThis will also remove their data from the current tracker state. Stock modules (COMBAT, CHARACTER, etc.) will not be touched.\n\nProceed?`)) {
+                const customTags = new Set(s.customFields.map(f => f.tag.toUpperCase()));
+
+                // Clear fields
+                s.customFields = [];
+
+                // Clean block order
+                if (s.blockOrder) {
+                    s.blockOrder = s.blockOrder.filter(tag => !customTags.has(tag.toUpperCase()));
+                }
+
+                // Clean current memo
+                const memoBlocks = parseMemoBlocks(s.currentMemo || '');
+                let changed = false;
+                for (const tag of customTags) {
+                    if (memoBlocks[tag] !== undefined) {
+                        delete memoBlocks[tag];
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    s.currentMemo = Object.entries(memoBlocks)
+                        .map(([k, v]) => `[${k}]\n${v}\n[/${k}]`)
+                        .join('\n\n');
+                    updateUIMemo(s.currentMemo);
+                }
+
+                saveSettings();
+                refreshOrderList();
+                syncMemoView();
+                toastr['success']('All custom modules deleted.', 'RPG Tracker');
+            }
+        });
+
+        $('#rt_btn_tag_library').on('click', async function () {
+            const { Popup } = SillyTavern.getContext();
+            const { tryRenderMarker } = await import('./renderer.js');
+            
+            const escapeHtml = (unsafe) => (unsafe || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+            const panel = document.getElementById('rpg_tracker_memo_panel');
+            const themeClass = panel ? Array.from(panel.classList).find(c => c.startsWith('rt-theme-')) || 'rt-theme-native' : 'rt-theme-native';
+
+            let html = `<div class="rpg-tracker-panel ${themeClass}" style="display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; padding-right:10px; position:relative; top:auto; right:auto; width:100%; height:auto; background:transparent; border:none; box-shadow:none; resize:none;">`;
+            for (const item of RENDERING_TAGS_LIBRARY) {
+                const rendered = tryRenderMarker(item) || `<i>(Failed to render)</i>`;
+                html += `<div style="border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.2);">
+                    <div style="font-family:monospace; font-size:11px; opacity:0.8; margin-bottom:6px; color:#ffdd88;">${escapeHtml(item)}</div>
+                    <div>${rendered}</div>
+                </div>`;
+            }
+            html += '</div>';
+
+            await Popup.show.confirm('🎨 Rendering Tags Library', html, { okButton: 'Close', cancelButton: false });
+        });
+
+        $('#rpg_tracker_core_prompt').val(settings.systemPromptTemplate).on('input', function () {
+            settings.systemPromptTemplate = $(this).val();
+            saveSettings();
+        });
+
+        $('#rpg_tracker_btn_reset_prompt').on('click', function () {
+            if (!confirm('Reset the State Model prompt to the built-in default?')) return;
+            // Re-read the default from the defaults object by temporarily clearing the stored value
+            const { extensionSettings } = SillyTavern.getContext();
+            delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+            const freshSettings = getSettings(); // re-merges defaults
+            $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+            saveSettings();
+            toastr['success']('Core prompt reset to default.', 'RPG Tracker');
+        });
+
+        $('#rpg_tracker_btn_reset_all_prompts').on('click', function () {
+            if (!confirm('This will reset the Module Prompts, Active Modules, and Module Order to their factory defaults. Custom modules will be moved to the bottom of the list. Your Core Prompt will not be affected. Proceed?')) return;
+            const { extensionSettings } = SillyTavern.getContext();
+            delete extensionSettings[MODULE_NAME].stockPrompts;
+            delete extensionSettings[MODULE_NAME].blockOrder;
+            delete extensionSettings[MODULE_NAME].modules;
+            refreshOrderList();
+            saveSettings();
+            toastr['success']('Stock modules, order, and prompts reset to factory defaults.', 'RPG Tracker');
+        });
+        // ── Update Sysprompt (Normal) ──
+        $('#rpg_tracker_btn_update_sysprompt').on('click', async function () {
+            const fileName = 'sysprompt.txt';
+            let content;
+            try {
+                const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                if (response.ok) {
+                    content = await response.text();
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+            } catch (err) {
+                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                content = RT_PROMPTS[fileName];
+            }
+
+            if (!content) {
+                toastr['error']('Could not load sysprompt.txt. Main prompt was NOT updated.', 'RPG Tracker');
+                return;
+            }
+
+            content = buildSysprompt(content);
+
+            const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+            if (mainTextarea) {
+                mainTextarea.value = content;
+                mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                toastr['success']('Main sysprompt updated (Normal mode)! \u2705', 'RPG Tracker');
+            } else {
+                await navigator.clipboard.writeText(content).catch(() => { });
+                toastr['info']('Quick-edit textarea not found. Sysprompt copied to clipboard — paste it manually into your Main prompt.', 'RPG Tracker');
+            }
+        });
+
+        // ── Update Sysprompt (Legacy) ──
+        $('#rpg_tracker_btn_update_sysprompt_legacy').on('click', async function () {
+            const fileName = 'sysprompt_legacy.txt';
+            let content;
+            try {
+                const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                if (response.ok) {
+                    content = await response.text();
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+            } catch (err) {
+                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                content = RT_PROMPTS[fileName];
+            }
+
+            if (!content) {
+                toastr['error']('Could not load sysprompt_legacy.txt. Main prompt was NOT updated.', 'RPG Tracker');
+                return;
+            }
+
+            content = buildSysprompt(content);
+
+            const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+            if (mainTextarea) {
+                mainTextarea.value = content;
+                mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                toastr['success']('Main sysprompt updated (Legacy mode)! \u2705', 'RPG Tracker');
+            } else {
+                await navigator.clipboard.writeText(content).catch(() => { });
+                toastr['info']('Quick-edit textarea not found. Legacy sysprompt copied to clipboard — paste it manually.', 'RPG Tracker');
+            }
+        });
+
+        // ── AI Section Builder ──
+        $('#rpg_tracker_btn_ai_add_section').on('click', async function () {
+            const { Popup } = SillyTavern.getContext();
+            const settings = getSettings();
+
+            const inputContent = `
+                    <div style="display:flex; flex-direction:column; gap:10px; min-width:min(520px, 90vw);">
+                        <div style="font-size:13px; opacity:0.9; font-weight:bold;">✨ AI Section Builder</div>
+                        <div style="font-size:11px; opacity:0.7; line-height:1.4;">
+                            Describe a new system, mechanic, or rule you want added to your D&D system prompt. The AI will generate a properly formatted XML section (e.g. &lt;corruption&gt;...&lt;/corruption&gt;) ready to be appended.
+                        </div>
+                        <textarea id="rt_ai_section_desc" rows="4" class="text_pole"
+                            style="font-size:12px; resize:vertical; width:100%;"
+                            placeholder="Example: A reputation system where NPCs in different factions track the player's standing. Hostile factions attack on sight, neutral factions are cautious, and allied factions offer discounts and quests."></textarea>
+                    </div>
+                `;
+
+            let description = '';
+            setTimeout(() => {
+                const textarea = document.getElementById('rt_ai_section_desc');
+                if (textarea) {
+                    textarea.addEventListener('input', () => { description = textarea.value.trim(); });
+                }
+            }, 100);
+
+            const inputResult = await Popup.show.confirm('Describe New Section', inputContent, { okButton: 'Generate', cancelButton: 'Cancel' });
+            if (!inputResult) return;
+
+            if (!description) {
+                toastr['warning']('Please describe the mechanic/system you want.', 'AI Section Builder');
+                return;
+            }
+
+            const aiPrompt = `You are a D&D system prompt architect. The user wants a new section added to their existing system prompt.
+
+Their description: "${description}"
+
+The user's current system prompt is provided below for reference so you can seamlessly integrate the new mechanic without duplicating existing rules:
+<current_prompt>
+${document.getElementById('main_prompt_quick_edit_textarea')?.value || settings.systemPromptTemplate || ''}
+</current_prompt>
+
+Create a new XML-tagged section. Your response MUST:
+1. Start with <tag_name> and end with </tag_name>
+2. Use a unique, descriptive tag name in snake_case (e.g. <reputation_system>, <corruption>, <weather_mechanics>)
+3. Be written as clear DM instructions — telling the AI what rules to follow
+4. Be comprehensive but concise (10-30 lines)
+5. Include specific mechanical rules, not just flavor text
+6. Reference {{user}} for the player character
+
+Return ONLY the XML section. No explanation, no other text.`;
+
+            toastr['info']('Generating section with AI...', 'AI Section Builder', { timeOut: 3000 });
+            try {
+                const result = await sendStateRequest(settings, 'You are a D&D system prompt section generator. Return ONLY the XML section.', aiPrompt);
+                if (!result) throw new Error('No response from AI');
+
+                let section = result.trim();
+                // Strip markdown fences if present
+                const fenceMatch = section.match(/```(?:xml)?\s*([\s\S]*?)```/);
+                if (fenceMatch) section = fenceMatch[1].trim();
+
+                // Validate it looks like XML
+                if (!section.match(/^<\w+[\w_-]*>/)) {
+                    throw new Error('AI did not return a valid XML section');
+                }
+
+                // Show preview
+                const previewContent = `
+                        <div style="display:flex; flex-direction:column; gap:10px; min-width:min(520px, 90vw);">
+                            <div style="font-size:13px; font-weight:bold;">✨ Generated Section Preview</div>
+                            <pre style="white-space:pre-wrap; word-break:break-word; font-size:11px; padding:12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); border-radius:8px; max-height:400px; overflow-y:auto; font-family:monospace;">${escapeHtml(section)}</pre>
+                            <div style="font-size:10px; opacity:0.6;">This section will be appended to your current system prompt (before &lt;/constraints&gt; if present, otherwise at the end).</div>
+                        </div>
+                    `;
+
+                const approved = await Popup.show.confirm('Add to Sysprompt?', previewContent);
+                if (!approved) {
+                    toastr['info']('Section builder cancelled.', 'AI Section Builder');
+                    return;
+                }
+
+                // Read current sysprompt, append section
+                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+                if (mainTextarea) {
+                    let currentContent = mainTextarea.value;
+                    // Try to insert before </constraints>
+                    if (currentContent.includes('</constraints>')) {
+                        currentContent = currentContent.replace('</constraints>', `${section}\n\n</constraints>`);
+                    } else {
+                        currentContent = currentContent.trim() + '\n\n' + section;
+                    }
+                    mainTextarea.value = currentContent;
+                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                    toastr['success']('New section added to your sysprompt! \u2705', 'AI Section Builder');
+                } else {
+                    await navigator.clipboard.writeText(section).catch(() => { });
+                    toastr['info']('Quick-edit textarea not found. Section copied to clipboard — paste it into your system prompt manually.', 'AI Section Builder');
+                }
+            } catch (err) {
+                console.error('[RPG Tracker] AI Section Builder error:', err);
+                toastr['error'](`Failed to generate section: ${err.message}`, 'AI Section Builder');
+            }
+        });
+
+        $('#rpg_tracker_btn_reset_and_apply_sysprompt').on('click', async function () {
+            if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
+
+            const { extensionSettings } = SillyTavern.getContext();
+
+            // 1. Reset Core prompt
+            delete extensionSettings[MODULE_NAME].systemPromptTemplate;
+            const freshSettings = getSettings();
+            $('#rpg_tracker_core_prompt').val(freshSettings.systemPromptTemplate);
+
+            // 2. Reset stock modules, order, active modules
+            delete extensionSettings[MODULE_NAME].stockPrompts;
+            delete extensionSettings[MODULE_NAME].blockOrder;
+            delete extensionSettings[MODULE_NAME].modules;
+
+            // Re-merge defaults
+            const finalSettings = getSettings();
+
+            // If legacy mode is on, the prompt is applied at runtime by buildModulesInstructionText
+            // (no explicit call needed)
+
+            refreshOrderList();
+            saveSettings();
+
+            // 3. Fetch sysprompt and apply to ST Quick Prompt "Main"
+            const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
+            let content;
+            try {
+                const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
+                if (response.ok) {
+                    content = await response.text();
+                    console.log(`[Fatbody Framework] Loaded ${fileName} from live file for auto-apply.`);
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+            } catch (err) {
+                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                content = RT_PROMPTS[fileName];
+            }
+
+            if (!content) {
+                toastr['error']('Could not load sysprompt.txt. Reset completed but Main prompt was NOT updated.', 'RPG Tracker');
+                return;
+            }
+
+            content = buildSysprompt(content);
+
+            const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+            if (mainTextarea) {
+                mainTextarea.value = content;
+                // Fire blur to trigger ST's handleQuickEditSave listener
+                mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+                toastr['success']('All prompts reset & Main sysprompt applied! \u2705', 'RPG Tracker');
+            } else {
+                // Fallback: ST might not be in OpenAI mode, so the quick-edit textarea may not exist.
+                // Copy to clipboard as a graceful fallback.
+                const ta = document.createElement('textarea');
+                ta.value = content;
+                ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found. Sysprompt copied to clipboard — paste it manually and enable function calls in the completion preset!', 'RPG Tracker');
+                } catch (e) {
+                    toastr['warning']('All prompts reset. Quick Prompt "Main" textarea not found and clipboard copy failed. Use the SYSPROMPT button to copy manually.', 'RPG Tracker');
+                } finally {
+                    document.body.removeChild(ta);
+                }
+            }
+        });
+
+        // ── Sysprompt Section Toggles ──
+        const _syspromptModDefs = [
+            { key: 'loot', id: 'rpg_sysprompt_mod_loot' },
+            { key: 'random_events', id: 'rpg_sysprompt_mod_random_events' },
+            { key: 'resting', id: 'rpg_sysprompt_mod_resting' },
+            { key: 'quests', id: 'rpg_sysprompt_mod_quests' },
+        ];
+        _syspromptModDefs.forEach(({ key, id }) => {
+            const s = getSettings();
+            const val = s.syspromptModules?.[key] ?? true;
+            $(`#${id}`).prop('checked', val).on('change', function () {
+                const fresh = getSettings();
+                if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                fresh.syspromptModules[key] = !!$(this).prop('checked');
 
                 if (key === 'quests') {
-                    $('#rpg_quests_options').toggle(val);
-                }
-            });
-
-            // Deadlines Toggle
-            const deadlinesCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_deadlines'));
-            const frustrationWrap = document.getElementById('rpg_quests_frustration_wrap');
-            const syncFrustrationVisibility = () => {
-                if (frustrationWrap) frustrationWrap.style.display = deadlinesCb?.checked ? '' : 'none';
-            };
-            if (deadlinesCb) {
-                deadlinesCb.checked = !!getSettings().syspromptModules?.questsDeadlines;
-                syncFrustrationVisibility();
-                deadlinesCb.addEventListener('change', function () {
-                    const fresh = getSettings();
-                    if (!fresh.syspromptModules) fresh.syspromptModules = {};
-                    fresh.syspromptModules.questsDeadlines = !!this.checked;
-                    // If deadlines disabled, also uncheck frustration
-                    if (!this.checked) {
-                        fresh.syspromptModules.questsFrustration = false;
-                        const fCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_frustration'));
-                        if (fCb) fCb.checked = false;
-                    }
-                    syncFrustrationVisibility();
-                    if (fresh.questLegacyMode) {
-                        refreshQuestLegacyPrompt(fresh);
-                        refreshOrderList();
-                    } else {
-                        registerLogQuestTool();
-                    }
-                    saveSettings();
-                    scheduleAutoApply();
-                });
-            }
-
-            // Frustration Toggle
-            const frustrationCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_frustration'));
-            if (frustrationCb) {
-                frustrationCb.checked = !!getSettings().syspromptModules?.questsFrustration;
-                frustrationCb.addEventListener('change', function () {
-                    const fresh = getSettings();
-                    if (!fresh.syspromptModules) fresh.syspromptModules = {};
-                    fresh.syspromptModules.questsFrustration = !!this.checked;
-                    if (fresh.questLegacyMode) {
-                        refreshQuestLegacyPrompt(fresh);
-                        refreshOrderList();
-                    } else {
-                        registerLogQuestTool();
-                    }
-                    saveSettings();
-                    scheduleAutoApply();
-                });
-            }
-
-            // Difficulty Toggle
-            const difficultyCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_difficulty'));
-            if (difficultyCb) {
-                difficultyCb.checked = !!getSettings().syspromptModules?.questsDifficulty;
-                difficultyCb.addEventListener('change', function () {
-                    const fresh = getSettings();
-                    if (!fresh.syspromptModules) fresh.syspromptModules = {};
-                    fresh.syspromptModules.questsDifficulty = !!this.checked;
-                    if (fresh.questLegacyMode) {
-                        refreshQuestLegacyPrompt(fresh);
-                        refreshOrderList();
-                    } else {
-                        registerLogQuestTool();
-                    }
-                    saveSettings();
-                    scheduleAutoApply();
-                });
-            }
-
-            // Quests Help Trigger
-            $('#rt_quests_hardcore_help').on('click', (e) => {
-                e.stopPropagation();
-                showQuestsHardcoreExplanation();
-            });
-
-            // Components Help Trigger
-            $('#rt_components_help').on('click', (e) => {
-                e.stopPropagation();
-                showComponentsExplanation();
-            });
-
-
-
-            // Quest Mode (Standard vs Legacy)
-            const questModeRadios = document.querySelectorAll('input[name="rpg_sysprompt_quest_mode"]');
-            if (questModeRadios.length) {
-                const s = getSettings();
-                const currentQuestMode = s.questLegacyMode ? 'legacy' : 'standard';
-                $(`input[name="rpg_sysprompt_quest_mode"][value="${currentQuestMode}"]`).prop('checked', true);
-
-                $('input[name="rpg_sysprompt_quest_mode"]').on('change', function () {
-                    const fresh = getSettings();
-                    fresh.questLegacyMode = ($(this).val() === 'legacy');
-                    
-                    if (fresh.questLegacyMode) {
-                        if (!fresh.stockPrompts) fresh.stockPrompts = {};
-                        // Legacy prompt is applied at runtime by buildModulesInstructionText
-                    } else {
-                        // Always restore from canonical default — never trust a stale backup
-                        fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
-                        delete fresh._questToolPromptBackup;
-                    }
-                    refreshOrderList();
+                    $('#rpg_quests_options').toggle(!!$(this).prop('checked'));
                     registerLogQuestTool();
-                    saveSettings();
-                    scheduleAutoApply();
-                });
-            }
-
-            // RNG Mode (Hybrid vs Legacy)
-            const rngModeRadios = document.querySelectorAll('input[name="rpg_sysprompt_rng_mode"]');
-            if (rngModeRadios.length) {
-                const s = getSettings();
-                let currentRngMode = (s.rngEnabled && s.diceFunctionTool === false) ? 'legacy' : 'hybrid';
-                $(`input[name="rpg_sysprompt_rng_mode"][value="${currentRngMode}"]`).prop('checked', true);
-
-                $('input[name="rpg_sysprompt_rng_mode"]').on('change', function () {
-                    const fresh = getSettings();
-                    const val = $(this).val();
-                    if (val === 'hybrid') {
-                        fresh.rngEnabled = true;
-                        fresh.diceFunctionTool = true;
-                        registerDiceFunctionTool();
-                    } else {
-                        fresh.rngEnabled = true;
-                        fresh.diceFunctionTool = false;
-                    }
-                    saveSettings();
-                    scheduleAutoApply();
-                });
-            }
-
-            // Router Agent Settings
-            $('#rpg_tracker_router_enabled').prop('checked', settings.routerEnabled).on('change', function () {
-                settings.routerEnabled = !!$(this).prop('checked');
-                saveSettings();
-                // Sync in-panel enable checkbox
-                const inPanelCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rt-agent-router-enable'));
-                if (inPanelCheck) inPanelCheck.checked = settings.routerEnabled;
-                // Apply disabled state to agent panel
-                const ap = document.getElementById('rpg-tracker-agent');
-                if (ap) {
-                    if (settings.routerEnabled) ap.classList.remove('is-agent-disabled');
-                    else ap.classList.add('is-agent-disabled');
+                    refreshOrderList();
                 }
+
+                saveSettings();
+                scheduleAutoApply();
             });
 
-            const routerSourceSelect = $('#rpg_tracker_router_source');
-            const routerProfileGroup = $('#rpg_tracker_router_profile_group');
-            const routerProfileSelect = $('#rpg_tracker_router_connection_profile');
-            const routerOllamaGroup = $('#rpg_tracker_router_ollama_group');
-            const routerOpenaiGroup = $('#rpg_tracker_router_openai_group');
-
-
-            function updateRouterConnectionPanels() {
-                const source = routerSourceSelect.val();
-                routerProfileGroup.toggle(source === 'profile');
-                routerOllamaGroup.toggle(source === 'ollama');
-                routerOpenaiGroup.toggle(source === 'openai');
+            if (key === 'quests') {
+                $('#rpg_quests_options').toggle(val);
             }
+        });
 
-            routerSourceSelect.val(settings.routerConnectionSource || 'default').on('change', function () {
-                settings.routerConnectionSource = $(this).val();
-                updateRouterConnectionPanels();
-                saveSettings();
-            });
-            setTimeout(updateRouterConnectionPanels, 100); // Ensure DOM is ready for toggle
-
-            // Prefix display: effective value (override or chat id), not only last saved routerCampaignPrefix
-            function updateSettingsLorePrefixReadout() {
-                const ctx = SillyTavern.getContext();
-                const el = document.getElementById('rpg_tracker_router_prefix_display');
-                if (el) {
-                    const eff = getEffectiveRouterCampaignPrefix(ctx.chatId || '');
-                    el.textContent = eff || '—';
+        // Deadlines Toggle
+        const deadlinesCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_deadlines'));
+        const frustrationWrap = document.getElementById('rpg_quests_frustration_wrap');
+        const syncFrustrationVisibility = () => {
+            if (frustrationWrap) frustrationWrap.style.display = deadlinesCb?.checked ? '' : 'none';
+        };
+        if (deadlinesCb) {
+            deadlinesCb.checked = !!getSettings().syspromptModules?.questsDeadlines;
+            syncFrustrationVisibility();
+            deadlinesCb.addEventListener('change', function () {
+                const fresh = getSettings();
+                if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                fresh.syspromptModules.questsDeadlines = !!this.checked;
+                // If deadlines disabled, also uncheck frustration
+                if (!this.checked) {
+                    fresh.syspromptModules.questsFrustration = false;
+                    const fCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_quests_frustration'));
+                    if (fCb) fCb.checked = false;
                 }
+                syncFrustrationVisibility();
+                if (fresh.questLegacyMode) {
+                    refreshQuestLegacyPrompt(fresh);
+                    refreshOrderList();
+                } else {
+                    registerLogQuestTool();
+                }
+                saveSettings();
+                scheduleAutoApply();
+            });
+        }
+
+        // Frustration Toggle
+        const frustrationCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_frustration'));
+        if (frustrationCb) {
+            frustrationCb.checked = !!getSettings().syspromptModules?.questsFrustration;
+            frustrationCb.addEventListener('change', function () {
+                const fresh = getSettings();
+                if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                fresh.syspromptModules.questsFrustration = !!this.checked;
+                if (fresh.questLegacyMode) {
+                    refreshQuestLegacyPrompt(fresh);
+                    refreshOrderList();
+                } else {
+                    registerLogQuestTool();
+                }
+                saveSettings();
+                scheduleAutoApply();
+            });
+        }
+
+        // Difficulty Toggle
+        const difficultyCb = /** @type {HTMLInputElement} */ (document.getElementById('rpg_quests_difficulty'));
+        if (difficultyCb) {
+            difficultyCb.checked = !!getSettings().syspromptModules?.questsDifficulty;
+            difficultyCb.addEventListener('change', function () {
+                const fresh = getSettings();
+                if (!fresh.syspromptModules) fresh.syspromptModules = {};
+                fresh.syspromptModules.questsDifficulty = !!this.checked;
+                if (fresh.questLegacyMode) {
+                    refreshQuestLegacyPrompt(fresh);
+                    refreshOrderList();
+                } else {
+                    registerLogQuestTool();
+                }
+                saveSettings();
+                scheduleAutoApply();
+            });
+        }
+
+        // Quests Help Trigger
+        $('#rt_quests_hardcore_help').on('click', (e) => {
+            e.stopPropagation();
+            showQuestsHardcoreExplanation();
+        });
+
+        // Components Help Trigger
+        $('#rt_components_help').on('click', (e) => {
+            e.stopPropagation();
+            showComponentsExplanation();
+        });
+
+
+
+        // Quest Mode (Standard vs Legacy)
+        const questModeRadios = document.querySelectorAll('input[name="rpg_sysprompt_quest_mode"]');
+        if (questModeRadios.length) {
+            const s = getSettings();
+            const currentQuestMode = s.questLegacyMode ? 'legacy' : 'standard';
+            $(`input[name="rpg_sysprompt_quest_mode"][value="${currentQuestMode}"]`).prop('checked', true);
+
+            $('input[name="rpg_sysprompt_quest_mode"]').on('change', function () {
+                const fresh = getSettings();
+                fresh.questLegacyMode = ($(this).val() === 'legacy');
+
+                if (fresh.questLegacyMode) {
+                    if (!fresh.stockPrompts) fresh.stockPrompts = {};
+                    // Legacy prompt is applied at runtime by buildModulesInstructionText
+                } else {
+                    // Always restore from canonical default — never trust a stale backup
+                    fresh.stockPrompts.quests = DEFAULT_STOCK_PROMPTS.quests;
+                    delete fresh._questToolPromptBackup;
+                }
+                refreshOrderList();
+                registerLogQuestTool();
+                saveSettings();
+                scheduleAutoApply();
+            });
+        }
+
+        // RNG Mode (Hybrid vs Legacy)
+        const rngModeRadios = document.querySelectorAll('input[name="rpg_sysprompt_rng_mode"]');
+        if (rngModeRadios.length) {
+            const s = getSettings();
+            let currentRngMode = (s.rngEnabled && s.diceFunctionTool === false) ? 'legacy' : 'hybrid';
+            $(`input[name="rpg_sysprompt_rng_mode"][value="${currentRngMode}"]`).prop('checked', true);
+
+            $('input[name="rpg_sysprompt_rng_mode"]').on('change', function () {
+                const fresh = getSettings();
+                const val = $(this).val();
+                if (val === 'hybrid') {
+                    fresh.rngEnabled = true;
+                    fresh.diceFunctionTool = true;
+                    registerDiceFunctionTool();
+                } else {
+                    fresh.rngEnabled = true;
+                    fresh.diceFunctionTool = false;
+                }
+                saveSettings();
+                scheduleAutoApply();
+            });
+        }
+
+        // Router Agent Settings
+        $('#rpg_tracker_router_enabled').prop('checked', settings.routerEnabled).on('change', function () {
+            settings.routerEnabled = !!$(this).prop('checked');
+            saveSettings();
+            // Sync in-panel enable checkbox
+            const inPanelCheck = /** @type {HTMLInputElement|null} */ (document.getElementById('rt-agent-router-enable'));
+            if (inPanelCheck) inPanelCheck.checked = settings.routerEnabled;
+            // Apply disabled state to agent panel
+            const ap = document.getElementById('rpg-tracker-agent');
+            if (ap) {
+                if (settings.routerEnabled) ap.classList.remove('is-agent-disabled');
+                else ap.classList.add('is-agent-disabled');
             }
+        });
+
+        const routerSourceSelect = $('#rpg_tracker_router_source');
+        const routerProfileGroup = $('#rpg_tracker_router_profile_group');
+        const routerProfileSelect = $('#rpg_tracker_router_connection_profile');
+        const routerOllamaGroup = $('#rpg_tracker_router_ollama_group');
+        const routerOpenaiGroup = $('#rpg_tracker_router_openai_group');
+
+
+        function updateRouterConnectionPanels() {
+            const source = routerSourceSelect.val();
+            routerProfileGroup.toggle(source === 'profile');
+            routerOllamaGroup.toggle(source === 'ollama');
+            routerOpenaiGroup.toggle(source === 'openai');
+        }
+
+        routerSourceSelect.val(settings.routerConnectionSource || 'default').on('change', function () {
+            settings.routerConnectionSource = $(this).val();
+            updateRouterConnectionPanels();
+            saveSettings();
+        });
+        setTimeout(updateRouterConnectionPanels, 100); // Ensure DOM is ready for toggle
+
+        // Prefix display: effective value (override or chat id), not only last saved routerCampaignPrefix
+        function updateSettingsLorePrefixReadout() {
+            const ctx = SillyTavern.getContext();
+            const el = document.getElementById('rpg_tracker_router_prefix_display');
+            if (el) {
+                const eff = getEffectiveRouterCampaignPrefix(ctx.chatId || '');
+                el.textContent = eff || '—';
+            }
+        }
+        updateSettingsLorePrefixReadout();
+
+        $('#rpg_tracker_router_prefix_override').val(settings.routerCampaignPrefixOverride || '').on('input', function () {
+            settings.routerCampaignPrefixOverride = String($(this).val() || '');
+            saveSettings();
             updateSettingsLorePrefixReadout();
+        });
 
-            $('#rpg_tracker_router_prefix_override').val(settings.routerCampaignPrefixOverride || '').on('input', function () {
-                settings.routerCampaignPrefixOverride = String($(this).val() || '');
-                saveSettings();
-                updateSettingsLorePrefixReadout();
-            });
+        $('#rpg_tracker_activate_books_btn').on('click', async function () {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            try {
+                const count = await activateCampaignBooks({ debugSource: 'manual:settings-activate-books' });
+                toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
+            } catch (e) {
+                toastr['error']('Failed to activate campaign lorebooks.');
+            } finally {
+                btn.prop('disabled', false);
+            }
+        });
 
-            $('#rpg_tracker_activate_books_btn').on('click', async function () {
-                const btn = $(this);
-                btn.prop('disabled', true);
-                try {
-                    const count = await activateCampaignBooks({ debugSource: 'manual:settings-activate-books' });
-                    toastr['success'](`Activated ${count} campaign lorebook${count === 1 ? '' : 's'}.`);
-                } catch (e) {
-                    toastr['error']('Failed to activate campaign lorebooks.');
-                } finally {
-                    btn.prop('disabled', false);
-                }
-            });
+        $('#rpg_tracker_clone_stack_btn').on('click', async function () {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            try {
+                await cloneCampaignStack();
+            } finally {
+                btn.prop('disabled', false);
+            }
+        });
 
-            $('#rpg_tracker_clone_stack_btn').on('click', async function () {
-                const btn = $(this);
-                btn.prop('disabled', true);
-                try {
-                    await cloneCampaignStack();
-                } finally {
-                    btn.prop('disabled', false);
-                }
-            });
-
-            $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').on('click', async function () {
-                const { Popup } = SillyTavern.getContext();
-                const confirmHtml = `
+        $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').on('click', async function () {
+            const { Popup } = SillyTavern.getContext();
+            const confirmHtml = `
                     <div style="text-align: left; font-size: 0.9em; line-height: 1.5;">
                         <p>You are about to run a <b>Full Audit</b> of the entire chat history through the Lorebook Agent.</p>
                         <p style="margin-top: 8px;">⏳ This may take <b>several minutes</b> depending on the size of your chat. The agent will process the history in chunks, rebuilding and updating your lorebooks sequentially.</p>
                         <p style="margin-top: 8px; color: #ffa500;">⚠️ <b>Do not send messages to the AI while the audit is running.</b></p>
                     </div>
                 `;
-                const confirmed = await Popup.show.confirm('📚 Lorebook Agent Full Audit', confirmHtml, {
-                    okButton: 'Start Full Audit',
-                    cancelButton: 'Cancel'
-                });
-                if (!confirmed) return;
+            const confirmed = await Popup.show.confirm('📚 Lorebook Agent Full Audit', confirmHtml, {
+                okButton: 'Start Full Audit',
+                cancelButton: 'Cancel'
+            });
+            if (!confirmed) return;
 
-                const btn = $(this);
-                btn.prop('disabled', true);
-                // Also disable the other button (settings vs panel)
-                $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', true);
-                try {
-                    const ctx = SillyTavern.getContext();
-                    const { chat } = ctx;
-                    
-                    const maxContextLimit = ctx.contextSize || settings.fullAuditMaxTokens || 32000;
-                    const tokenBuffer = 3000; 
-                    const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
-                    
-                    let chunks = [];
-                    let currentChunk = [];
-                    let currentTokens = 0;
-                    
-                    for (const m of chat) {
-                        const name = m.is_user ? 'Player' : (m.name || 'Narrator');
-                        const content = m.mes || m['content'] || '';
-                        if (!content || content.includes('```json\n[') || content.includes('```json\n{')) continue;
-                        
-                        const line = `${name}: ${content.replace(/<[^>]+>/g, '')}`;
-                        const lineTokens = Math.ceil(line.length / 4);
-                        
-                        if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
-                            chunks.push(currentChunk);
-                            currentChunk = [];
-                            currentTokens = 0;
-                        }
-                        currentChunk.push(line);
-                        currentTokens += lineTokens;
-                    }
-                    if (currentChunk.length > 0) {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            // Also disable the other button (settings vs panel)
+            $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', true);
+            try {
+                const ctx = SillyTavern.getContext();
+                const { chat } = ctx;
+
+                const maxContextLimit = ctx.contextSize || settings.fullAuditMaxTokens || 32000;
+                const tokenBuffer = 3000;
+                const chunkTokenLimit = Math.max(1000, maxContextLimit - tokenBuffer);
+
+                let chunks = [];
+                let currentChunk = [];
+                let currentTokens = 0;
+
+                for (const m of chat) {
+                    const name = m.is_user ? 'Player' : (m.name || 'Narrator');
+                    const content = m.mes || m['content'] || '';
+                    if (!content || content.includes('```json\n[') || content.includes('```json\n{')) continue;
+
+                    const line = `${name}: ${content.replace(/<[^>]+>/g, '')}`;
+                    const lineTokens = Math.ceil(line.length / 4);
+
+                    if (currentTokens + lineTokens > chunkTokenLimit && currentChunk.length > 0) {
                         chunks.push(currentChunk);
+                        currentChunk = [];
+                        currentTokens = 0;
+                    }
+                    currentChunk.push(line);
+                    currentTokens += lineTokens;
+                }
+                if (currentChunk.length > 0) {
+                    chunks.push(currentChunk);
+                }
+
+                if (chunks.length === 0) {
+                    toastr.info("No chat history to audit.");
+                    return;
+                }
+
+                console.log(`[RPG Tracker] Agent Full Audit: ${chunks.length} chunk(s) queued.`);
+
+                for (let i = 0; i < chunks.length; i++) {
+                    toastr.info(`Agent Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "Lorebook Agent", { timeOut: 8000 });
+                    console.log(`[RPG Tracker] Agent Full Audit: Starting chunk ${i + 1}/${chunks.length} (${chunks[i].length} messages)`);
+
+                    // Wait for any lingering router pass to finish (e.g. auto-cleanup from prior chunk)
+                    let waitCount = 0;
+                    while (isRouterRunning() && waitCount < 60) {
+                        await new Promise(r => setTimeout(r, 500));
+                        waitCount++;
+                    }
+                    if (isRouterRunning()) {
+                        console.warn(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1} skipped — router still busy after 30s.`);
+                        toastr.warning(`Chunk ${i + 1} skipped — agent was still busy.`, "Lorebook Agent");
+                        continue;
                     }
 
-                    if (chunks.length === 0) {
-                        toastr.info("No chat history to audit.");
-                        return;
-                    }
+                    const overrideChatLog = chunks[i].join('\n\n');
+                    const chunkResult = await runRouterPass(null, null, null, true, [], overrideChatLog);
+                    console.log(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1}/${chunks.length} finished. Result: ${chunkResult}`);
 
-                    console.log(`[RPG Tracker] Agent Full Audit: ${chunks.length} chunk(s) queued.`);
-
-                    for (let i = 0; i < chunks.length; i++) {
-                        toastr.info(`Agent Full Audit: Chunk ${i + 1} of ${chunks.length}...`, "Lorebook Agent", { timeOut: 8000 });
-                        console.log(`[RPG Tracker] Agent Full Audit: Starting chunk ${i + 1}/${chunks.length} (${chunks[i].length} messages)`);
-
-                        // Wait for any lingering router pass to finish (e.g. auto-cleanup from prior chunk)
-                        let waitCount = 0;
-                        while (isRouterRunning() && waitCount < 60) {
-                            await new Promise(r => setTimeout(r, 500));
-                            waitCount++;
-                        }
-                        if (isRouterRunning()) {
-                            console.warn(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1} skipped — router still busy after 30s.`);
-                            toastr.warning(`Chunk ${i + 1} skipped — agent was still busy.`, "Lorebook Agent");
-                            continue;
-                        }
-
-                        const overrideChatLog = chunks[i].join('\n\n');
-                        const chunkResult = await runRouterPass(null, null, null, true, [], overrideChatLog);
-                        console.log(`[RPG Tracker] Agent Full Audit: Chunk ${i + 1}/${chunks.length} finished. Result: ${chunkResult}`);
-
-                        // Yield to the event loop so the UI can repaint with the agent panel updates
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                    
-                    toastr.success(`Agent Full Audit complete (${chunks.length} chunk${chunks.length > 1 ? 's' : ''}).`, "Lorebook Agent");
-                } catch (e) {
-                    console.error("[RPG Tracker] Agent Full Audit failed:", e);
-                    toastr.error("Agent Full Audit failed.");
-                } finally {
-                    $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', false);
+                    // Yield to the event loop so the UI can repaint with the agent panel updates
+                    await new Promise(r => setTimeout(r, 100));
                 }
-            });
 
-            $('#rpg_tracker_lore_debug_capture').on('click', async function () {
-                const btn = $(this);
-                btn.prop('disabled', true);
-                try {
-                    _loreActivationDebugLast = await readLoreActivationDebugSnapshot('manual:capture-settings');
-                    renderLoreActivationDebugPanel();
-                    toastr['info']('Lore debug snapshot captured (read-only, no /world commands).');
-                } catch (_) {
-                    toastr['error']('Capture failed.');
-                } finally {
-                    btn.prop('disabled', false);
-                }
-            });
-            $('#rpg_tracker_lore_debug_resync').on('click', async function () {
-                const btn = $(this);
-                btn.prop('disabled', true);
-                try {
-                    const ctx = SillyTavern.getContext();
-                    const id = ctx.chatId || _currentChatId || '';
-                    await syncCampaignPrefixAndWorldsForChat(id, 'manual:re-sync-settings');
-                    toastr['info']('Re-sync finished; see JSON in Lore activation debug below.');
-                } catch (_) {
-                    toastr['error']('Re-sync failed.');
-                } finally {
-                    btn.prop('disabled', false);
-                }
-            });
+                toastr.success(`Agent Full Audit complete (${chunks.length} chunk${chunks.length > 1 ? 's' : ''}).`, "Lorebook Agent");
+            } catch (e) {
+                console.error("[RPG Tracker] Agent Full Audit failed:", e);
+                toastr.error("Agent Full Audit failed.");
+            } finally {
+                $('#rt-agent-router-full-audit, #rt-agent-router-full-audit-panel').prop('disabled', false);
+            }
+        });
 
-            // Router Ollama
-            $('#rpg_tracker_router_ollama_url').val(settings.routerOllamaUrl).on('input', function () {
-                settings.routerOllamaUrl = $(this).val();
-                saveSettings();
-            });
-            const routerOllamaModelSelect = $('#rpg_tracker_router_ollama_model');
-            routerOllamaModelSelect.val(settings.routerOllamaModel).on('change', function () {
-                settings.routerOllamaModel = $(this).val();
-                saveSettings();
-            });
-            $('#rpg_tracker_router_ollama_refresh').on('click', async function () {
-                const url = $('#rpg_tracker_router_ollama_url').val();
-                if (!url) return toastr['info']("Please enter an Ollama URL first.");
-                try {
-                    toastr['info']("Fetching Ollama models...");
-                    const models = await fetchOllamaModels(url);
-                    routerOllamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
-                    models.forEach(m => {
-                        routerOllamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
-                    });
-                    routerOllamaModelSelect.val(settings.routerOllamaModel);
-                    toastr['success']("Ollama models updated.");
-                } catch (e) {
-                    toastr['error']("Failed to fetch Ollama models.");
-                }
-            });
+        $('#rpg_tracker_lore_debug_capture').on('click', async function () {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            try {
+                _loreActivationDebugLast = await readLoreActivationDebugSnapshot('manual:capture-settings');
+                renderLoreActivationDebugPanel();
+                toastr['info']('Lore debug snapshot captured (read-only, no /world commands).');
+            } catch (_) {
+                toastr['error']('Capture failed.');
+            } finally {
+                btn.prop('disabled', false);
+            }
+        });
+        $('#rpg_tracker_lore_debug_resync').on('click', async function () {
+            const btn = $(this);
+            btn.prop('disabled', true);
+            try {
+                const ctx = SillyTavern.getContext();
+                const id = ctx.chatId || _currentChatId || '';
+                await syncCampaignPrefixAndWorldsForChat(id, 'manual:re-sync-settings');
+                toastr['info']('Re-sync finished; see JSON in Lore activation debug below.');
+            } catch (_) {
+                toastr['error']('Re-sync failed.');
+            } finally {
+                btn.prop('disabled', false);
+            }
+        });
 
-            // Router OpenAI
-            $('#rpg_tracker_router_openai_url').val(settings.routerOpenaiUrl).on('input', function () {
-                settings.routerOpenaiUrl = $(this).val();
-                saveSettings();
-            });
-            $('#rpg_tracker_router_openai_key').val(settings.routerOpenaiKey).on('input', function () {
-                settings.routerOpenaiKey = $(this).val();
-                saveSettings();
-            });
-            const routerOpenaiModelSelect = $('#rpg_tracker_router_openai_model');
-            const routerOpenaiModelManual = $('#rpg_tracker_router_openai_model_manual');
-            routerOpenaiModelManual.val(settings.routerOpenaiModel || '');
-            routerOpenaiModelSelect.on('change', function () {
-                const val = $(this).val();
-                if (val) {
-                    routerOpenaiModelManual.val('');
-                    settings.routerOpenaiModel = String(val);
-                } else {
-                    settings.routerOpenaiModel = String(routerOpenaiModelManual.val() || '').trim() || '';
-                }
-                saveSettings();
-            });
-            routerOpenaiModelManual.on('input', function () {
-                const manual = String($(this).val() || '').trim();
-                if (manual) routerOpenaiModelSelect.val('');
-                settings.routerOpenaiModel = manual || String(routerOpenaiModelSelect.val() || '') || '';
-                saveSettings();
-            });
-            $('#rpg_tracker_router_openai_refresh').on('click', async function () {
-                const url = $('#rpg_tracker_router_openai_url').val();
-                const key = $('#rpg_tracker_router_openai_key').val();
-                if (!url) return toastr['info']("Please enter an Endpoint URL first.");
-                try {
-                    toastr['info']("Fetching models...");
-                    const models = await fetchOpenAIModels(url, key);
-                    routerOpenaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
-                    models.forEach(m => {
-                        const id = typeof m === 'string' ? m : (m.id || m.name);
-                        if (id) routerOpenaiModelSelect.append($('<option></option>').val(id).text(id));
-                    });
-                    routerOpenaiModelSelect.val(settings.routerOpenaiModel);
-                    toastr['success']("Models updated.");
-                } catch (e) {
-                    toastr['warning']("Cannot auto-detect models. Type manually.");
-                }
-            });
+        // Router Ollama
+        $('#rpg_tracker_router_ollama_url').val(settings.routerOllamaUrl).on('input', function () {
+            settings.routerOllamaUrl = $(this).val();
+            saveSettings();
+        });
+        const routerOllamaModelSelect = $('#rpg_tracker_router_ollama_model');
+        routerOllamaModelSelect.val(settings.routerOllamaModel).on('change', function () {
+            settings.routerOllamaModel = $(this).val();
+            saveSettings();
+        });
+        $('#rpg_tracker_router_ollama_refresh').on('click', async function () {
+            const url = $('#rpg_tracker_router_ollama_url').val();
+            if (!url) return toastr['info']("Please enter an Ollama URL first.");
+            try {
+                toastr['info']("Fetching Ollama models...");
+                const models = await fetchOllamaModels(url);
+                routerOllamaModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                models.forEach(m => {
+                    routerOllamaModelSelect.append($('<option></option>').val(m.name).text(m.name));
+                });
+                routerOllamaModelSelect.val(settings.routerOllamaModel);
+                toastr['success']("Ollama models updated.");
+            } catch (e) {
+                toastr['error']("Failed to fetch Ollama models.");
+            }
+        });
 
-            // Router Profiles & Presets Population
-            const routerPresetSelect = $('#rpg_tracker_router_completion_preset');
-            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(routerProfileSelect[0]);
-                routerProfileSelect.val(settings.routerConnectionProfileId || "");
+        // Router OpenAI
+        $('#rpg_tracker_router_openai_url').val(settings.routerOpenaiUrl).on('input', function () {
+            settings.routerOpenaiUrl = $(this).val();
+            saveSettings();
+        });
+        $('#rpg_tracker_router_openai_key').val(settings.routerOpenaiKey).on('input', function () {
+            settings.routerOpenaiKey = $(this).val();
+            saveSettings();
+        });
+        const routerOpenaiModelSelect = $('#rpg_tracker_router_openai_model');
+        const routerOpenaiModelManual = $('#rpg_tracker_router_openai_model_manual');
+        routerOpenaiModelManual.val(settings.routerOpenaiModel || '');
+        routerOpenaiModelSelect.on('change', function () {
+            const val = $(this).val();
+            if (val) {
+                routerOpenaiModelManual.val('');
+                settings.routerOpenaiModel = String(val);
             } else {
-                getConnectionProfiles().then(profiles => {
-                    routerProfileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
-                    profiles.forEach(p => routerProfileSelect.append($('<option></option>').val(p).text(p)));
-                    routerProfileSelect.val(settings.routerConnectionProfileId || "");
+                settings.routerOpenaiModel = String(routerOpenaiModelManual.val() || '').trim() || '';
+            }
+            saveSettings();
+        });
+        routerOpenaiModelManual.on('input', function () {
+            const manual = String($(this).val() || '').trim();
+            if (manual) routerOpenaiModelSelect.val('');
+            settings.routerOpenaiModel = manual || String(routerOpenaiModelSelect.val() || '') || '';
+            saveSettings();
+        });
+        $('#rpg_tracker_router_openai_refresh').on('click', async function () {
+            const url = $('#rpg_tracker_router_openai_url').val();
+            const key = $('#rpg_tracker_router_openai_key').val();
+            if (!url) return toastr['info']("Please enter an Endpoint URL first.");
+            try {
+                toastr['info']("Fetching models...");
+                const models = await fetchOpenAIModels(url, key);
+                routerOpenaiModelSelect.empty().append('<option value="">-- Select Model --</option>');
+                models.forEach(m => {
+                    const id = typeof m === 'string' ? m : (m.id || m.name);
+                    if (id) routerOpenaiModelSelect.append($('<option></option>').val(id).text(id));
                 });
+                routerOpenaiModelSelect.val(settings.routerOpenaiModel);
+                toastr['success']("Models updated.");
+            } catch (e) {
+                toastr['warning']("Cannot auto-detect models. Type manually.");
             }
-            routerProfileSelect.on('change', function () {
-                settings.routerConnectionProfileId = $(this).val();
-                saveSettings();
-            });
+        });
 
-            if (pm && typeof pm.getAllPresets === 'function') {
-                const presets = pm.getAllPresets();
-                routerPresetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
-                presets.forEach(p => routerPresetSelect.append($('<option></option>').val(p).text(p)));
-                routerPresetSelect.val(settings.routerCompletionPresetId || '');
+        // Router Profiles & Presets Population
+        const routerPresetSelect = $('#rpg_tracker_router_completion_preset');
+        if (ctx.ConnectionManagerRequestService?.handleDropdown) {
+                /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(routerProfileSelect[0]);
+            routerProfileSelect.val(settings.routerConnectionProfileId || "");
+        } else {
+            getConnectionProfiles().then(profiles => {
+                routerProfileSelect.empty().append('<option value="">-- No Profile Selected --</option>');
+                profiles.forEach(p => routerProfileSelect.append($('<option></option>').val(p).text(p)));
+                routerProfileSelect.val(settings.routerConnectionProfileId || "");
+            });
+        }
+        routerProfileSelect.on('change', function () {
+            settings.routerConnectionProfileId = $(this).val();
+            saveSettings();
+        });
+
+        if (pm && typeof pm.getAllPresets === 'function') {
+            const presets = pm.getAllPresets();
+            routerPresetSelect.empty().append('<option value="">-- Use Current Settings --</option>');
+            presets.forEach(p => routerPresetSelect.append($('<option></option>').val(p).text(p)));
+            routerPresetSelect.val(settings.routerCompletionPresetId || '');
+        }
+        routerPresetSelect.on('change', function () {
+            settings.routerCompletionPresetId = String($(this).val() || '');
+            saveSettings();
+        });
+
+
+        $('#rpg_tracker_router_max_turns').val(settings.routerMaxTurns).on('input', function () {
+            settings.routerMaxTurns = parseInt(String($(this).val() || '')) || 5;
+            saveSettings();
+        });
+        $('#rpg_tracker_router_lookback').val(settings.routerLookback).on('input', function () {
+            settings.routerLookback = parseInt(String($(this).val() || '')) || 4;
+            $('#rt-agent-router-lookback').val(settings.routerLookback);
+            saveSettings();
+        });
+
+        $('#rpg_tracker_router_prompt').val(settings.routerSystemPromptTemplate).on('input', function () {
+            settings.routerSystemPromptTemplate = String($(this).val() || '');
+            saveSettings();
+        });
+
+        $('#rpg_tracker_router_modular_prompt').val(settings.routerModularPromptTemplate).on('input', function () {
+            settings.routerModularPromptTemplate = String($(this).val() || '');
+            saveSettings();
+        });
+        $('#rpg_tracker_router_btn_reset_prompt').on('click', function () {
+            if (!confirm('Reset Router Agent prompt to default?')) return;
+
+            // Delete the stored key so getSettings() falls back to the canonical default in state-manager.js
+            const { extensionSettings } = SillyTavern.getContext();
+            if (extensionSettings[MODULE_NAME]) {
+                delete extensionSettings[MODULE_NAME].routerSystemPromptTemplate;
             }
-            routerPresetSelect.on('change', function () {
-                settings.routerCompletionPresetId = String($(this).val() || '');
+            const freshDefault = getSettings().routerSystemPromptTemplate;
+
+            const s = getSettings();
+            s.routerSystemPromptTemplate = freshDefault;
+
+            const $el = $('#rpg_tracker_router_prompt');
+            $el.val(freshDefault);
+            $el.trigger('input');
+
+            if (typeof (/** @type {any} */ ($el)).trigger === 'function') {
+                (/** @type {any} */ ($el)).trigger('autosize.resize');
+            }
+
+            saveSettings();
+            toastr['success']('Router prompt reset to default.', 'RPG Tracker');
+        });
+
+        $('#rpg_tracker_router_btn_reset_modular_prompt').on('click', function () {
+            if (!confirm('Reset Modular Agent instruction to default?')) return;
+
+            const { extensionSettings } = SillyTavern.getContext();
+            if (extensionSettings[MODULE_NAME]) {
+                delete extensionSettings[MODULE_NAME].routerModularPromptTemplate;
+            }
+            const freshDefault = getSettings().routerModularPromptTemplate;
+
+            const s = getSettings();
+            s.routerModularPromptTemplate = freshDefault;
+
+            const $el = $('#rpg_tracker_router_modular_prompt');
+            $el.val(freshDefault);
+            $el.trigger('input');
+
+            if (typeof (/** @type {any} */ ($el)).trigger === 'function') {
+                (/** @type {any} */ ($el)).trigger('autosize.resize');
+            }
+
+            saveSettings();
+            toastr['success']('Modular instructions reset to default.', 'RPG Tracker');
+        });
+        // Custom Sysprompt Mode toggle
+        const customSyspromptCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_custom_sysprompt'));
+        const narratorConfigBlock = document.getElementById('rpg_narrator_config_block');
+        const syncNarratorBlockVisibility = () => {
+            if (narratorConfigBlock) narratorConfigBlock.style.display = customSyspromptCb?.checked ? 'none' : '';
+        };
+        if (customSyspromptCb) {
+            customSyspromptCb.checked = !!getSettings().customSysprompt;
+            syncNarratorBlockVisibility();
+            customSyspromptCb.addEventListener('change', function () {
+                const fresh = getSettings();
+                fresh.customSysprompt = !!this.checked;
                 saveSettings();
-            });
-
-
-            $('#rpg_tracker_router_max_turns').val(settings.routerMaxTurns).on('input', function () {
-                settings.routerMaxTurns = parseInt(String($(this).val() || '')) || 5;
-                saveSettings();
-            });
-            $('#rpg_tracker_router_lookback').val(settings.routerLookback).on('input', function () {
-                settings.routerLookback = parseInt(String($(this).val() || '')) || 4;
-                $('#rt-agent-router-lookback').val(settings.routerLookback);
-                saveSettings();
-            });
-
-            $('#rpg_tracker_router_prompt').val(settings.routerSystemPromptTemplate).on('input', function () {
-                settings.routerSystemPromptTemplate = String($(this).val() || '');
-                saveSettings();
-            });
-
-            $('#rpg_tracker_router_modular_prompt').val(settings.routerModularPromptTemplate).on('input', function () {
-                settings.routerModularPromptTemplate = String($(this).val() || '');
-                saveSettings();
-            });
-            $('#rpg_tracker_router_btn_reset_prompt').on('click', function () {
-                if (!confirm('Reset Router Agent prompt to default?')) return;
-
-                // Delete the stored key so getSettings() falls back to the canonical default in state-manager.js
-                const { extensionSettings } = SillyTavern.getContext();
-                if (extensionSettings[MODULE_NAME]) {
-                    delete extensionSettings[MODULE_NAME].routerSystemPromptTemplate;
-                }
-                const freshDefault = getSettings().routerSystemPromptTemplate;
-
-                const s = getSettings();
-                s.routerSystemPromptTemplate = freshDefault;
-
-                const $el = $('#rpg_tracker_router_prompt');
-                $el.val(freshDefault);
-                $el.trigger('input');
-                // Recalculate scroll height so the textarea expands to fit the reset content
-                $el.css('height', '0px');
-                $el.css('height', ($el.prop('scrollHeight') + 3) + 'px');
-
-
-                saveSettings();
-                toastr['success']('Router prompt reset to default.', 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_router_btn_reset_modular_prompt').on('click', function () {
-                if (!confirm('Reset Modular Agent instruction to default?')) return;
-
-                const { extensionSettings } = SillyTavern.getContext();
-                if (extensionSettings[MODULE_NAME]) {
-                    delete extensionSettings[MODULE_NAME].routerModularPromptTemplate;
-                }
-                const freshDefault = getSettings().routerModularPromptTemplate;
-
-                const s = getSettings();
-                s.routerModularPromptTemplate = freshDefault;
-
-                const $el = $('#rpg_tracker_router_modular_prompt');
-                $el.val(freshDefault);
-                $el.trigger('input');
-
-                if (typeof (/** @type {any} */ ($el)).trigger === 'function') {
-                    (/** @type {any} */ ($el)).trigger('autosize.resize');
-                }
-
-                saveSettings();
-                toastr['success']('Modular instructions reset to default.', 'RPG Tracker');
-            });
-            // Custom Sysprompt Mode toggle
-            const customSyspromptCb = /** @type {HTMLInputElement|null} */ (document.getElementById('rpg_tracker_custom_sysprompt'));
-            const narratorConfigBlock = document.getElementById('rpg_narrator_config_block');
-            const syncNarratorBlockVisibility = () => {
-                if (narratorConfigBlock) narratorConfigBlock.style.display = customSyspromptCb?.checked ? 'none' : '';
-            };
-            if (customSyspromptCb) {
-                customSyspromptCb.checked = !!getSettings().customSysprompt;
                 syncNarratorBlockVisibility();
-                customSyspromptCb.addEventListener('change', function () {
-                    const fresh = getSettings();
-                    fresh.customSysprompt = !!this.checked;
-                    saveSettings();
-                    syncNarratorBlockVisibility();
-                });
-            }
-
-            $('#rpg_tracker_btn_update').on('click', async function () {
-                const { chat } = SillyTavern.getContext();
-                if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
-
-                let lastAssistantMsg = "";
-                for (let i = chat.length - 1; i >= 0; i--) {
-                    // Look for any message that isn't the user and isn't empty.
-                    // We include 'system' messages because some Narrator extensions/prompts
-                    // might mark their output as system, and we still want to track state from them.
-                    if (!chat[i].is_user && chat[i].mes && chat[i].mes.trim()) {
-                        lastAssistantMsg = chat[i].mes;
-                        break;
-                    }
-                }
-                if (!lastAssistantMsg) return toastr['info']("No assistant message with content found.", "RPG Tracker");
-
-                toastr['info']("Triggering manual State Update...", "RPG Tracker");
-                await runStateModelPass(lastAssistantMsg);
             });
-
-            $('#rpg_tracker_btn_clear').on('click', function () {
-                if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
-                    settings.currentMemo = "";
-                    settings.prevMemo1 = "";
-                    settings.prevMemo2 = "";
-                    settings.memoHistory = [];
-                    settings.lastDelta = "";
-                    settings.quests = [];
-                    settings.historyIndex = -1;
-                    _historyViewIndex = -1;
-                    saveSettings();
-                    updateUIMemo("");
-                    refreshRenderedView();
-                    const dp = document.getElementById('rpg-tracker-delta-content');
-                    if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
-                    toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
-                }
-            });
-
-            $('#rpg_tracker_btn_factory_reset').on('click', function () {
-                if (confirm("⚠️ NUCLEAR OPTION ⚠️\n\nThis will wipe EVERYTHING: all custom fields, character history, saved profiles, and prompt changes. The framework will return to v1.1.0 factory defaults.\n\nProceed?")) {
-                    const { extensionSettings } = SillyTavern.getContext();
-                    delete extensionSettings[MODULE_NAME];
-                    // Force re-initialization of defaults
-                    getSettings();
-                    saveSettings();
-                    toastr['success']("Framework has been reset to factory defaults. Reloading in 2 seconds...", "RPG Tracker");
-                    setTimeout(() => location.reload(), 2000);
-                }
-            });
-
-            // ── Profile System ──
-            refreshProfileDropdown();
-
-            $('#rpg_tracker_profile_save').on('click', function () {
-                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-                const name = sel.value;
-                if (!name) return toastr['info']('No profile selected to overwrite. Use "Save As" for new profiles.', 'RPG Tracker');
-                saveProfile(name);
-                toastr['success'](`Profile "${name}" overwritten.`, 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_profile_save_as').on('click', async function () {
-                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-                const existing = sel.value;
-                const { Popup } = SillyTavern.getContext();
-
-                let name = null;
-                if (Popup && Popup.show && Popup.show.input) {
-                    name = await Popup.show.input('Save Profile', 'Save profile as:', existing || '');
-                } else {
-                    name = prompt('Save profile as:', existing || '');
-                }
-
-                name = name?.trim();
-                if (!name) return;
-                saveProfile(name);
-                refreshProfileDropdown();
-                toastr['success'](`Profile "${name}" saved.`, 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_profile_load').on('click', function () {
-                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-                const name = sel.value;
-                if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
-                loadProfile(name);
-                toastr['success'](`Profile "${name}" loaded.`, 'RPG Tracker');
-            });
-
-            $('#rpg_tracker_profile_delete').on('click', async function () {
-                const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
-                const name = sel.value;
-                if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
-
-                const { Popup, POPUP_RESULT } = SillyTavern.getContext();
-                if (Popup && Popup.show && Popup.show.confirm) {
-                    const confirmResult = await Popup.show.confirm('Delete Profile', `Delete profile "${name}"?`);
-                    if (confirmResult !== POPUP_RESULT.AFFIRMATIVE) return;
-                } else {
-                    if (!confirm(`Delete profile "${name}"?`)) return;
-                }
-
-                deleteProfile(name);
-                refreshProfileDropdown();
-                toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
-            });
-
-        } catch (e) {
-            console.error("[RPG Tracker] Failed to build settings UI", e);
         }
 
-        // Add wand button to toggle panel visibility
-        addWandButton();
+        $('#rpg_tracker_btn_update').on('click', async function () {
+            const { chat } = SillyTavern.getContext();
+            if (!chat || chat.length === 0) return toastr['info']("No chat history found.", "RPG Tracker");
+
+            let lastAssistantMsg = "";
+            for (let i = chat.length - 1; i >= 0; i--) {
+                // Look for any message that isn't the user and isn't empty.
+                // We include 'system' messages because some Narrator extensions/prompts
+                // might mark their output as system, and we still want to track state from them.
+                if (!chat[i].is_user && chat[i].mes && chat[i].mes.trim()) {
+                    lastAssistantMsg = chat[i].mes;
+                    break;
+                }
+            }
+            if (!lastAssistantMsg) return toastr['info']("No assistant message with content found.", "RPG Tracker");
+
+            toastr['info']("Triggering manual State Update...", "RPG Tracker");
+            await runStateModelPass(lastAssistantMsg);
+        });
+
+        $('#rpg_tracker_btn_clear').on('click', function () {
+            if (confirm("Are you sure you want to clear the memory history and wipe the tracker?")) {
+                settings.currentMemo = "";
+                settings.prevMemo1 = "";
+                settings.prevMemo2 = "";
+                settings.memoHistory = [];
+                settings.lastDelta = "";
+                settings.quests = [];
+                settings.historyIndex = -1;
+                _historyViewIndex = -1;
+                saveSettings();
+                updateUIMemo("");
+                refreshRenderedView();
+                const dp = document.getElementById('rpg-tracker-delta-content');
+                if (dp) dp.innerHTML = '<span class="delta-empty">Log cleared.</span>';
+                toastr['success']("RPG Tracker logic wiped.", "RPG Tracker");
+            }
+        });
+
+        $('#rpg_tracker_btn_factory_reset').on('click', function () {
+            if (confirm("⚠️ NUCLEAR OPTION ⚠️\n\nThis will wipe EVERYTHING: all custom fields, character history, saved profiles, and prompt changes. The framework will return to v1.1.0 factory defaults.\n\nProceed?")) {
+                const { extensionSettings } = SillyTavern.getContext();
+                delete extensionSettings[MODULE_NAME];
+                // Force re-initialization of defaults
+                getSettings();
+                saveSettings();
+                toastr['success']("Framework has been reset to factory defaults. Reloading in 2 seconds...", "RPG Tracker");
+                setTimeout(() => location.reload(), 2000);
+            }
+        });
+
+        // ── Profile System ──
+        refreshProfileDropdown();
+
+        $('#rpg_tracker_profile_save').on('click', function () {
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+            const name = sel.value;
+            if (!name) return toastr['info']('No profile selected to overwrite. Use "Save As" for new profiles.', 'RPG Tracker');
+            saveProfile(name);
+            toastr['success'](`Profile "${name}" overwritten.`, 'RPG Tracker');
+        });
+
+        $('#rpg_tracker_profile_save_as').on('click', async function () {
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+            const existing = sel.value;
+            const { Popup } = SillyTavern.getContext();
+
+            let name = null;
+            if (Popup && Popup.show && Popup.show.input) {
+                name = await Popup.show.input('Save Profile', 'Save profile as:', existing || '');
+            } else {
+                name = prompt('Save profile as:', existing || '');
+            }
+
+            name = name?.trim();
+            if (!name) return;
+            saveProfile(name);
+            refreshProfileDropdown();
+            toastr['success'](`Profile "${name}" saved.`, 'RPG Tracker');
+        });
+
+        $('#rpg_tracker_profile_load').on('click', function () {
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+            const name = sel.value;
+            if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
+            loadProfile(name);
+            toastr['success'](`Profile "${name}" loaded.`, 'RPG Tracker');
+        });
+
+        $('#rpg_tracker_profile_delete').on('click', async function () {
+            const sel = /** @type {HTMLSelectElement} */ (document.getElementById('rpg_tracker_profile_select'));
+            const name = sel.value;
+            if (!name) return toastr['info']('No profile selected.', 'RPG Tracker');
+
+            const { Popup, POPUP_RESULT } = SillyTavern.getContext();
+            if (Popup && Popup.show && Popup.show.confirm) {
+                const confirmResult = await Popup.show.confirm('Delete Profile', `Delete profile "${name}"?`);
+                if (confirmResult !== POPUP_RESULT.AFFIRMATIVE) return;
+            } else {
+                if (!confirm(`Delete profile "${name}"?`)) return;
+            }
+
+            deleteProfile(name);
+            refreshProfileDropdown();
+            toastr['success'](`Profile "${name}" deleted.`, 'RPG Tracker');
+        });
+
+    } catch (e) {
+        console.error("[RPG Tracker] Failed to build settings UI", e);
+    }
+
+    // Add wand button to toggle panel visibility
+    addWandButton();
 
     function updateTrackerFontSize(size) {
         const panel = document.getElementById('rpg-tracker-panel');
@@ -7977,7 +8168,7 @@ Rules:
         return result;
     };
 
-    })();
+})();
 
 /**
  * Renders the debug info into the Agent panel's debug drawer.

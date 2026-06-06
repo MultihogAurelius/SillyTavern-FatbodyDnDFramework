@@ -27,18 +27,7 @@
                                 title="When enabled, the tracker state (memo) is automatically saved and restored per chat ID. Switching chats will reload that specific campaign's state."></i>
                         </label>
 
-                        <div style="display: flex; gap: 6px; margin-top: 8px;">
-                            <button id="rpg_tracker_btn_update_sysprompt" class="menu_button interactable"
-                                style="flex: 1; background: rgba(0, 200, 140, 0.18); border-color: #00c88c;"
-                                title="Re-fetches the latest sysprompt.txt and writes it to your Quick Prompt Main box — without resetting any of your settings.">
-                                <i class="fa-solid fa-arrow-up-from-bracket"></i> Update Main Sysprompt
-                            </button>
-                            <button id="rpg_tracker_btn_reset_and_apply_sysprompt" class="menu_button interactable"
-                                style="flex: 1; background: rgba(80, 140, 255, 0.18); border-color: #5588ff;"
-                                title="Resets ALL prompts and writes sysprompt.txt to Quick Prompt Main box.">
-                                <i class="fa-solid fa-rotate"></i> Reset All &amp; Apply
-                            </button>
-                        </div>
+
 
                         <label class="checkbox_label" style="margin-top: 10px;">
                             <input id="rpg_tracker_custom_sysprompt" type="checkbox" />
@@ -217,7 +206,13 @@
                     <hr>
                     <b>Modules & Order</b>
                     <div id="rpg_tracker_order_list" class="flex-container flexFlowColumn gap-1"></div>
-                    <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="width: 100%; margin-top: 5px;"><i class="fa-solid fa-plus"></i> Add Custom</button>
+                    <div class="flex-container gap-1" style="margin-top: 5px;">
+                        <button id="rpg_tracker_add_custom_field" class="menu_button interactable" style="flex: 1;"><i class="fa-solid fa-plus"></i> Add Custom (Manual)</button>
+                        <button id="rpg_tracker_add_custom_field_ai" class="menu_button interactable" style="flex: 1; background: rgba(180, 100, 255, 0.15); border-color: rgba(180, 100, 255, 0.4);"><i class="fa-solid fa-wand-magic-sparkles"></i> Add Custom (AI)</button>
+                    </div>
+                    <div class="flex-container gap-1" style="margin-top: 4px;">
+                        <button id="rt_btn_tag_library" class="menu_button interactable" style="flex: 1; background: rgba(50, 150, 255, 0.15); border-color: rgba(50, 150, 255, 0.4);"><i class="fa-solid fa-swatchbook"></i> Rendering Tags Library</button>
+                    </div>
                     <div class="flex-container gap-1" style="margin-top: 4px;">
                         <button id="rpg_tracker_export_all_modules" class="menu_button interactable" style="flex: 1; font-size: 11px;">Export</button>
                         <button id="rpg_tracker_import_modules" class="menu_button interactable" style="flex: 1; font-size: 11px;">Import</button>
@@ -254,6 +249,8 @@
                         </label>
                         <input id="rpg_tracker_state_run_every" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="1" title="Run the State Tracker every N messages. 1 = every message." />
                     </div>
+
+
                 </div>
             </div>
 
@@ -365,18 +362,73 @@
                             ⚠️ Features here are experimental and may behave unpredictably. They may increase token usage, change model behavior, or produce unexpected results. Use at your own discretion.
                         </div>
 
-                        <div style="border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 10px 12px;">
+                        <div style="border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
                             <label class="checkbox_label" style="margin-bottom: 6px;">
-                                <input id="rpg_tracker_experimental_full_review" type="checkbox" />
-                                <span style="font-weight: bold;">Full Review Mode</span>
-                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Instead of outputting only changed sections, the State Tracker will review and update the ENTIRE state each time. This uses more tokens but ensures the model doesn't miss updates to fields it doesn't see."></i>
+                                <input id="rpg_tracker_experimental_half_review" type="checkbox" />
+                                <span style="font-weight: bold;">Half Review Mode</span>
+                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="A medium-intensity review. Tweaks the delta-only prompt to request complete output via regex replacements. Balanced token usage."></i>
                             </label>
                             <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.45; padding-left: 24px;">
-                                Replaces the delta-only State Tracker logic with a full review pass. The model will review and output <b>every</b> section on each update instead of only changed ones. This prevents models from forgetting to update fields like Status, Time, etc.
-                                <br><br>
-                                <b>Trade-off:</b> Higher token usage per update, but significantly more accurate state tracking for models that struggle with delta-only output.
+                                A medium-intensity review mode. Adjusts the State Tracker prompt with regex tweaks to request complete output from all sections. Good balance of token usage and accuracy.
                             </div>
                         </div>
+                        <div style="border: 1px solid rgba(255, 80, 80, 0.2); border-radius: 6px; padding: 10px 12px; background: rgba(255, 60, 60, 0.04);">
+                            <label class="checkbox_label" style="margin-bottom: 6px;">
+                                <input id="rpg_tracker_experimental_full_review" type="checkbox" />
+                                <span style="font-weight: bold; color: #ff8866;">Full Review Mode</span>
+                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="AGGRESSIVE. Completely rewrites the system prompt to forcefully demand every single field. Highest token usage but guarantees nothing is missed."></i>
+                            </label>
+                            <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.45; padding-left: 24px;">
+                                <b style="color: #ff8866;">AGGRESSIVE.</b> Completely rewrites the State Tracker system prompt to forcefully demand every single field — including all custom fields — is reviewed and output. Enumerates every enabled module by name.
+                                <br><br>
+                                <b>Trade-off:</b> Highest token usage per update, but <b>guarantees</b> nothing is missed. Use when accuracy is more important than cost.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-DRAWER 5: SYSPROMPT EDITOR & UPDATER -->
+            <div class="inline-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <i class="fa-solid fa-file-pen" style="margin-right: 8px; opacity: 0.7;"></i>
+                    <b>Sysprompt Editor & Updater</b>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content">
+                    <div class="flex-container flexFlowColumn gap-1">
+                        <div style="font-size: 0.8em; opacity: 0.65; line-height: 1.4; margin-bottom: 8px;">
+                            Manage your D&amp;D system prompt. Update it to the latest version, switch between Normal and Legacy modes, or use AI to add new sections.
+                        </div>
+
+                        <div style="font-weight: bold; font-size: 0.85em; opacity: 0.8; margin-bottom: 4px;">Update Sysprompt</div>
+                        <div style="display: flex; gap: 6px;">
+                            <button id="rpg_tracker_btn_update_sysprompt" class="menu_button interactable"
+                                style="flex: 1; background: rgba(0, 200, 140, 0.18); border-color: #00c88c;"
+                                title="Fetches the latest sysprompt.txt (Normal mode) and writes it to your Quick Prompt Main box.">
+                                <i class="fa-solid fa-arrow-up-from-bracket"></i> Update (Normal)
+                            </button>
+                            <button id="rpg_tracker_btn_update_sysprompt_legacy" class="menu_button interactable"
+                                style="flex: 1; background: rgba(200, 170, 0, 0.18); border-color: #ccaa00;"
+                                title="Fetches the legacy sysprompt (without Tool Calls) and writes it to your Quick Prompt Main box.">
+                                <i class="fa-solid fa-arrow-up-from-bracket"></i> Update (Legacy)
+                            </button>
+                        </div>
+                        <button id="rpg_tracker_btn_reset_and_apply_sysprompt" class="menu_button interactable"
+                            style="width: 100%; margin-top: 4px; background: rgba(80, 140, 255, 0.18); border-color: #5588ff;"
+                            title="Resets ALL prompts (Core, Stock Modules, Block Order) and writes sysprompt.txt to Quick Prompt Main box.">
+                            <i class="fa-solid fa-rotate"></i> Reset All &amp; Apply
+                        </button>
+
+                        <hr>
+                        <div style="font-weight: bold; font-size: 0.85em; opacity: 0.8; margin-bottom: 4px;">AI-Assisted Section Builder</div>
+                        <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.4; margin-bottom: 6px;">
+                            Describe a new system/mechanic and let AI generate a new &lt;section&gt; block. You can review, retry, or edit before it's appended to your sysprompt.
+                        </div>
+                        <button id="rpg_tracker_btn_ai_add_section" class="menu_button interactable"
+                            style="width: 100%; background: rgba(180, 100, 255, 0.15); border-color: rgba(180, 100, 255, 0.4);">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Add Section to Sysprompt (AI)
+                        </button>
                     </div>
                 </div>
             </div>

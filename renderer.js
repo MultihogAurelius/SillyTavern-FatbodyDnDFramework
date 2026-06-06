@@ -98,6 +98,66 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
             }
             case 'kv':
                 return `<div class="rt-card-kv"><span class="rt-card-key">${labelHtml}</span><span class="rt-card-val">${escapeHtmlWithColor(value)}</span></div>`;
+            case 'objective': {
+                // Objective with checkbox status: ○ (incomplete), ✓/✔ (done), ✗/✘ (failed)
+                const isDone = /^[✓✔☑]/.test(value);
+                const isFailed = /^[✗✘☒]/.test(value);
+                const isIncomplete = /^[○◯◦]/.test(value);
+                const cleanVal = value.replace(/^[✓✔☑✗✘☒○◯◦]\s*/, '').trim();
+                const statusClass = isDone ? 'rt-obj-done' : isFailed ? 'rt-obj-failed' : 'rt-obj-pending';
+                const icon = isDone ? '✓' : isFailed ? '✗' : '○';
+                return `<div class="rt-objective ${statusClass}">${labelHtml}<span class="rt-obj-icon">${icon}</span> <span class="rt-obj-text">${escapeHtmlWithColor(cleanVal)}</span></div>`;
+            }
+            case 'reward': {
+                return `<div class="rt-entity-sub-line"><span class="rt-reward-chip">${labelHtml ? labelHtml + ' ' : ''}🎁 ${escapeHtmlWithColor(value)}</span></div>`;
+            }
+            case 'difficulty': {
+                const diffColors = { 'very easy': '#2ecc71', 'easy': '#27ae60', 'medium': '#f1c40f', 'normal': '#f1c40f', 'hard': '#e67e22', 'very hard': '#e74c3c' };
+                const diffColor = diffColors[value.toLowerCase()] || '#aaa';
+                return `<div class="rt-entity-sub-line">${labelHtml}<span class="rt-difficulty-badge" style="background:${diffColor}22; color:${diffColor}; border:1px solid ${diffColor}55;">${escapeHtmlWithColor(value)}</span></div>`;
+            }
+            case 'progress': {
+                const pm = value.match(/(\d+)\s*\/\s*(\d+)/);
+                if (pm) {
+                    const cur = parseInt(pm[1], 10), max = parseInt(pm[2], 10);
+                    const pct = max > 0 ? Math.min(100, (cur / max) * 100) : 0;
+                    const extra = value.replace(pm[0], '').trim();
+                    return `<div class="rt-entity-sub-line rt-progress-row">${labelHtml}
+                        <div class="rt-progress-bar-wrap">
+                            <div class="rt-progress-bar" style="width:${pct.toFixed(1)}%;"></div>
+                        </div>
+                        <span class="rt-progress-label">${cur}/${max}${extra ? ' ' + escapeHtml(extra) : ''}</span>
+                    </div>`;
+                }
+                return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
+            }
+            case 'pill_colored': {
+                const pClass = rule.pillClass || '';
+                const pillHtml = value.split(',').map(p => {
+                    p = p.trim();
+                    const descMatch = p.match(/^(.*?)\s*\((.*?)\)$/);
+                    const name = descMatch ? descMatch[1].trim() : p;
+                    const desc = descMatch ? descMatch[2].trim() : '';
+                    const descHtml = desc ? `<div class="rt-unit-descr">${escapeHtml(desc)}</div>` : '';
+                    const titleAttr = desc ? ` title="${escapeHtml(desc)}"` : '';
+                    const noDescClass = desc ? '' : ' no-desc';
+                    return `<span class="rt-unit-pill ${pClass}${noDescClass}"${titleAttr}><span class="rt-unit-name">${escapeHtml(name)}</span>${descHtml}</span>`;
+                }).join(' ');
+                return `<div class="rt-entity-sub-line rt-units-container">${labelHtml} ${pillHtml}</div>`;
+            }
+            case 'badge_colored': {
+                const bColor = rule.color || '#fff';
+                return `<div class="rt-entity-sub-line">${labelHtml}<span class="rt-difficulty-badge" style="background:${bColor}22; color:${bColor}; border:1px solid ${bColor}55;">${escapeHtmlWithColor(value)}</span></div>`;
+            }
+            case 'coin': {
+                const cColor = rule.color || '#fff';
+                const icon = rule.icon || '🪙';
+                return `<div class="rt-entity-sub-line">${labelHtml}<span class="rt-coin-badge" style="color:${cColor}; font-weight:bold; background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:12px; border:1px solid ${cColor}44;">${icon} ${escapeHtmlWithColor(value)}</span></div>`;
+            }
+            case 'dice_roll': {
+                // value is something like "1d20+5 = 18"
+                return `<div class="rt-entity-sub-line">${labelHtml}<span class="rt-dice-roll" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); padding:2px 6px; border-radius:4px; font-family:monospace; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-dice-d20" style="opacity:0.7"></i> ${escapeHtmlWithColor(value)}</span></div>`;
+            }
             case 'text':
             default:
                 return `<div class="rt-entity-sub-line">${labelHtml} ${escapeHtmlWithColor(value)}</div>`;
@@ -150,30 +210,60 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
      * their own renderer. This makes markers work in ALL stock blocks.
      */
     export function tryRenderMarker(line, tag = '', entityName = '') {
-        const m = line.match(/^\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT|PLS|B|HPB|XB|HGT|BDG|HP)\)\)\s*(.*)$/i);
+        const markerRegex = /^(.*?)\(\((PILLS|BAR|HPBAR|XPBAR|TEXT|BADGE|HIGHLIGHT|PLS|B|HPB|XB|HGT|BDG|HP|OBJ|REWARD|DIFFICULTY|PROGRESS|BARRED|BARBLUE|BARGREEN|BARYELLOW|BARPURPLE|BARORANGE|PILLRED|PILLGREEN|PILLBLUE|WARNING|DANGER|SUCCESS|INFO|GOLD|SILVER|BRONZE|DOLLAR|HEART|SKULL|SOUL|ROLL)\)\)\s*(.*)$/i;
+        const m = line.match(markerRegex);
         if (!m) return null;
+
         const typeMap = {
-            PILLS:'pills', PLS:'pills',
-            BAR:'hp_bar', B:'hp_bar',
-            HPBAR:'hp_bar', HPB:'hp_bar',
-            HP: 'hp_bar',
-            XPBAR:'xp_bar', XB:'xp_bar',
-            TEXT:'text',
-            BADGE:'badge', BDG:'badge',
-            HIGHLIGHT:'highlight', HGT:'highlight'
+            PILLS:{ renderType: 'pills' }, PLS:{ renderType: 'pills' },
+            BAR:{ renderType: 'hp_bar' }, B:{ renderType: 'hp_bar' }, HPBAR:{ renderType: 'hp_bar' }, HPB:{ renderType: 'hp_bar' }, HP: { renderType: 'hp_bar' },
+            BARRED:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#e74c3c,#c0392b)' },
+            BARBLUE:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#3498db,#2980b9)' },
+            BARGREEN:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#2ecc71,#27ae60)' },
+            BARYELLOW:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#f1c40f,#f39c12)' },
+            BARPURPLE:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#9b59b6,#8e44ad)' },
+            BARORANGE:{ renderType: 'hp_bar', color: 'linear-gradient(90deg,#e67e22,#d35400)' },
+            XPBAR:{ renderType: 'xp_bar' }, XB:{ renderType: 'xp_bar' },
+            TEXT:{ renderType: 'text' },
+            BADGE:{ renderType: 'badge' }, BDG:{ renderType: 'badge' },
+            HIGHLIGHT:{ renderType: 'highlight' }, HGT:{ renderType: 'highlight' },
+            OBJ:{ renderType: 'objective' },
+            REWARD:{ renderType: 'reward' },
+            DIFFICULTY:{ renderType: 'difficulty' },
+            PROGRESS:{ renderType: 'progress' },
+            PILLRED:{ renderType: 'pill_colored', pillClass: 'rt-pill-debuff' },
+            PILLGREEN:{ renderType: 'pill_colored', pillClass: 'rt-pill-buff' },
+            PILLBLUE:{ renderType: 'pill_colored', pillClass: 'rt-pill-magic' },
+            WARNING:{ renderType: 'badge_colored', color: '#f1c40f' },
+            DANGER:{ renderType: 'badge_colored', color: '#e74c3c' },
+            SUCCESS:{ renderType: 'badge_colored', color: '#2ecc71' },
+            INFO:{ renderType: 'badge_colored', color: '#3498db' },
+            GOLD:{ renderType: 'coin', color: '#ffd700', icon: '💰' },
+            SILVER:{ renderType: 'coin', color: '#c0c0c0', icon: '🪙' },
+            BRONZE:{ renderType: 'coin', color: '#cd7f32', icon: '🪙' },
+            DOLLAR:{ renderType: 'coin', color: '#85bb65', icon: '💵' },
+            HEART:{ renderType: 'coin', color: '#ff4466', icon: '❤️' },
+            SKULL:{ renderType: 'coin', color: '#aaaaaa', icon: '💀' },
+            SOUL:{ renderType: 'coin', color: '#aa88ff', icon: '👻' },
+            ROLL:{ renderType: 'dice_roll' }
         };
-        const markerType = m[1].toUpperCase();
-        const renderType = typeMap[markerType] || 'text';
-        const content = m[2].trim();
+
+        const preText = m[1].trim();
+        const markerType = m[2].toUpperCase();
+        const postText = m[3].trim();
+        const rule = typeMap[markerType] || { renderType: 'text' };
+
+        // Reconstruct a line for renderSubFieldByRule
+        const reconstructedContent = preText ? `${preText} ${postText}`.trim() : postText;
 
         let barId = null;
-        if (renderType === 'hp_bar' || renderType === 'xp_bar') {
-            const colonIdx = content.indexOf(':');
-            const labelText = colonIdx !== -1 ? content.substring(0, colonIdx).trim() : 'Bar';
+        if (rule.renderType === 'hp_bar' || rule.renderType === 'xp_bar') {
+            const colonIdx = reconstructedContent.indexOf(':');
+            const labelText = colonIdx !== -1 ? reconstructedContent.substring(0, colonIdx).trim() : 'Bar';
             barId = `${tag}:${entityName}:${labelText}`;
         }
 
-        return renderSubFieldByRule({ renderType }, content, barId);
+        return renderSubFieldByRule(rule, reconstructedContent, barId);
     }
 
     export function renderLineInEntityContext(tag, line, entityName, rawLine) {
@@ -637,7 +727,19 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
 
                 const flushBullets = () => {
                     if (!pendingBullets.length) return;
-                    pendingBullets.forEach(i => inventoryResults.push(`<div class="rt-card-item">${escapeHtmlWithColor(i)}</div>`));
+                    pendingBullets.forEach(i => {
+                        // Extract hidden worth: (~X GP), (~50 SP), (Worth: 120 GP), etc.
+                        const worthRx = /\s*\(~([^)]+)\)\s*$|\s*\(Worth:\s*([^)]+)\)\s*$/i;
+                        const worthMatch = i.match(worthRx);
+                        let displayText = i;
+                        let titleAttr = '';
+                        if (worthMatch) {
+                            const worthVal = (worthMatch[1] || worthMatch[2]).trim();
+                            displayText = i.replace(worthRx, '').trim();
+                            titleAttr = ` title="Worth: ${escapeHtml(worthVal)}"`;
+                        }
+                        inventoryResults.push(`<div class="rt-card-item rt-inventory-item"${titleAttr}>${escapeHtmlWithColor(displayText)}</div>`);
+                    });
                     pendingBullets.length = 0;
                 };
 

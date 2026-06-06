@@ -2,6 +2,40 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [3.0.0] - 2026-06-06
+
+### Added
+- **Half Review Mode** *(Experimental)*: The previous "Full Review Mode" has been renamed to "Half Review Mode." It's a medium-intensity review that uses regex-adjusted prompts to request complete output. Balanced token usage and accuracy.
+- **Full Review Mode — Aggressive** *(Experimental)*: A brand-new review mode that **completely rewrites** the State Tracker system prompt to forcefully demand every single field — including all custom fields — is reviewed and output. Enumerates every enabled module by name. Highest token usage but guarantees nothing is missed.
+- **Automatic Migration**: Users who had the old Full Review Mode enabled will be automatically migrated to Half Review Mode.
+- **Inventory Rarity Classification**: All inventory items now **must** include a rarity tag (`[Common]`, `[Uncommon]`, `[Rare]`, `[Epic]`, `[Legendary]`, `[Artifact]`), a thematic emoji, and an estimated worth in parentheses (e.g. `(~120 GP)`). Currency is not enforced — fits any setting.
+- **Inventory Worth Tooltip**: Item worth is stripped from the visible display and shown on hover via a native tooltip. Hover over any inventory item to see its estimated worth.
+- **Dynamic Enemy HP Scaling**: Enemy stats are now **context-aware** and scale based on quest difficulty:
+  - **Very Easy/Easy**: Enemies below or near player level
+  - **Normal**: Enemies roughly at player level
+  - **Hard/Very Hard**: Enemies can be brutally strong; Hard is winnable with good play, Very Hard demands perfection
+  - **General encounters**: Pure narrative context — no babysitting, no HP-matching
+- **Legendary NPC Tier**: Added a new "Legendary — World-threat" tier with HP 150–500+, AC 19–22, ATK +11 to +15.
+- **Emergent Quest System**: Quests no longer require formal NPC acceptance. When the player pursues a clear, sustained goal through action, it's automatically treated as an emergent quest and added to the quest tracker.
+- **AI Custom Field Creator**: New "Add Custom (AI)" button in the State Tracker settings. Describe what you want to track in plain language and the AI generates a fully configured field with rendering tags, icon, prompt, and template. Now passes the entire comprehensive rendering tags library as context.
+- **Sysprompt Editor & Updater**: New top-level settings section with:
+  - **Update (Normal)**: Fetches `sysprompt.txt` and writes to Quick Prompt Main
+  - **Update (Legacy)**: Fetches `sysprompt_legacy.txt` regardless of current RNG mode
+  - **AI Section Builder**: Describe a mechanic and the AI generates a new XML-tagged section. It is fed your entire current sysprompt for seamless integration. Opens a fully interactive popup, previews it, and appends it to your sysprompt on approval.
+  - **Reset All & Apply**: Moved here from General & Visuals
+- **Universal Inline Rendering Tags**: Layout and marker tags now work inline and no longer need to be the absolute first thing on a line. (e.g. `Health: ((BAR)) 50/100`). Quest-exclusive renderers are now usable **anywhere** — in any stock or custom field:
+  - `((OBJ))` — Objective checkbox with status indicators (○/✓/✗)
+  - `((REWARD))` — Gold reward badge/chip
+  - `((DIFFICULTY))` — Color-coded difficulty badge (green → red)
+  - `((PROGRESS))` — Progress counter with animated mini bar
+- **15+ New Rendering Tags**: Added colorful variant tags (`((BARRED))`, `((PILLGREEN))`, `((BARYELLOW))`), alert badges (`((WARNING))`, `((DANGER))`, `((SUCCESS))`, `((INFO))`), economy coins (`((GOLD))`, `((SILVER))`, `((BRONZE))`), and dice roll renders (`((ROLL))`).
+- **Rendering Tags Library**: New button below the Custom Fields section. Opens a beautiful interactive popup with live visual examples of every single tag rendered directly next to its exact syntax.
+
+### Changed
+- **Update Sysprompt button** now always fetches `sysprompt.txt` (Normal mode). Use the new Legacy button for legacy mode.
+- **NPC Tiers** expanded with wider HP/stat ranges and the Legendary tier.
+- **Quest instructions** now include multi-objective requirements and emergent quest rules in both `sysprompt.txt` and `sysprompt_legacy.txt`.
+
 ## [2.6.0] - 2026-05-30
 
 ### Added
