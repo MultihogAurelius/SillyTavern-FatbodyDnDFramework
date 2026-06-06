@@ -131,6 +131,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         directPromptContext: 5,
         historyIndex: -1,
         fullAuditMaxTokens: 32000,
+        stateTrackerRunEvery: 1,
         ctxWorldInfo: false,
         lorebookFilter: [],
         ollamaUrl: "http://localhost:11434",
@@ -290,6 +291,7 @@ CRITICAL INSTRUCTION: You MUST backfill missing World Engine day reports. Your a
 - CONTEXT MANAGEMENT: You MUST \`[[ACTIVATE: Day {{prevDay}}]]\` (and the 2 days prior if they exist). You MUST \`[[DEACTIVATE]]\` any older WORLD reports.
 {{/if_world}}`,
         categoryRenderOptions: {},
+        experimentalFullReviewMode: false,
     };
 
     if (!extensionSettings[MODULE_NAME]) {

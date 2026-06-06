@@ -238,27 +238,95 @@ function stripMemoHtml(text) {
 
 // ── Chat interceptor (registered on globalThis for ST manifest hook) ───────────
 
+/**
+ * Extracts the text content from a chat message regardless of format.
+ * Chat Completion messages may store content as a string or as an array of
+ * content parts (e.g. [{type:'text', text:'...'}] for multimodal presets).
+ * Text Completion (legacy) messages use `mes` instead of `content`.
+ */
+function extractTextContent(msg) {
+    const raw = msg['content'] ?? msg.mes ?? '';
+    if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw)) {
+        return raw.filter(p => p && p.type === 'text').map(p => p.text || '').join('\n');
+    }
+    return String(raw);
+}
+
 export function installInterceptor() {
     globalThis.rpgTrackerInterceptor = async function (chat, contextSize, abort, type) {
         const settings = getSettings();
-        // `paused` only suppresses automatic state tracker / lorebook runs (see onGenerationEnded).
-        // Do not skip this hook when paused: RNG queue, memo, and quest context must still inject
-        // into the outgoing user message or combat RNG breaks while updates are paused.
-        if (!settings.enabled) return;
+        if (settings.debugMode) {
+            console.group("[RPG Tracker] Interceptor Triggered");
+            console.log("Settings Enabled:", settings.enabled);
+            console.log("RNG Enabled:", settings.rngEnabled);
+            console.log("Payload Chat Type:", Array.isArray(chat) ? 'Array' : typeof chat);
+            console.log("Chat Length:", Array.isArray(chat) ? chat.length : 'N/A');
+        }
+
+        if (!settings.enabled) {
+            if (settings.debugMode) console.groupEnd();
+            return;
+        }
+
+        if (!Array.isArray(chat)) {
+            if (settings.debugMode) {
+                console.log("Chat is not an array. Interceptor bailing out.");
+                console.groupEnd();
+            }
+            return;
+        }
 
         let idx = -1;
+        
+        // 1. Check for explicit user roles (case insensitive) or ST internal flag
         for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i]['role'] === "user" || chat[i].is_user) { idx = i; break; }
+            if (settings.debugMode) console.log(`Checking message ${i}: role=${chat[i]?.role}, is_user=${chat[i]?.is_user}`);
+            const role = String(chat[i]?.role || chat[i]?.Role || '').toLowerCase().trim();
+            if (chat[i]?.is_user || role === 'user' || role === 'human' || role === 'player') {
+                idx = i;
+                break;
+            }
         }
-        if (idx === -1) return;
+        
+        // 2. Fallback: Find the last message that isn't from the system or assistant
+        if (idx === -1) {
+            for (let i = chat.length - 1; i >= 0; i--) {
+                const role = String(chat[i]?.role || chat[i]?.Role || '').toLowerCase().trim();
+                if (role && role !== 'system' && role !== 'assistant' && role !== 'ai' && role !== 'model') {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+        
+        // 3. Absolute desperation fallback: grab the very last message in the array
+        if (idx === -1 && chat.length > 0) {
+            idx = chat.length - 1;
+        }
+        
+        if (idx === -1) {
+            if (settings.debugMode) {
+                console.log("No user message found in chat array. Interceptor bailing out.");
+                console.groupEnd();
+            }
+            return;
+        }
 
         const msg = chat[idx];
-        const content = msg['content'] || msg.mes || '';
+        const content = extractTextContent(msg);
         let injections = "";
+        
+        if (settings.debugMode) {
+            console.log(`Found user message at index ${idx}.`);
+            console.log(`Extracted Text Content Length: ${content.length}`);
+            console.log(`Content includes RNG tag? ${content.includes("[RNG_QUEUE v6.0_PROPER]")}`);
+        }
 
         if (settings.rngEnabled && !content.includes("[RNG_QUEUE v6.0_PROPER]")) {
             const queue = makeRngQueue(RNG_QUEUE_LEN);
             injections += buildRngBlock(queue);
+            if (settings.debugMode) console.log("RNG Queue generated for injection.");
         }
 
         if (settings.currentMemo && !content.includes("### STATE MEMO (DO NOT REPEAT)")) {
@@ -386,11 +454,22 @@ export function installInterceptor() {
             }
         }
 
+        if (settings.debugMode) console.groupEnd();
         if (!injections) return;
 
-        const originalContent = msg.content || msg.mes || '';
-        if (typeof msg.content === "string") msg.content = injections + msg.content;
-        else if (typeof msg.mes === "string") msg.mes = injections + msg.mes;
+        const originalContent = extractTextContent(msg);
+        if (typeof msg.content === 'string') {
+            msg.content = injections + msg.content;
+            if (settings.debugMode) console.log("Injected into string msg.content");
+        } else if (Array.isArray(msg.content)) {
+            msg.content.unshift({ type: 'text', text: injections });
+            if (settings.debugMode) console.log("Injected into array msg.content");
+        } else if (typeof msg.mes === 'string') {
+            msg.mes = injections + msg.mes;
+            if (settings.debugMode) console.log("Injected into string msg.mes");
+        } else {
+            if (settings.debugMode) console.log("Failed to inject! Unknown msg structure:", Object.keys(msg));
+        }
 
         if (settings.debugMode) {
             console.log("[Fatbody Framework] Injections pushed to request.");
@@ -451,6 +530,9 @@ export function getNarrativeBlocks(chat, limit = -1, includeHidden = false) {
 /** In-memory counter: how many generations have fired since the agent last ran. Resets on chat change. */
 let _routerAutoTick = 0;
 
+/** In-memory counter: how many generations have fired since the state tracker last ran. */
+let _stateTrackerAutoTick = 0;
+
 /**
  * Accumulates keyword-triggered entry IDs across throttled generations so the
  * agent receives the full set (not just the current turn) when it finally fires.
@@ -463,6 +545,7 @@ let _pendingKeywordTriggered = [];
  */
 export function resetRouterTick(clearKeywordPool = false) {
     _routerAutoTick = 0;
+    _stateTrackerAutoTick = 0;
     _pendingKeywordTriggered = [];
     // Keyword-activated entries are transient (they expire when the keyword leaves the scan window).
     // Only clear on a real chat change, not on same-chat reloads (swipe, regenerate).
@@ -511,11 +594,17 @@ export async function onGenerationEnded() {
         }
     }
 
-    if (settings.debugMode) console.log("[RPG Tracker] Triggering State Model pass...", combinedNarrative);
-
-    // Step 2: State Tracker pass.
-    if (typeof globalThis._rpgRunStateModelPass === 'function') {
-        await globalThis._rpgRunStateModelPass(combinedNarrative);
+    // Step 2: State Tracker pass — throttled by stateTrackerRunEvery.
+    const stateRunEvery = settings.stateTrackerRunEvery || 1;
+    _stateTrackerAutoTick++;
+    if (_stateTrackerAutoTick >= stateRunEvery) {
+        _stateTrackerAutoTick = 0;
+        if (settings.debugMode) console.log("[RPG Tracker] Triggering State Model pass...", combinedNarrative);
+        if (typeof globalThis._rpgRunStateModelPass === 'function') {
+            await globalThis._rpgRunStateModelPass(combinedNarrative);
+        }
+    } else {
+        if (settings.debugMode) console.log(`[RPG Tracker] State Tracker skipped (tick ${_stateTrackerAutoTick}/${stateRunEvery}).`);
     }
 
     // Step 3: Run-every throttle — only fire the Lorebook Agent every N auto-generations.

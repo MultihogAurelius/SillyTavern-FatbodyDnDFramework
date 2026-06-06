@@ -10,10 +10,14 @@ I wasn't satisfied with any of the commercial offerings available (AI Realm, AI 
 
 ---
 
-## 🌟 What's New in 2.5.0+
+## 🌟 What's New in 2.6.0+
 
 This fork has been significantly upgraded with powerful new features that redefine the roleplaying experience:
 
+*   🧪 **Experimental Features Tab**: A new dedicated settings drawer for experimental, cutting-edge features that may increase token usage or change model behavior. Currently includes **Full Review Mode**.
+*   🔬 **Full Review Mode** *(Experimental)*: Replaces the delta-only State Tracker logic with a full review pass. The model reviews and outputs **every** section on each update, preventing it from forgetting to update fields like Status, Time, etc. Higher token cost but significantly more accurate for models that struggle with "output only changes" instructions.
+*   ⏱️ **State Tracker Run Frequency**: Control how often the State Tracker fires with a new "Run Every N Messages" setting. Set to 2 or 3 to reduce API costs on fast-moving chats.
+*   🔧 **RNG Queue Fix**: Fixed a critical bug where the RNG Queue was silently dropped with certain chat completion presets that use array-format content (common with vision/multimodal presets).
 *   🌍 **Automated World Engine**: A comprehensive simulation block in the Lorebook Agent. The agent now tracks the passage of time and automatically generates missing daily background reports for off-screen NPC actions and faction events, creating a persistent, living world that evolves independently of the player.
 *   ⚙️ **Editable Modular Agent Instructions**: All Lorebook Agent formatting rules and module-specific logic (LOC, FAC, WORLD, Custom Tags) are exposed into a single, unified text area in the settings UI. You can now fully customize or rewrite the internal logic and formatting rules of the Lorebook Agent.
 *   🔍 **Full Audit Chunking**: Both the RPG State Tracker and the Lorebook Agent can now process massive chat histories that exceed your model's context limit. The history is automatically split into token-managed chunks that are processed sequentially — each chunk fully commits its results before the next begins, with live UI updates after every chunk.

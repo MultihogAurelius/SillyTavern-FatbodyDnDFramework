@@ -249,6 +249,10 @@
                         <input id="rpg_tracker_history_count" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="1" />
                         <label>Full Audit Max Tokens</label>
                         <input id="rpg_tracker_full_audit_max_tokens" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="32000" title="Max context tokens for Full Audit chunking fallback." />
+                        <label>Run Every N Messages
+                            <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="How often the State Tracker runs. Set to 1 to run every message, 2 to run every other message, etc. Useful for reducing API costs."></i>
+                        </label>
+                        <input id="rpg_tracker_state_run_every" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="1" title="Run the State Tracker every N messages. 1 = every message." />
                     </div>
                 </div>
             </div>
@@ -343,6 +347,36 @@
                                 <pre id="rpg_tracker_lore_activation_debug_pre" style="margin: 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 10px; line-height: 1.25; padding: 8px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid rgba(127,127,127,0.25);"></pre>
                             </div>
                         </details>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-DRAWER 4: EXPERIMENTAL FEATURES -->
+            <div class="inline-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header">
+                    <i class="fa-solid fa-flask" style="margin-right: 8px; opacity: 0.7;"></i>
+                    <b>Experimental Features</b>
+                    <span style="margin-left: 6px; font-size: 0.7em; background: rgba(255, 160, 0, 0.2); border: 1px solid rgba(255, 160, 0, 0.4); border-radius: 4px; padding: 1px 6px; color: #ffa000; font-weight: bold; vertical-align: middle;">BETA</span>
+                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+                </div>
+                <div class="inline-drawer-content">
+                    <div class="flex-container flexFlowColumn gap-1">
+                        <div style="font-size: 0.8em; opacity: 0.65; line-height: 1.4; margin-bottom: 8px; border: 1px solid rgba(255, 160, 0, 0.2); border-radius: 6px; padding: 8px 10px; background: rgba(255, 160, 0, 0.04);">
+                            ⚠️ Features here are experimental and may behave unpredictably. They may increase token usage, change model behavior, or produce unexpected results. Use at your own discretion.
+                        </div>
+
+                        <div style="border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 10px 12px;">
+                            <label class="checkbox_label" style="margin-bottom: 6px;">
+                                <input id="rpg_tracker_experimental_full_review" type="checkbox" />
+                                <span style="font-weight: bold;">Full Review Mode</span>
+                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Instead of outputting only changed sections, the State Tracker will review and update the ENTIRE state each time. This uses more tokens but ensures the model doesn't miss updates to fields it doesn't see."></i>
+                            </label>
+                            <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.45; padding-left: 24px;">
+                                Replaces the delta-only State Tracker logic with a full review pass. The model will review and output <b>every</b> section on each update instead of only changed ones. This prevents models from forgetting to update fields like Status, Time, etc.
+                                <br><br>
+                                <b>Trade-off:</b> Higher token usage per update, but significantly more accurate state tracking for models that struggle with delta-only output.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -2,6 +2,16 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [2.6.0] - 2026-05-30
+
+### Added
+- **Experimental Features Tab**: New "Experimental Features" settings sub-drawer (with BETA badge) for testing cutting-edge features that may change behavior or increase token usage.
+- **Full Review Mode** *(Experimental)*: When enabled, the State Tracker reviews and outputs the **entire** state on each update instead of only changed sections. This prevents models from missing updates to fields like Status, Abilities, Custom Fields, and any field that only updates sporadically and occasionally, etc. The AI, especially smaller models, tend to skip those when instructed to output "only changes." Trade-off: Slightly higher token usage per update.
+- **State Tracker Run Frequency**: Added a "Run Every N Messages" setting to the State Tracker's Advanced Options. Set to 1 (default) to run every message, 2 to skip every other, etc. Useful for reducing API costs on fast-moving chats.
+
+### Fixed
+- **RNG Queue Not Injecting with Certain Chat Completion and Text Completion Presets**: Fixed a critical bug where the RNG Queue, State Memo, and Quest context were silently dropped when using chat completion presets that format the `content` field as an array of content parts (common with vision/multimodal presets). The interceptor now correctly handles both string and array content formats, and also guards against text completion mode where the chat object is a plain string instead of an array.
+
 ## [2.5.2] - 2026-05-26
 
 ### Added

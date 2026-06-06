@@ -1667,10 +1667,23 @@ Rules:
             const modulesText = buildModulesInstructionText(settings);
 
             let systemPrompt = settings.systemPromptTemplate.replace("{{modulesText}}", modulesText);
+            const useFullReview = !isFullContext && !!settings.experimentalFullReviewMode;
             if (isFullContext) {
                 systemPrompt = systemPrompt
                     .replace(/Only output sections that actually changed/gi, "Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules")
                     .replace(/Omit unchanged sections entirely/gi, "Do NOT omit any section; output a complete, verified state memo");
+            } else if (useFullReview) {
+                // Experimental Full Review Mode: rewrite the rules to request complete state output
+                systemPrompt = systemPrompt
+                    .replace(/Determine which sections changed\. Only output sections that actually changed\./gi,
+                        'Review every section against the narrative. Output ALL sections with their current verified state.')
+                    .replace(/Omit unchanged sections entirely\. Do NOT output a section if its contents did not change\./gi,
+                        'Output EVERY section, even if unchanged. Verify each field is accurate and up-to-date.')
+                    .replace(/If there are absolutely NO CHANGES to any section, you MUST output exactly: `NO_CHANGES_DETECTED`/gi,
+                        'Always output the complete state memo. Never output NO_CHANGES_DETECTED in full review mode.')
+                    .replace(/Output ONLY the changed sections \(or NO_CHANGES_DETECTED\)\. No preamble, no explanation, no commentary\./gi,
+                        'Output the COMPLETE state memo for all enabled modules. No preamble, no explanation, no commentary.');
+                if (settings.debugMode) console.log('[RPG Tracker] Full Review Mode active — system prompt rewritten for complete state output.');
             }
 
             const worldLore = await buildLorebookContext();
@@ -1804,6 +1817,13 @@ Rules:
                         `## NARRATIVE HISTORY (Chunk ${i + 1} of ${chunks.length})\n${chatLog}\n\n` +
                         `## TASK\nAnalyze the narrative chunk provided above. Rebuild the State Memo to ensure every detail is perfectly accurate to this point in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
                         `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
+                } else if (useFullReview) {
+                    // Experimental Full Review Mode: ask the model to review and output the entire state
+                    userPrompt =
+                        worldLoreSection +
+                        priorMemoText +
+                        `## NARRATIVE HISTORY (Last ${chunks[i].length} messages)\n${chatLog}\n\n` +
+                        `## REVIEW AND OUTPUT THE COMPLETE UPDATED STATE:`;
                 } else {
                     userPrompt =
                         worldLoreSection +
@@ -6704,6 +6724,25 @@ Rules:
                     saveSettings();
                 });
             }
+            const stateRunEveryInput = $('#rpg_tracker_state_run_every');
+            if (stateRunEveryInput.length) {
+                stateRunEveryInput.val(settings.stateTrackerRunEvery !== undefined ? settings.stateTrackerRunEvery : 1).on('input', function () {
+                    settings.stateTrackerRunEvery = Math.max(1, parseInt(/** @type {string} */($(this).val())) || 1);
+                    saveSettings();
+                });
+            }
+
+            // ── Experimental Features ──
+            $('#rpg_tracker_experimental_full_review').prop('checked', !!settings.experimentalFullReviewMode).on('change', function () {
+                settings.experimentalFullReviewMode = !!$(this).prop('checked');
+                saveSettings();
+                toastr['info'](
+                    settings.experimentalFullReviewMode
+                        ? 'Full Review Mode enabled. The State Tracker will now output ALL sections on each update.'
+                        : 'Full Review Mode disabled. The State Tracker will only output changed sections.',
+                    'Experimental Features'
+                );
+            });
 
             // ── Lorebook Context UI ──
             async function refreshLorebookList() {
