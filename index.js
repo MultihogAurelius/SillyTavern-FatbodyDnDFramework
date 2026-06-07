@@ -7400,6 +7400,133 @@ RULES:
             }
         });
 
+        // ── Custom Sysprompt Library ──
+        async function applyCustomSysprompts() {
+            const settings = getSettings();
+            const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
+            if (!mainTextarea) {
+                toastr['warning']('Quick-edit textarea not found. Open the ST prompt editor first.', 'RPG Tracker');
+                return false;
+            }
+
+            const enabledPrompts = (settings.customSyspromptLibrary || []).filter(p => p.enabled);
+            let injectionText = '';
+            
+            if (enabledPrompts.length > 0) {
+                injectionText = '<!-- RT_CUSTOM_LIBRARY_START -->\n' + 
+                                enabledPrompts.map(p => p.content).join('\n\n') + 
+                                '\n<!-- RT_CUSTOM_LIBRARY_END -->';
+            }
+
+            let currentContent = mainTextarea.value;
+            
+            // Remove existing block if any
+            const blockRegex = /<!-- RT_CUSTOM_LIBRARY_START -->[\s\S]*?<!-- RT_CUSTOM_LIBRARY_END -->\n*/g;
+            currentContent = currentContent.replace(blockRegex, '');
+
+            if (injectionText) {
+                // Try to insert before <constraints>
+                if (currentContent.includes('<constraints>')) {
+                    currentContent = currentContent.replace('<constraints>', `${injectionText}\n\n<constraints>`);
+                } else {
+                    currentContent = currentContent.trim() + '\n\n' + injectionText;
+                }
+            }
+
+            mainTextarea.value = currentContent;
+            mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
+            return true;
+        }
+
+        $('#rpg_tracker_btn_sysprompt_library').on('click', async function () {
+            const { Popup } = SillyTavern.getContext();
+            const settings = getSettings();
+            
+            if (!settings.customSyspromptLibrary) {
+                settings.customSyspromptLibrary = [];
+            }
+            
+            // Function to generate the HTML for the library list
+            const generateListHtml = () => {
+                if (settings.customSyspromptLibrary.length === 0) {
+                    return `<div style="text-align:center; padding:30px; opacity:0.5; font-style:italic;">Library is empty. Use the AI Builder to generate sections!</div>`;
+                }
+                
+                let listHtml = '<div style="display:flex; flex-direction:column; gap:8px;">';
+                settings.customSyspromptLibrary.forEach((item, index) => {
+                    listHtml += `
+                        <div class="rt-library-item" data-index="${index}" style="display:flex; flex-direction:column; border:1px solid rgba(255,255,255,0.1); border-radius:6px; background:rgba(0,0,0,0.2); padding:10px; transition:border-color 0.2s;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="font-size:16px; width:24px; text-align:center; color:var(--rt-accent, #5588ff);"><i class="fa-solid ${item.icon || 'fa-puzzle-piece'}"></i></div>
+                                <div style="flex:1; min-width:0;">
+                                    <div style="font-weight:bold; font-size:13px; color:#ffdd88;">&lt;${escapeHtml(item.tag)}&gt;</div>
+                                    <div style="font-size:11px; opacity:0.7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(item.description || 'Custom Section')}</div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:11px;">
+                                        <input type="checkbox" class="rt-lib-toggle" data-index="${index}" ${item.enabled ? 'checked' : ''} style="margin:0; cursor:pointer;"> Enable
+                                    </label>
+                                    <button class="rt-lib-delete" data-index="${index}" style="background:none; border:none; color:#ff5555; cursor:pointer; padding:4px;" title="Delete Section"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                listHtml += '</div>';
+                return listHtml;
+            };
+
+            let html = `
+                <div id="rt-library-container" style="display:flex; flex-direction:column; gap:12px; min-width:min(600px, 90vw); max-height:70vh;">
+                    <div style="font-size:11px; opacity:0.8; line-height:1.4;">Manage your custom system prompt sections. Enabling a section will inject it into your main prompt when you click Apply.</div>
+                    <div id="rt-library-list-wrap" style="overflow-y:auto; padding-right:10px; flex:1;">
+                        ${generateListHtml()}
+                    </div>
+                </div>
+            `;
+
+            // Wait for DOM to attach
+            setTimeout(() => {
+                const container = document.getElementById('rt-library-container');
+                if (!container) return;
+
+                const bindEvents = () => {
+                    const wrap = document.getElementById('rt-library-list-wrap');
+                    if (!wrap) return;
+
+                    // Toggle Checkbox
+                    wrap.querySelectorAll('.rt-lib-toggle').forEach(el => {
+                        el.addEventListener('change', (e) => {
+                            const idx = parseInt(e.target.dataset.index);
+                            settings.customSyspromptLibrary[idx].enabled = e.target.checked;
+                            saveSettings();
+                        });
+                    });
+
+                    // Delete Button
+                    wrap.querySelectorAll('.rt-lib-delete').forEach(el => {
+                        el.addEventListener('click', async (e) => {
+                            if (!confirm('Delete this custom section permanently?')) return;
+                            const idx = parseInt(e.currentTarget.dataset.index);
+                            settings.customSyspromptLibrary.splice(idx, 1);
+                            saveSettings();
+                            wrap.innerHTML = generateListHtml();
+                            bindEvents(); // rebind after HTML rewrite
+                        });
+                    });
+                };
+                bindEvents();
+            }, 100);
+
+            const approved = await Popup.show.confirm('📚 Custom Sysprompt Library', html, { okButton: 'Apply Enabled Prompts', cancelButton: 'Close' });
+            if (approved) {
+                const success = await applyCustomSysprompts();
+                if (success) {
+                    toastr['success']('Library prompts applied to Sysprompt! \u2705', 'Sysprompt Library');
+                }
+            }
+        });
+
         // ── AI Section Builder ──
         $('#rpg_tracker_btn_ai_add_section').on('click', async function () {
             const { Popup } = SillyTavern.getContext();
@@ -7467,37 +7594,57 @@ Return ONLY the XML section. No explanation, no other text.`;
                     throw new Error('AI did not return a valid XML section');
                 }
 
-                // Show preview
+                // Show preview with save options
                 const previewContent = `
                         <div style="display:flex; flex-direction:column; gap:10px; min-width:min(520px, 90vw);">
                             <div style="font-size:13px; font-weight:bold;">✨ Generated Section Preview</div>
                             <pre style="white-space:pre-wrap; word-break:break-word; font-size:11px; padding:12px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.15); border-radius:8px; max-height:400px; overflow-y:auto; font-family:monospace;">${escapeHtml(section)}</pre>
-                            <div style="font-size:10px; opacity:0.6;">This section will be appended to your current system prompt (before &lt;constraints&gt; if present, otherwise at the end).</div>
+                            
+                            <div style="margin-top:8px; padding:10px; border:1px solid rgba(255,255,255,0.1); border-radius:6px; background:rgba(0,0,0,0.2);">
+                                <div style="font-size:11px; font-weight:bold; margin-bottom:6px;">Save Options:</div>
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:4px;">
+                                    <input type="radio" name="rt_ai_save_mode" value="apply" checked style="margin:0; cursor:pointer;">
+                                    <span style="font-size:12px;">Save to Library & Apply to Sysprompt</span>
+                                </label>
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                    <input type="radio" name="rt_ai_save_mode" value="library" style="margin:0; cursor:pointer;">
+                                    <span style="font-size:12px;">Save to Library Only</span>
+                                </label>
+                            </div>
                         </div>
                     `;
 
-                const approved = await Popup.show.confirm('Add to Sysprompt?', previewContent);
+                const approved = await Popup.show.confirm('Save New Section?', previewContent);
                 if (!approved) {
                     toastr['info']('Section builder cancelled.', 'AI Section Builder');
                     return;
                 }
 
-                // Read current sysprompt, append section
-                const mainTextarea = /** @type {HTMLTextAreaElement} */ (document.getElementById('main_prompt_quick_edit_textarea'));
-                if (mainTextarea) {
-                    let currentContent = mainTextarea.value;
-                    // Try to insert before <constraints> so it stays at the end
-                    if (currentContent.includes('<constraints>')) {
-                        currentContent = currentContent.replace('<constraints>', `${section}\n\n<constraints>`);
-                    } else {
-                        currentContent = currentContent.trim() + '\n\n' + section;
+                // Determine save mode
+                const saveModeInput = document.querySelector('input[name="rt_ai_save_mode"]:checked');
+                const isApply = saveModeInput ? saveModeInput.value === 'apply' : true;
+
+                // Create library item
+                const newItem = {
+                    id: Date.now().toString(),
+                    tag: section.match(/^<(\w+[\w_-]*)/)?.[1] || 'custom_section',
+                    content: section,
+                    enabled: isApply,
+                    icon: 'fa-puzzle-piece',
+                    description: description
+                };
+                
+                settings.customSyspromptLibrary = settings.customSyspromptLibrary || [];
+                settings.customSyspromptLibrary.push(newItem);
+                saveSettings();
+
+                if (isApply) {
+                    const success = await applyCustomSysprompts();
+                    if (success) {
+                        toastr['success']('Saved to Library & Applied to Sysprompt! \u2705', 'AI Section Builder');
                     }
-                    mainTextarea.value = currentContent;
-                    mainTextarea.dispatchEvent(new Event('blur', { bubbles: true }));
-                    toastr['success']('New section added to your sysprompt! \u2705', 'AI Section Builder');
                 } else {
-                    await navigator.clipboard.writeText(section).catch(() => { });
-                    toastr['info']('Quick-edit textarea not found. Section copied to clipboard — paste it into your system prompt manually.', 'AI Section Builder');
+                    toastr['success']('Saved to Library! \u2705', 'AI Section Builder');
                 }
             } catch (err) {
                 console.error('[RPG Tracker] AI Section Builder error:', err);

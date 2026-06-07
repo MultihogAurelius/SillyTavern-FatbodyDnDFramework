@@ -425,10 +425,16 @@
                         <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.4; margin-bottom: 6px;">
                             Describe a new system/mechanic and let AI generate a new &lt;section&gt; block. You can review, retry, or edit before it's appended to your sysprompt.
                         </div>
-                        <button id="rpg_tracker_btn_ai_add_section" class="menu_button interactable"
-                            style="width: 100%; background: rgba(180, 100, 255, 0.15); border-color: rgba(180, 100, 255, 0.4);">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> Add Section to Sysprompt (AI)
-                        </button>
+                        <div class="flex-container gap-1" style="margin-top: 4px;">
+                            <button id="rpg_tracker_btn_ai_add_section" class="menu_button interactable"
+                                style="flex: 1; background: rgba(180, 100, 255, 0.15); border-color: rgba(180, 100, 255, 0.4);" title="Generate new sections using AI">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI Builder
+                            </button>
+                            <button id="rpg_tracker_btn_sysprompt_library" class="menu_button interactable"
+                                style="flex: 1; background: rgba(50, 150, 255, 0.15); border-color: rgba(50, 150, 255, 0.4);" title="Manage saved custom sysprompt sections">
+                                <i class="fa-solid fa-book-open"></i> Library
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
