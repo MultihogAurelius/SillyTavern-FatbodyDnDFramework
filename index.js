@@ -8432,10 +8432,10 @@ Return ONLY the XML section. No explanation, no other text.`;
 
         /** Refreshes the skeleton entry count label from the _Skeleton lorebook. */
         async function updateSkeletonStatus() {
-            const prefix = (getSettings().routerPrefix || '').trim();
+            const ctx = SillyTavern.getContext();
+            const prefix = getEffectiveRouterCampaignPrefix(ctx.chatId || '');
             const skeletonBookName = prefix ? `${prefix}_Skeleton` : 'World_Skeleton';
             try {
-                const ctx = SillyTavern.getContext();
                 const book = await ctx.loadWorldInfo(skeletonBookName);
                 const count = book?.entries ? Object.keys(book.entries).length : 0;
                 $wpSkeletonStatus.text(count > 0 ? `${count} skeleton entries in "${skeletonBookName}"` : 'No skeleton generated.');
@@ -8455,9 +8455,10 @@ Return ONLY the XML section. No explanation, no other text.`;
                 toastr['warning']('Please enter a world theme or seed before generating.', 'World Skeleton');
                 return;
             }
-            const prefix = (getSettings().routerPrefix || '').trim();
+            const ctx = SillyTavern.getContext();
+            const prefix = getEffectiveRouterCampaignPrefix(ctx.chatId || '');
             if (!prefix) {
-                toastr['warning']('No campaign prefix set. Set a prefix in the Lorebook Agent settings first.', 'World Skeleton');
+                toastr['warning']('No campaign prefix set. Set a prefix or open a chat in SillyTavern first.', 'World Skeleton');
                 return;
             }
             $wpGenerateSkeleton.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Generating…');
