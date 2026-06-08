@@ -834,7 +834,7 @@ async function refreshExtensionPrompt() {
     if (typeof setExtensionPrompt !== 'function') return;
 
     const s = getSettings();
-    if (!s.routerEnabled || (!s.activeRouterKeys?.length && !s.worldProgressionEnabled)) {
+    if (!s.routerEnabled || !s.activeRouterKeys?.length) {
         setExtensionPrompt('rpg_tracker_lore', '', 0, 0); // Clear if disabled
         return;
     }
@@ -859,31 +859,8 @@ async function refreshExtensionPrompt() {
             }
         }
 
-        let worldBlock = "";
-        if (s.worldProgressionEnabled) {
-            const prefix = s.routerCampaignPrefix || '';
-            const worldBookName = prefix ? `${prefix}_World` : 'World';
-            const worldBook = await ctx.loadWorldInfo(worldBookName);
-            if (worldBook?.entries) {
-                const sortedWorld = Object.entries(worldBook.entries)
-                    .sort(([a], [b]) => Number(a) - Number(b));
-                for (const [, entry] of sortedWorld) {
-                    if (entry && entry.content && entry.disable !== true) {
-                        worldBlock += `### [${entry.key?.[0] || entry.comment || 'World Report'}]\n${entry.content}\n\n`;
-                    }
-                }
-            }
-        }
-
-        if (injectedContext || worldBlock) {
-            let routerBlock = "";
-            if (injectedContext) {
-                routerBlock += `## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n\n`;
-            }
-            if (worldBlock) {
-                routerBlock += `## WORLD PROGRESSION REPORTS\n${worldBlock.trim()}\n\n`;
-            }
-            routerBlock = routerBlock.trim();
+        if (injectedContext) {
+            let routerBlock = `## ROUTER ACTIVE LORE\n${injectedContext.trim()}`;
             // Set as an extension prompt at the end of the system block (Position 0, but ST handles placement)
             setExtensionPrompt('rpg_tracker_lore', routerBlock, 0, 0);
         } else {
@@ -905,7 +882,7 @@ function installRouterInterceptor() {
             const t = performance.now().toFixed(1);
             console.group(`[RPG|LORE-INJECT] promptManagerInterceptor fired @ ${t}ms`);
             console.log('activeRouterKeys at inject time:', JSON.stringify(s.activeRouterKeys || []));
-            if (!s.routerEnabled || (!s.activeRouterKeys?.length && !s.worldProgressionEnabled)) {
+            if (!s.routerEnabled || !s.activeRouterKeys?.length) {
                 console.log('→ Skipped (disabled or empty)');
                 console.groupEnd();
                 return;
@@ -927,35 +904,12 @@ function installRouterInterceptor() {
                 if (entry && entry.content) injectedContext += `### [${entry.key?.[0] || entry.comment || uid}]\n${entry.content}\n\n`;
             }
 
-            let worldBlock = "";
-            if (s.worldProgressionEnabled) {
-                const prefix = s.routerCampaignPrefix || '';
-                const worldBookName = prefix ? `${prefix}_World` : 'World';
-                const worldBook = await ctx.loadWorldInfo(worldBookName);
-                if (worldBook?.entries) {
-                    const sortedWorld = Object.entries(worldBook.entries)
-                        .sort(([a], [b]) => Number(a) - Number(b));
-                    for (const [, entry] of sortedWorld) {
-                        if (entry && entry.content && entry.disable !== true) {
-                            worldBlock += `### [${entry.key?.[0] || entry.comment || 'World Report'}]\n${entry.content}\n\n`;
-                        }
-                    }
-                }
-            }
-
-            if (injectedContext || worldBlock) {
-                let routerBlock = "\n";
-                if (injectedContext) {
-                    routerBlock += `## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n\n`;
-                }
-                if (worldBlock) {
-                    routerBlock += `## WORLD PROGRESSION REPORTS\n${worldBlock.trim()}\n\n`;
-                }
-                routerBlock = routerBlock.trim() + "\n";
+            if (injectedContext) {
+                let routerBlock = `\n## ROUTER ACTIVE LORE\n${injectedContext.trim()}\n`;
                 const sysPart = prompt.find(p => p.role === 'system');
                 if (sysPart) sysPart.content += routerBlock;
                 else prompt.unshift({ role: 'system', content: routerBlock });
-                console.log(`→ Injected active lore and world reports into prompt`);
+                console.log(`→ Injected active lore into prompt`);
             } else {
                 console.log('→ No content to inject (entries empty?)');
             }

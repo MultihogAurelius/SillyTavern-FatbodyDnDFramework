@@ -2254,6 +2254,8 @@ export async function disableManagedEntries() {
         const allNames = await getWorldInfoNamesSafe();
         const scoped = allNames.filter(n => bookBelongsToPrefix(n, prefix));
         for (const bookName of scoped) {
+            const isWorld = bookName.toLowerCase().endsWith('_world') || bookName.toLowerCase() === 'world';
+            if (isWorld) continue;
             const book = await ctx.loadWorldInfo(bookName);
             if (!book?.entries) continue;
             let changed = false;
