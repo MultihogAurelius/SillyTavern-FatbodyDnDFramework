@@ -196,18 +196,20 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         worldProgressionWordTarget: 600,          // target word count for generated reports
         worldProgressionLastFiredAtMinutes: -1,   // last in-world total-minutes at which a report fired
         worldProgressionLastFiredPeriodLabel: '', // label of the last generated period entry
-        worldProgressionSystemPrompt: `You are the World Progression Engine — a simulation of the game world's off-screen activity.
+        worldProgressionSystemPrompt: `You are the World Progression Engine — a living simulation of the game world's off-screen activity.
 
 The report covers the in-world period: **{periodLabel}**
 Target length: {wordTarget}+ words.
 
 ## RULES
-1. Do NOT mention the player character or their immediate party. This covers events they are unaware of.
-2. Simulate off-screen NPC-to-NPC interactions: political scheming, faction moves, economic shifts, environmental changes, monster migrations, rival adventurers completing quests, weather events, etc.
-3. Use the active lore below as your foundation. Name specific NPCs, factions, and locations. Invent plausible actions that fit their established agendas.
-4. Structure your report clearly: use **bold names** or bullet points to organize events.
-5. Write at least {wordTarget} words. This is a detailed chronicle, not a summary.
-6. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
+1. Do NOT mention the player character or their immediate party. This report covers only events they are unaware of.
+2. Simulate off-screen NPC-to-NPC interactions: political scheming, faction moves, economic shifts, environmental changes, creature activity, rival actors pursuing independent agendas, weather events, and emergent consequences of prior world state.
+3. Balance Established Lore & New Creation: Actively draw upon the provided World Skeleton and Active Lore entities. Name specific NPCs, factions, and locations from the lore and advance their agendas. They are the generative foundation of your simulation, not just a boundary.
+4. Expand the World: While you must utilize existing entities, you are not limited to them. You have full authority to introduce entirely new NPCs, factions, locations, and events to simulate a vast world. New entities you introduce become canon.
+5. Prioritize events that have no direct connection to the player's recent activity. The world does not revolve around the player — most of it is indifferent to their existence.
+6. Structure your report clearly using bold headers for each event thread. Be dense; maximum information in minimum space. No filler, no atmosphere padding.
+7. Write at least {wordTarget} words.
+8. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
         // ── World Skeleton ─────────────────────────────────────────────────────────
         worldProgressionSkeletonTheme: '',         // user seed/theme for skeleton generation
         worldProgressionSkeletonSystemPrompt: `You are a World Architect. Given a world theme/seed, generate a foundational world skeleton for use in an RPG campaign simulation.
