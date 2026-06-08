@@ -197,45 +197,35 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         worldProgressionLookback: 0,              // number of recent chat messages to include (0 = disabled)
         worldProgressionLastFiredAtMinutes: -1,   // last in-world total-minutes at which a report fired
         worldProgressionLastFiredPeriodLabel: '', // label of the last generated period entry
-        worldProgressionSystemPrompt: `You are the World Progression Engine — a living simulation of the game world's off-screen activity.
+        worldProgressionSystemPrompt: `You are the World Progression Engine — a living simulation of the game world's off-screen activity. Simulate political scheming, faction moves, economic shifts, environmental changes, creature activity, rival actors pursuing independent agendas, weather events, and emergent consequences of prior world state.
 
 The report covers the in-world period: **{periodLabel}**
-Target length: {wordTarget}+ words.
 
 ## RULES
-1. Do NOT mention the player character or their immediate party.
-2. Simulate off-screen NPC-to-NPC interactions: political scheming, faction moves, economic shifts, environmental changes, creature activity, rival actors pursuing independent agendas, weather events, and emergent consequences of prior world state.
-3. Balance Lore & Skeleton: Ensure a healthy mix of events involving ## ACTIVE WORLD LORE (Discovered Entities — Current Known State) and WORLD SKELETON (the broader, distant world). Advance the agendas of entities from both sections evenly.
-
-You must include at least THREE NPCs from both ACTIVE WORLD LORE and WORLD SKELETON, totaling at least SIX. With ACTIVE WORLD LORE NPCs, prioritize those that interacted LEAST or LEAST RECENTLY with the player character.
-
-4. Expand the World: While you must utilize existing entities, you are not limited to them.
-5. Format as Many Short Entries: Instead of a few massive walls of text, generate a larger number of brief, dense updates (2-4 sentences each). Use bold headers for each event thread. No filler, no atmosphere padding.
-6. Write at least {wordTarget} words.
-7. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
+1. Do NOT summarize player actions. Build consequences from them instead — defeated rivals plot revenge, sympathetic contacts cover their tracks, encountered strangers react to what happened.
+2. Prioritize named ACTIVE WORLD LORE NPCs. Every report must include at least 2. These are your highest-value subjects.
+3. For NPCs who were physically present with {{user}} during the reporting period, only generate plausible background activity — digital actions, private decisions, off-screen communications. Do not relocate them.
+4. Format as 15 short entries, 1 sentence each. Dense, no filler, no markdown.
+5. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
         // ── World Skeleton ─────────────────────────────────────────────────────────
         worldProgressionSkeletonTheme: '',         // user seed/theme for skeleton generation
-        worldProgressionSkeletonSystemPrompt: `You are a World Architect. Given a world theme/seed, generate a foundational world skeleton for use in an RPG campaign simulation.
+        worldProgressionSkeletonSystemPrompt: `You are a World Architect. Given a world theme/seed, generate a sparse foundational skeleton for an RPG campaign simulation.
 
-Generate exactly the following structure, using markdown headers:
+## FACTIONS (4 total)
+Each faction: name, one-sentence nature, one-sentence current tension.
 
-## FACTIONS
-Create 4 major factions. For each, write 3–4 sentences covering: their name, nature, goals, key figures, and current activities.
+## LOCATIONS (4 total)  
+Each location: name, one-sentence description, one-sentence current state.
 
-## LOCATIONS
-Create 4 significant locations the player has NOT yet visited. For each, write 2–3 sentences covering: name, geography/nature, who controls it, and what is happening there.
-
-## NPCS
-Create 4 notable NPCs the player has NOT yet met. For each, write 2–3 sentences covering: name, role/affiliation, personality, and current agenda.
-
-## CONFLICTS
-Create 3 ongoing macro-conflicts or world events. For each, write 2–3 sentences covering: the parties involved, the current state of the conflict, and what is at stake.
+## CONFLICTS (3 total)
+Each conflict: parties involved, one-sentence current state.
 
 ## RULES
-- All generated entities must be consistent with the provided theme/seed.
-- Do NOT reference or include the player character or their party.
-- Do NOT use placeholder names. Invent specific, evocative names.
-- Output ONLY the structured content. No preamble or meta-commentary.`,
+- Consistent with provided theme/seed.
+- No player character references.
+- No placeholder names.
+- Maximum 2 sentences per entity. Fragments acceptable.
+- Output ONLY the structured content.`,
 
         routerSystemPromptTemplate: `<basic_instructions>
 You are the Researcher Agent, a specialized Dungeon Master's Assistant. Your role is to architect the AI Narrator's memory — keeping the Active Context saturated with the most relevant lore at all times.
