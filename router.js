@@ -2442,7 +2442,6 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
     }
 
     // 3. Build full lore context from ALL campaign lorebooks, split into three sections.
-    //
     //    _Skeleton books -> Day 0 Baseline (foundational undiscovered entities, never injected
     //                       into narrative context — only visible to the World Progression engine)
     //    Regular books   -> Active World Lore (all discovered entities, active or not)
@@ -2452,8 +2451,16 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
     //    treating Day-0 stub data as current events, while still making those entities available
     //    for off-screen simulation.
     const skeletonLines = [];
-    const loreLines = [];
+    const loreGrouped = {}; // categoryHeader -> Array of entry lines
     const historicalReportLines = [];
+
+    function getBookCategoryHeader(bookName, prefix) {
+        let cleanName = bookName;
+        if (prefix && bookName.startsWith(prefix + '_')) {
+            cleanName = bookName.slice(prefix.length + 1);
+        }
+        return cleanName.toUpperCase();
+    }
 
     for (const [bookName, book] of Object.entries(archiveBooks)) {
         const nameLower = bookName.toLowerCase();
@@ -2471,7 +2478,11 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
             } else if (isWorldBook) {
                 historicalReportLines.push(`### ${label}\n${entry.content.trim()}`);
             } else {
-                loreLines.push(`### ${label}\n${entry.content.trim()}`);
+                const categoryHeader = getBookCategoryHeader(bookName, prefix);
+                if (!loreGrouped[categoryHeader]) {
+                    loreGrouped[categoryHeader] = [];
+                }
+                loreGrouped[categoryHeader].push(`### ${label}\n${entry.content.trim()}`);
             }
         }
     }
@@ -2479,9 +2490,19 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
     const skeletonDump = skeletonLines.length
         ? skeletonLines.join('\n\n')
         : '(No skeleton generated — engine will rely solely on discovered lore.)';
-    const loreDump = loreLines.length
-        ? loreLines.join('\n\n')
-        : 'No lore entries found.';
+
+    let loreDump = '';
+    const categories = Object.keys(loreGrouped).sort();
+    if (categories.length > 0) {
+        const categoryBlocks = [];
+        for (const cat of categories) {
+            categoryBlocks.push(`## ${cat}\n${loreGrouped[cat].join('\n\n')}`);
+        }
+        loreDump = categoryBlocks.join('\n\n');
+    } else {
+        loreDump = 'No lore entries found.';
+    }
+
     const historicalDump = historicalReportLines.length
         ? historicalReportLines.join('\n\n')
         : 'No prior World Progression reports.';
