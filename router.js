@@ -2394,13 +2394,33 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
         ? historicalReportLines.join('\n\n')
         : 'No prior World Progression reports.';
 
-    // 4. Build the system prompt from settings ({periodLabel} and {wordTarget} substitution)
+    // 4. Grab recent narrative blocks (for current scene context) if configured
+    let recentNarrative = '';
+    const wpLookback = settings.worldProgressionLookback ?? 0;
+    if (wpLookback > 0) {
+        const { chat } = ctx;
+        const narrativeBlocks = [];
+        if (Array.isArray(chat)) {
+            let found = 0;
+            for (const msg of [...chat].reverse()) {
+                if (found >= wpLookback) break;
+                if (msg.is_system || msg.is_user) continue;
+                let mes = (msg.mes || '').trim()
+                    .replace(/<details[^>]*>[\s\S]*?<\/details>/gi, '')
+                    .replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '').trim();
+                if (mes) { narrativeBlocks.unshift(mes); found++; }
+            }
+        }
+        recentNarrative = narrativeBlocks.join('\n\n');
+    }
+
+    // 5. Build the system prompt from settings ({periodLabel} and {wordTarget} substitution)
     const rawPrompt = settings.worldProgressionSystemPrompt || '';
     const systemPrompt = rawPrompt
         .replace(/\{periodLabel\}/g, periodLabel)
         .replace(/\{wordTarget\}/g, String(wordTarget));
 
-    const userPrompt =
+    let userPrompt =
 `## WORLD SKELETON (Day 0 Baseline — Foundational Undiscovered State)
 These entities existed at the start of the campaign. They have been acting off-screen since Day 1.
 They are NOT yet known to the player. Use them freely to generate off-screen activity.
@@ -2410,9 +2430,13 @@ ${skeletonDump}
 ${loreDump}
 
 ## HISTORICAL WORLD REPORTS (Previously Generated Off-Screen Activity)
-${historicalDump}
+${historicalDump}`;
 
-Write the World Progression report for **${periodLabel}**.`;
+    if (recentNarrative) {
+        userPrompt += `\n\n## RECENT NARRATIVE (Current Scene Context)\n${recentNarrative}`;
+    }
+
+    userPrompt += `\n\nWrite the World Progression report for **${periodLabel}**.`;
 
     // 6. Send the LLM request using the Lorebook Agent connection settings
     const routerSettings = {
