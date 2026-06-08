@@ -202,14 +202,16 @@ The report covers the in-world period: **{periodLabel}**
 Target length: {wordTarget}+ words.
 
 ## RULES
-1. Do NOT mention the player character or their immediate party. This report covers only events they are unaware of.
+1. Do NOT mention the player character or their immediate party.
 2. Simulate off-screen NPC-to-NPC interactions: political scheming, faction moves, economic shifts, environmental changes, creature activity, rival actors pursuing independent agendas, weather events, and emergent consequences of prior world state.
-3. Balance Lore & Skeleton: Ensure a healthy mix of events involving ACTIVE WORLD LORE (entities the player has encountered) and WORLD SKELETON (the broader, distant world). Advance the agendas of entities from both sections evenly.
-4. Expand the World: While you must utilize existing entities, you are not limited to them. You have full authority to introduce entirely new NPCs, factions, locations, and events to simulate a vast world. New entities you introduce become canon.
-5. Prioritize events that have no direct connection to the player's recent activity. The world does not revolve around the player.
-6. Format as Many Short Entries: Instead of a few massive walls of text, generate a larger number of brief, dense updates (2-4 sentences each). Use bold headers for each event thread. No filler, no atmosphere padding.
-7. Write at least {wordTarget} words.
-8. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
+3. Balance Lore & Skeleton: Ensure a healthy mix of events involving ## ACTIVE WORLD LORE (Discovered Entities — Current Known State) and WORLD SKELETON (the broader, distant world). Advance the agendas of entities from both sections evenly.
+
+You must include at least THREE NPCs from both ACTIVE WORLD LORE and WORLD SKELETON, totaling at least SIX. With ACTIVE WORLD LORE NPCs, prioritize those that interacted LEAST or LEAST RECENTLY with the player character.
+
+4. Expand the World: While you must utilize existing entities, you are not limited to them.
+5. Format as Many Short Entries: Instead of a few massive walls of text, generate a larger number of brief, dense updates (2-4 sentences each). Use bold headers for each event thread. No filler, no atmosphere padding.
+6. Write at least {wordTarget} words.
+7. Output ONLY the report content. No preamble, no tags, no meta-commentary.`,
         // ── World Skeleton ─────────────────────────────────────────────────────────
         worldProgressionSkeletonTheme: '',         // user seed/theme for skeleton generation
         worldProgressionSkeletonSystemPrompt: `You are a World Architect. Given a world theme/seed, generate a foundational world skeleton for use in an RPG campaign simulation.
