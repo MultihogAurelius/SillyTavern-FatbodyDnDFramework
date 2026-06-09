@@ -1929,7 +1929,7 @@ export async function getLorebookManifest() {
                 label: entry.comment || (entry.key?.[0]) || uid,
                 keys: entry.key || [],
                 content: entry.content,
-                is_active: settings.activeRouterKeys?.includes(`${n}::${uid}`)
+                is_active: settings.activeRouterKeys?.includes(`${n}::${uid}`) || settings.activeWorldKeys?.includes(`${n}::${uid}`)
             });
         }
     }
@@ -1954,6 +1954,9 @@ export async function deleteLorebookEntry(id) {
     const settings = getSettings();
     if (settings.activeRouterKeys?.includes(id)) {
         settings.activeRouterKeys = settings.activeRouterKeys.filter(k => k !== id);
+    }
+    if (settings.activeWorldKeys?.includes(id)) {
+        settings.activeWorldKeys = settings.activeWorldKeys.filter(k => k !== id);
     }
     
     return true;

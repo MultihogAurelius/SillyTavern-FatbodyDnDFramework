@@ -325,8 +325,23 @@ async function syncCampaignPrefixAndWorldsForChat(newChatId, source) {
         if (allNames.includes(worldBookName) && !matchingBooks.includes(worldBookName)) {
             matchingBooks.push(worldBookName);
         }
+        try {
+            const worldBook = await ctx.loadWorldInfo(worldBookName);
+            if (worldBook?.entries) {
+                const sorted = Object.entries(worldBook.entries)
+                    .sort(([a], [b]) => Number(a) - Number(b));
+                const allWorldIds = sorted.map(([uid]) => `${worldBookName}::${uid}`);
+                const keepActive = s2.worldProgressionKeepActive || 3;
+                s2.activeWorldKeys = allWorldIds.slice(-keepActive);
+            } else {
+                s2.activeWorldKeys = [];
+            }
+        } catch (_) {
+            s2.activeWorldKeys = [];
+        }
     } else {
         matchingBooks = matchingBooks.filter(n => n !== worldBookName);
+        s2.activeWorldKeys = [];
     }
 
     if (!s2.chatStates) s2.chatStates = {};
