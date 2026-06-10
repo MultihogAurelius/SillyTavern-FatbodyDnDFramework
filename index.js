@@ -6625,6 +6625,12 @@ function buildSysprompt(rawText) {
         content = content.replace(/- If a quest is time-sensitive and the deadline passes.*\n/g, '');
     }
 
+    if (!s.rngEnabled) {
+        content = content
+            .replace(/.*RollTheDice.*\n?/gi, '')
+            .replace(/.*RNG_QUEUE v6.0_PROPER.*\n?/gi, '');
+    }
+
     return content
         .replace(/\n{3,}/g, "\n\n")
         .trim();
