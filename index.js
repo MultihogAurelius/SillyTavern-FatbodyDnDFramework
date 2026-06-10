@@ -6564,7 +6564,28 @@ function buildSysprompt(rawText) {
     let content = rawText
         .replace(/<(\w[\w_-]*)>([\s\S]*?)<\/\1>/g, (match, tag) => {
             if (mods[tag] === false) return '';
-            if (tag === 'rng_system' && !s.rngEnabled) return '';
+            if (tag === 'rng_system' && !s.rngEnabled) {
+                const contentOnly = match.replace(/<\/?rng_system>/g, '');
+                let fallbackText = "To resolve actions, simulate a fair d20 roll internally and maintain all ROLL FORMAT rules.\n\n";
+                let matchedFormat = false;
+                if (contentOnly.includes('[ROLL FORMAT]')) {
+                    const rollFormatMatch = contentOnly.match(/(\[ROLL FORMAT\][\s\S]*?)(?=\n\n\[FALLBACK\]|$)/i);
+                    if (rollFormatMatch) {
+                        fallbackText += rollFormatMatch[1].trim();
+                        matchedFormat = true;
+                    }
+                } else {
+                    const l4 = contentOnly.match(/4\.\s*(Output[\s\S]*?)(?=\n\n\[FALLBACK\]|$)/i);
+                    if (l4) {
+                        fallbackText += l4[1].replace(/5\.\s*/g, '').trim();
+                        matchedFormat = true;
+                    }
+                }
+                if (!matchedFormat) {
+                    fallbackText += "Output rolls as `[ROLL: 1d20+Mod vs DC X (Result: Y) -> Outcome]` or `[ROLL: 1d20+Mod (Result: Y) -> Outcome]`.";
+                }
+                return `<rng_system>\n${fallbackText.trim()}\n</rng_system>`;
+            }
             // Inject correct instructions for quests based on legacy mode
             if (tag === 'quests') {
                 let instruction = s.questLegacyMode ? QUESTS_NARRATOR_LEGACY : QUESTS_NARRATOR_MODERN;
