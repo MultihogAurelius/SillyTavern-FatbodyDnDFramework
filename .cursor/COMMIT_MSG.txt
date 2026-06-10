@@ -1,1 +1,0 @@
-chore: changelog for v2.1.6 (the pre-fucking lorebook prefix overhaul)
