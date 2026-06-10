@@ -311,14 +311,40 @@ export function mergeQuestUpdates(jsonText, memoText = null) {
 
         if (Array.isArray(update.objectives)) {
             for (const objUpdate of update.objectives) {
-                const obj = quest.objectives.find(o => o.id === objUpdate.id);
-                if (!obj) continue;
-                if (objUpdate.status && ['active', 'completed', 'failed'].includes(objUpdate.status)) {
-                    obj.status = objUpdate.status;
-                    changed = true;
-                }
-                if (typeof objUpdate.progress === 'number') {
-                    obj.progress = objUpdate.progress;
+                const obj = objUpdate.id ? quest.objectives.find(o => o.id === objUpdate.id) : null;
+                if (obj) {
+                    if (objUpdate.status && ['active', 'completed', 'failed'].includes(objUpdate.status)) {
+                        obj.status = objUpdate.status;
+                        changed = true;
+                    }
+                    if (typeof objUpdate.progress === 'number') {
+                        obj.progress = objUpdate.progress;
+                        changed = true;
+                    }
+                } else if (objUpdate.text) {
+                    // Add new objective
+                    const maxIdx = quest.objectives.reduce((max, o) => {
+                        const m = o.id.match(/^obj_(\d+)$/);
+                        if (m) {
+                            const val = parseInt(m[1], 10);
+                            return val > max ? val : max;
+                        }
+                        return max;
+                    }, -1);
+                    const newId = `obj_${maxIdx + 1}`;
+                    const newObj = {
+                        id: newId,
+                        text: objUpdate.text,
+                        required: objUpdate.required !== false,
+                        status: objUpdate.status && ['active', 'completed', 'failed'].includes(objUpdate.status) ? objUpdate.status : 'active'
+                    };
+                    if (typeof objUpdate.total === 'number') {
+                        newObj.total = objUpdate.total;
+                    }
+                    if (typeof objUpdate.progress === 'number') {
+                        newObj.progress = objUpdate.progress;
+                    }
+                    quest.objectives.push(newObj);
                     changed = true;
                 }
             }
