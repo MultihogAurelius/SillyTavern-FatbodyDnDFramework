@@ -7998,7 +7998,7 @@ Return ONLY the XML section. No explanation, no other text.`;
         });
 
         $('#rpg_tracker_btn_reset_and_apply_sysprompt').on('click', async function () {
-            if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
+            if (!confirm('This will:\n\n1. Reset the Core State Model prompt to built-in default\n2. Reset all Stock Module prompts, Active Modules, and Module Order to factory defaults\n3. Reset all Lorebook Agent prompts to factory defaults\n4. Fetch the latest sysprompt.txt and write it directly into your Quick Prompt "Main" box\n\nYour custom modules will NOT be affected. Proceed?')) return;
 
             const { extensionSettings } = SillyTavern.getContext();
 
@@ -8012,8 +8012,25 @@ Return ONLY the XML section. No explanation, no other text.`;
             delete extensionSettings[MODULE_NAME].blockOrder;
             delete extensionSettings[MODULE_NAME].modules;
 
+            // 3. Reset Lorebook Agent prompts
+            delete extensionSettings[MODULE_NAME].routerSystemPromptTemplate;
+            delete extensionSettings[MODULE_NAME].routerModularPromptTemplate;
+
             // Re-merge defaults
             const finalSettings = getSettings();
+
+            // Update UI elements for Lorebook Agent prompts
+            const $routerPrompt = $('#rpg_tracker_router_prompt');
+            $routerPrompt.val(finalSettings.routerSystemPromptTemplate);
+            if (typeof (/** @type {any} */ ($routerPrompt)).trigger === 'function') {
+                (/** @type {any} */ ($routerPrompt)).trigger('autosize.resize');
+            }
+
+            const $routerModularPrompt = $('#rpg_tracker_router_modular_prompt');
+            $routerModularPrompt.val(finalSettings.routerModularPromptTemplate);
+            if (typeof (/** @type {any} */ ($routerModularPrompt)).trigger === 'function') {
+                (/** @type {any} */ ($routerModularPrompt)).trigger('autosize.resize');
+            }
 
             // If legacy mode is on, the prompt is applied at runtime by buildModulesInstructionText
             // (no explicit call needed)
@@ -8021,7 +8038,7 @@ Return ONLY the XML section. No explanation, no other text.`;
             refreshOrderList();
             saveSettings();
 
-            // 3. Fetch sysprompt and apply to ST Quick Prompt "Main"
+            // 4. Fetch sysprompt and apply to ST Quick Prompt "Main"
             const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
             let content;
             try {
