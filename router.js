@@ -428,32 +428,35 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
 
 - [[CONSOLIDATE: TargetID1, TargetID2 | SurvivorID | merged content]]
   Merge two or more duplicate entries into one. All targets are deleted.
-  Targets and survivors may be in different books.
 
 ## RULES
 1. Merge all timestamped updates into a single coherent, present-tense description.
 2. Preserve plot-significant changes as brief dated notes (e.g. "Burned down on Day 12").
 3. Remove redundant observations — if six updates repeat the same fact, write it once.
-4. Preserve every unique fact. When in doubt, keep it.
+4. Preserve every unique fact. When in doubt, keep it. Never replace detailed facts with generic summary text (e.g., writing "Merged details" or "Merged workshop data" is invalid content).
 5. Target 30–60% of the original token count.
 6. Do NOT activate, deactivate, record, or delete entries except via CONSOLIDATE targets.
-7. Output your reasoning first, then the tags.`;
+7. Do NOT consolidate entries of different categories (e.g., do NOT merge an NPC or Location into a Quest or Event). Consolidation is strictly for true duplicates representing the exact same entity or concept (e.g., two entries for the same NPC).
+8. Do NOT merge multiple distinct chronological events into a single entry to "reduce fragmentation". Each distinct event must remain as a separate entry so it triggers on its own keywords.
+9. Output your reasoning first, then the tags.`;
 
             let agentInstructionPrompt = `You are the Lorebook Archivist. Consolidate bloated lorebook entries using the tools provided.
 
 ## YOUR TASK
 For each flagged entry:
-1. Call read_entry to inspect its content if needed.
-2. Decide: rewrite in place (rewrite), or merge with a duplicate (consolidate).
+1. Decide whether to rewrite in place (rewrite) or merge with a duplicate (consolidate).
+2. You MUST call read_entry to inspect the full content of any entry BEFORE you rewrite or consolidate it. Do NOT modify or merge any entry that you have not loaded and read.
 3. When done, call commit once with all rewrite and consolidate operations.
 
 ## RULES
 1. Merge timestamped updates into a single coherent, present-tense description.
 2. Preserve plot-significant changes as brief dated notes (e.g. "Burned down on Day 12").
-3. Remove redundant observations. Preserve every unique fact.
+3. Remove redundant observations. Preserve every unique fact. Never replace detailed facts with generic summary text (e.g., writing "Merged Pumping Station data." is a severe failure). The survivor must compile and retain the detailed facts of all targets.
 4. Target 30–60% of the original token count per entry.
 5. Do NOT activate, deactivate, record, or create new entries.
-6. Call commit exactly once at the end. Do not call it per-entry.`;
+6. Do NOT consolidate entries of different categories (e.g., do NOT merge an NPC or Location into a Quest or Event). Consolidation is strictly for true duplicates representing the exact same entity (e.g., two entries for the same NPC).
+7. Do NOT merge multiple distinct chronological events into a single entry to "reduce fragmentation". Each distinct historical event must remain as its own entry so it triggers on its specific keywords.
+8. Call commit exactly once at the end. Do not call it per-entry.`;
 
             if (customInstructions) {
                 const overrideText = `\n\n## USER CUSTOM REQUIREMENTS\nYou MUST adhere strictly to these custom compression instructions:\n- ${customInstructions}`;
@@ -560,25 +563,25 @@ Action: commit({"rewrite": [{"id": "Eldoria_Events::3", "content": "Compressed v
                             properties: {
                                 rewrite: {
                                     type: 'array',
-                                    description: 'Full content replacements for bloated entries.',
+                                    description: 'Full content replacements for bloated entries. Do NOT rewrite an entry unless you called read_entry to inspect it first.',
                                     items: {
                                         type: 'object',
                                         properties: {
                                             id:      { type: 'string', description: 'Book::UID of the entry to rewrite.' },
-                                            content: { type: 'string', description: 'New canonical content.' }
+                                            content: { type: 'string', description: 'New canonical content. Replaces the entire entry.' }
                                         },
                                         required: ['id', 'content']
                                     }
                                 },
                                 consolidate: {
                                     type: 'array',
-                                    description: 'Merge multiple entries into one. Targets are deleted.',
+                                    description: 'Merge multiple entries of the SAME category into one (e.g. duplicate NPCs). Targets are deleted. Do NOT merge different categories (e.g. do NOT merge NPC into Quest). Do NOT merge distinct chronological events to reduce fragmentation.',
                                     items: {
                                         type: 'object',
                                         properties: {
-                                            targets:  { type: 'array', items: { type: 'string' }, description: 'Book::UID IDs to delete after merging.' },
+                                            targets:  { type: 'array', items: { type: 'string' }, description: 'Book::UID IDs to delete after merging. Must be the same category as survivor.' },
                                             survivor: { type: 'string', description: 'Book::UID to keep.' },
-                                            content:  { type: 'string', description: 'Merged content for survivor.' }
+                                            content:  { type: 'string', description: 'Merged content for survivor. You MUST compile and preserve all unique facts/details from the targets. Generic placeholders (e.g. "Merged data") are forbidden.' }
                                         },
                                         required: ['targets', 'survivor', 'content']
                                     }
