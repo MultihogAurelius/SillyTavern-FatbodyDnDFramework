@@ -1200,6 +1200,7 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
 
         // Delete each target and scrub from active/keyword key lists
         for (const targetId of (op.targets || [])) {
+            if (targetId === op.survivor) continue; // Do not delete the survivor entry!
             const [tBook, tUid] = targetId.split('::');
             const tBookData = await ctx.loadWorldInfo(tBook);
             if (tBookData?.entries?.[tUid]) {
