@@ -683,45 +683,7 @@
                 </div>
             </div>
 
-<div class="inline-drawer">
-                <div class="inline-drawer-toggle inline-drawer-header">
-                    <i class="fa-solid fa-flask" style="margin-right: 8px; opacity: 0.7;"></i>
-                    <b>Experimental Features</b>
-                    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
-                </div>
-                <div class="inline-drawer-content">
-                    <div class="flex-container flexFlowColumn gap-1">
-                        <div style="font-size: 0.8em; opacity: 0.65; line-height: 1.4; margin-bottom: 8px; border: 1px solid rgba(255, 160, 0, 0.2); border-radius: 6px; padding: 8px 10px; background: rgba(255, 160, 0, 0.04);">
-                            ⚠️ Features here are experimental and may behave unpredictably. They may increase token usage, change model behavior, or produce unexpected results. Use at your own discretion.
-                            <br><br>
-                            NEITHER OF THESE REVIEW MODES SHOULD BE NEEDED, but they are there if they are for some reason needed.
-                        </div>
 
-                        <div style="border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
-                            <label class="checkbox_label" style="margin-bottom: 6px;">
-                                <input id="rpg_tracker_experimental_half_review" type="checkbox" />
-                                <span style="font-weight: bold;">Half Review Mode</span>
-                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="A medium-intensity review. Tweaks the delta-only prompt to request complete output via regex replacements. Balanced token usage."></i>
-                            </label>
-                            <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.45; padding-left: 24px;">
-                                A medium-intensity review mode. Adjusts the State Tracker prompt with regex tweaks to request complete output from all sections. Good balance of token usage and accuracy.
-                            </div>
-                        </div>
-                        <div style="border: 1px solid rgba(255, 80, 80, 0.2); border-radius: 6px; padding: 10px 12px; background: rgba(255, 60, 60, 0.04);">
-                            <label class="checkbox_label" style="margin-bottom: 6px;">
-                                <input id="rpg_tracker_experimental_full_review" type="checkbox" />
-                                <span style="font-weight: bold; color: #ff8866;">Full Review Mode</span>
-                                <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="AGGRESSIVE. Completely rewrites the system prompt to forcefully demand every single field. Highest token usage but guarantees nothing is missed."></i>
-                            </label>
-                            <div style="font-size: 0.78em; opacity: 0.6; line-height: 1.45; padding-left: 24px;">
-                                <b style="color: #ff8866;">AGGRESSIVE.</b> Completely rewrites the State Tracker system prompt to forcefully demand every single field — including all custom fields — is reviewed and output. Enumerates every enabled module by name.
-                                <br><br>
-                                <b>Trade-off:</b> Highest token usage per update, but <b>guarantees</b> nothing is missed. Use when accuracy is more important than cost.
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
         </div>
     </div>

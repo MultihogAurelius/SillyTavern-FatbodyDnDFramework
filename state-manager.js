@@ -353,8 +353,6 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
 
 **FAC** uses four fields: \`Name | Status | Description | Keywords\`. Put a concise current-state line in **Status** (standing, conflicts, recent changes); put history, ideology, schemes, and members in **Description**.`,
         categoryRenderOptions: {},
-        experimentalHalfReviewMode: false,
-        experimentalFullReviewMode: false,
     };
 
     if (!extensionSettings[MODULE_NAME]) {
