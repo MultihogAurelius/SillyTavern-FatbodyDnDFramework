@@ -416,6 +416,53 @@ export function syncQuestsToMemo() {
     writeQuestsToMemo(settings.quests || []);
 }
 
+/**
+ * Strips completed quests from the [QUESTS] block inside a raw memo string.
+ * Completed quests are kept in settings.quests for UI display but must NEVER
+ * appear in the Prior Memo sent to the AI — they are read-only history.
+ * Works for both legacy plain-text and JSON quest formats.
+ * Pure function — no side effects.
+ * @param {string} memoText
+ * @returns {string}
+ */
+export function stripCompletedQuestsFromMemo(memoText) {
+    if (!memoText) return memoText;
+    const questBlockRe = /\[QUESTS\]([\s\S]*?)\[\/QUESTS\]/i;
+    const match = memoText.match(questBlockRe);
+    if (!match) return memoText;
+
+    const content = match[1].trim();
+
+    // ── Legacy plain-text format ──────────────────────────────────────────────
+    // The AI writes the full [QUESTS] text block directly (questLegacyMode=true).
+    // mergeMemo pastes it into currentMemo verbatim — no filter runs at write time.
+    // We split on QUEST: boundaries and drop any block with STATUS: completed.
+    if (/^QUEST:/m.test(content)) {
+        // Split on the start of each "QUEST:" line, keeping the delimiter.
+        // content already starts with "QUEST:", so no prepend needed.
+        const questBlocks = content.split(/^(?=QUEST:)/m).filter(Boolean);
+        const active = questBlocks.filter(block => !/^\s*STATUS:\s*completed\s*$/im.test(block));
+        if (active.length === questBlocks.length) return memoText; // nothing to strip
+        const newContent = active.map(b => b.trim()).join('\n\n').trim();
+        if (!newContent) return memoText.replace(questBlockRe, '').replace(/\n{3,}/g, '\n\n').trim();
+        return memoText.replace(questBlockRe, `[QUESTS]\n${newContent}\n[/QUESTS]`);
+    }
+
+    // ── JSON / Tool-call format ───────────────────────────────────────────────
+    // writeQuestsToMemo already filters completed at write time, so this branch
+    // is a safety net for any edge case that bypasses that path.
+    try {
+        const parsed = JSON.parse(content);
+        const quests = Array.isArray(parsed) ? parsed : (parsed.quests || []);
+        const active = quests.filter(q => q.status !== 'completed');
+        if (active.length === quests.length) return memoText; // nothing to strip
+        if (!active.length) return memoText.replace(questBlockRe, '').replace(/\n{3,}/g, '\n\n').trim();
+        return memoText.replace(questBlockRe, `[QUESTS]\n${JSON.stringify(active, null, 2)}\n[/QUESTS]`);
+    } catch {
+        return memoText; // unparseable — leave it alone
+    }
+}
+
 // ── Legacy quest text format ───────────────────────────────────────────────────
 
 /**

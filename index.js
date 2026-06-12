@@ -2,7 +2,7 @@ import { EXAMPLES, COLOR_EXAMPLES, DEFAULT_STOCK_PROMPTS, RT_PROMPTS, BLOCK_ICON
 import { MODULE_NAME, DEFAULT_MODULES, getSettings, getBarBackground, migrateCustomFields, saveChatState, saveProfile, deleteProfile, getEffectiveRouterCampaignPrefix, sanitizeCampaignPrefixString } from './state-manager.js';
 import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
 import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded, resetRouterTick, makeRngQueue, buildRngBlock, RNG_QUEUE_LEN } from './narrative-hooks.js';
-import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood, extractCurrentTimeStr } from './memo-processor.js';
+import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood, extractCurrentTimeStr, stripCompletedQuestsFromMemo } from './memo-processor.js';
 import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderLorebookTerminal } from './renderer.js';
 import { registerLogQuestTool, checkQuestDeadlines, renderQuestsAsPlainText } from './quests.js';
 import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
@@ -1936,13 +1936,13 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
             chunks.push(chatLogLines);
         }
 
-        let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(settings.currentMemo)}\n\n`;
+        let priorMemoText = `## TRACKER STATE 0 (Current)\n${stripMemoHtml(stripCompletedQuestsFromMemo(settings.currentMemo))}\n\n`;
         const historyCount = (settings.trackerHistoryCount || 1) - 1;
         if (historyCount > 0 && settings.memoHistory && settings.memoHistory.length > 0) {
             const historyToInclude = settings.memoHistory.slice(0, historyCount).reverse();
             const historyString = historyToInclude.map((memo, i) => {
                 const offset = -(historyToInclude.length - i);
-                return `## TRACKER STATE ${offset}\n${stripMemoHtml(memo)}`;
+                return `## TRACKER STATE ${offset}\n${stripMemoHtml(stripCompletedQuestsFromMemo(memo))}`;
             }).join('\n\n');
             priorMemoText = historyString + '\n\n' + priorMemoText;
         }
@@ -2019,7 +2019,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
                 // For full audit, always read the LIVE committed memo for the prior
                 userPrompt =
                     worldLoreSection +
-                    `## PRIOR MEMO\n${stripMemoHtml(settings.currentMemo) || '(empty)'}\n\n` +
+                    `## PRIOR MEMO\n${stripMemoHtml(stripCompletedQuestsFromMemo(settings.currentMemo)) || '(empty)'}\n\n` +
                     `## NARRATIVE HISTORY (Chunk ${i + 1} of ${chunks.length})\n${chatLog}\n\n` +
                     `## TASK\nAnalyze the narrative chunk provided above. Rebuild the State Memo to ensure every detail is perfectly accurate to this point in the story. Correct any errors or omissions found in the Prior Memo.\n\n` +
                     `## OUTPUT THE COMPLETE VERIFIED STATE MEMO:`;
