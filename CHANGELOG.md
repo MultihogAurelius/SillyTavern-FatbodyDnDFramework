@@ -2,6 +2,19 @@
 
 All notable changes to the **Fatbody D&D Framework** will be documented in this file.
 
+## [3.3.0] - 2026-06-12
+
+### Added
+- **Detached Panel Resize Handles**: Injected bottom-left (BL) and bottom-right (BR) resize handles inside detached panels with pointer-tracking and geometry persistence (`rpg_tracker_geometry_${tag}`).
+
+### Fixed
+- **Per-Chat Character Portrait System**: 
+  - Collapsed character portraits configuration payload (`customPortraits`) into the localized per-chat data structured in `state-manager.js`.
+  - Added portrait container and pointer events fixes to enable click-to-replace popup trigger.
+  - Corrected customButtons result validation type from string to number (clear/result `2`) to satisfy the SillyTavern Popup API.
+  - Captured URL input values before popup DOM teardown.
+- **Panel Corner Refinement**: Enforced `overflow: hidden` on `.rpg-tracker-panel` and rounded top-corners on `.rpg-tracker-header` to guarantee perfect clipping of panel children.
+
 ## [3.0.0] - 2026-06-06
 
 ### Added
