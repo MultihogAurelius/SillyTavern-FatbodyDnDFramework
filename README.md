@@ -1,5 +1,7 @@
 # Fatbody D&D Framework
 
+**"Fatbody D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
+
 *A D&D-lite simulation engine for SillyTavern.*
 
 What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences. Losing or dying is actually a thing. In Big Rigs, you're always WINNER. Not in Fatbody D&D! 
