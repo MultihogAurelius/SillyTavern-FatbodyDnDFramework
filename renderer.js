@@ -859,7 +859,7 @@ function wrapEntityHtml(entityName, contentHtml) {
                     1. Use the archetype buttons above to roll a new character, or <b>manually describe a character</b> by clicking 💬.<br><br>
                     2. Create a character card for your "narrator" (e.g. Game Master). <b>Leave the card fields empty</b>, as the framework handles all logic via the system prompt.<br><br>
                     3. Toggle the options below — the system prompt is <b>applied automatically</b> whenever you change a setting.<br><br>
-                    💡 <b>Model Recommendation:</b> We highly recommend using <b>Gemini 3.1 Flash Lite</b>. It is 100% reliable for both ReAct tool-use and standard parsing, and is extremely cheap.
+                    💡 <b>Model Recommendation:</b> I highly recommend using <b>Gemini 3.1 Flash Lite</b>. It is 100% reliable for both ReAct tool-use and standard parsing, and is extremely cheap.
                 </div>
 
                 <!-- Narrator Configuration (Salad Bar) -->
