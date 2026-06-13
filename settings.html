@@ -464,7 +464,11 @@
                         <div style="font-size: 0.75em; opacity: 0.55; margin-top: -2px;">e.g. 24 = daily, 12 = twice/day, 8 = 3×/day</div>
                         <div style="font-size: 0.78em; opacity: 0.65; margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 2px;">
                             <div><b>Last report:</b> <span id="rpg_world_progression_last_report_val">—</span></div>
-                            <div><b>Next report:</b> <span id="rpg_world_progression_next_report_val">—</span></div>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <b>Next report:</b>
+                                <span id="rpg_world_progression_next_report_val">—</span>
+                                <button id="rpg_world_progression_btn_override_next" class="menu_button interactable" style="margin: 0; padding: 1px 6px; font-size: 0.82em; width: auto;" title="Override the in-world time when the next report should trigger">Override</button>
+                            </div>
                         </div>
 
                         <hr style="margin: 6px 0;">

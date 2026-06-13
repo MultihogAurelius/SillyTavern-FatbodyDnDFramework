@@ -2,7 +2,7 @@ import { EXAMPLES, COLOR_EXAMPLES, DEFAULT_STOCK_PROMPTS, RT_PROMPTS, BLOCK_ICON
 import { MODULE_NAME, DEFAULT_MODULES, getSettings, getBarBackground, migrateCustomFields, saveChatState, saveProfile, deleteProfile, getEffectiveRouterCampaignPrefix, sanitizeCampaignPrefixString } from './state-manager.js';
 import { sendStateRequest, fetchOllamaModels, fetchOpenAIModels, testOpenAIConnection, getConnectionProfiles, getCurrentCompletionPreset, setCompletionPreset } from './llm-client.js';
 import { getDiceToolName, getDiceCommandName, getDiceCommandAliases, doDiceRoll, registerDiceFunctionTool, registerDiceSlashCommand, installInterceptor, getNarrativeBlocks, onGenerationEnded, resetRouterTick, makeRngQueue, buildRngBlock, RNG_QUEUE_LEN } from './narrative-hooks.js';
-import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood, extractCurrentTimeStr, stripCompletedQuestsFromMemo } from './memo-processor.js';
+import { deduplicateMemo, mergeMemo, computeDelta, escapeHtml, escapeRegex, highlightParens, cleanToolCallMessage, getLastUserAction, buildLorebookContext, buildModulesInstructionText, buildModuleFormatInstruction, parseQuestsFromMemo, syncQuestsFromMemo, syncQuestsToMemo, writeQuestsToMemo, getQuestMood, extractCurrentTimeStr, stripCompletedQuestsFromMemo, parseInWorldTime } from './memo-processor.js';
 import { renderSubFieldByRule, tryRenderMarker, renderCustomBlockLine, stripMemoHtml, escapeHtmlWithColor, parseMemoBlocks, getPageSize, loadCollapsed, saveCollapsed, loadDetached, saveDetached, blockToItems, renderMemoAsCards, renderQuestLog, renderLorebookTerminal } from './renderer.js';
 import { registerLogQuestTool, checkQuestDeadlines, renderQuestsAsPlainText } from './quests.js';
 import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
@@ -857,6 +857,39 @@ function loadChatState(chatId) {
     else $('#rpg_world_progression_random_faction_count_container').hide();
     if (s.worldProgressionRandomizeConflicts) $('#rpg_world_progression_random_conflict_count_container').show();
     else $('#rpg_world_progression_random_conflict_count_container').hide();
+
+    // Sync World Progression timing readouts for this chat
+    {
+        function _fmtWpMins(totalMins) {
+            if (totalMins < 0) return 'Never';
+            const day = Math.floor(totalMins / 1440) + 1;
+            const remMinutes = totalMins % 1440;
+            const h24 = Math.floor(remMinutes / 60);
+            const m = remMinutes % 60;
+            const suffix = h24 >= 12 ? 'PM' : 'AM';
+            let h12 = h24 % 12;
+            if (h12 === 0) h12 = 12;
+            return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+        }
+        const mins = s.worldProgressionLastFiredAtMinutes ?? -1;
+        const label = s.worldProgressionLastFiredPeriodLabel || '';
+        const lastText = label || (mins >= 0 ? _fmtWpMins(mins) : 'Never');
+        $('#rpg_world_progression_last_fired').text(lastText);
+        $('#rpg_world_progression_last_report_val').text(lastText);
+        const intervalMinutes = (s.worldProgressionIntervalHours || 24) * 60;
+        const nextMins = mins >= 0 ? mins + intervalMinutes : intervalMinutes;
+        $('#rpg_world_progression_next_report_val').text(_fmtWpMins(nextMins));
+
+        // Sync consolidation fields
+        $('#rpg_world_progression_consolidate_enabled').prop('checked', !!s.worldProgressionConsolidateEnabled);
+        $('#rpg_world_progression_consolidate_interval').val(s.worldProgressionConsolidateInterval ?? 7);
+        if (s.worldProgressionConsolidateEnabled) {
+            $('#rpg_world_progression_consolidate_interval_container').show();
+        } else {
+            $('#rpg_world_progression_consolidate_interval_container').hide();
+        }
+    }
+
     // Don't restore routerCampaignPrefix from per-chat saved state — the prefix
     // is fully derivable from the chat ID and must be re-derived live by
     // onChatChanged. Restoring a stale value (e.g. a bare "Assistant" from
@@ -9133,11 +9166,14 @@ RULES:
 
             function formatInWorldMinutes(totalMins) {
                 if (totalMins < 0) return 'Never';
-                const totalH = Math.floor(totalMins / 60);
-                const h = totalH % 24;
-                const m = totalMins % 60;
-                const day = Math.floor(totalMins / (24 * 60)) + 1;
-                return `Day ${day}, ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                const day = Math.floor(totalMins / 1440) + 1;
+                const remMinutes = totalMins % 1440;
+                const h24 = Math.floor(remMinutes / 60);
+                const m = remMinutes % 60;
+                const suffix = h24 >= 12 ? 'PM' : 'AM';
+                let h12 = h24 % 12;
+                if (h12 === 0) h12 = 12;
+                return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
             }
 
             let lastReportText = 'Never';
@@ -9325,6 +9361,48 @@ RULES:
         });
 
         updateWorldProgressionLastFiredDisplay();
+
+        // ── Override Next Report button ──────────────────────────────────────────
+        $('#rpg_world_progression_btn_override_next').on('click', function () {
+            const s = getSettings();
+            const intervalHours = s.worldProgressionIntervalHours || 24;
+            const intervalMinutes = intervalHours * 60;
+            const currentLastMins = s.worldProgressionLastFiredAtMinutes ?? -1;
+            const currentNextMins = currentLastMins >= 0 ? currentLastMins + intervalMinutes : intervalMinutes;
+
+            function fmtHint(totalMins) {
+                if (totalMins < 0) return 'Day 1, 12:00 AM';
+                const day = Math.floor(totalMins / 1440) + 1;
+                const remMinutes = totalMins % 1440;
+                const h24 = Math.floor(remMinutes / 60);
+                const m = remMinutes % 60;
+                const suffix = h24 >= 12 ? 'PM' : 'AM';
+                let h12 = h24 % 12;
+                if (h12 === 0) h12 = 12;
+                return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+            }
+
+            const userInput = window.prompt(
+                'Enter the in-world time for the NEXT report.\n' +
+                'Accepted formats: "Day 6, 08:00 AM", "Day 6, 08:00", "Day 6"',
+                fmtHint(currentNextMins)
+            );
+            if (userInput === null) return; // cancelled
+
+            const parsedNextMins = parseInWorldTime(userInput.trim());
+            if (parsedNextMins <= 0) {
+                toastr['warning']('Could not parse the entered time. Please use a format like "Day 6, 08:00 AM".', 'World Progression');
+                return;
+            }
+
+            // Back-calculate lastFired so that next = lastFired + interval
+            s.worldProgressionLastFiredAtMinutes = parsedNextMins - intervalMinutes;
+            // Clear the period label to avoid duplicate-check conflicts on the next run
+            s.worldProgressionLastFiredPeriodLabel = '';
+            saveSettings();
+            updateWorldProgressionLastFiredDisplay();
+            toastr['success'](`Next report set to ${fmtHint(parsedNextMins)}.`, 'World Progression');
+        });
 
         $wpGenerateNow.on('click', async function () {
             const { parseInWorldMinutes: piw, runWorldProgressionPass: rwp } = await import('./router.js');
