@@ -850,6 +850,8 @@ function wrapEntityHtml(entityName, contentHtml) {
                     <div><b style="color: var(--rt-accent);">Validation:</b> Use the Delta Log (δ) to verify changes. If the AI ever makes a mistake, step backwards using the Snapshot Navigation (←/→) to restore a clean state. A capable model like Gemini 3 Flash should almost never make a mistake, so you probably will not need the Delta Log often — but it is there when you want it.</div>
 
                     <div><b style="color: var(--rt-accent);">Lorebook Agent &#x1F916;:</b> Open it from the robot button in the header. It autonomously manages your lorebook — creating, updating, activating, deactivating, and deleting entries as your story evolves. Click <b>?</b> inside the agent panel for full documentation.</div>
+
+                    <div><b style="color: var(--rt-accent);">World Progression 🌍:</b> Simulates off-screen world activity by generating reports of background events at regular in-world intervals (such as daily). You can seed the simulation with an optional <b>World Skeleton</b> to introduce undiscovered factions, locations, NPCs, and conflicts outside the narrative. It includes <b>Focus Randomization</b> to keep events varied, and <b>Backlog Consolidation</b> to periodically compress older reports and prevent token bloat.</div>
                 </div>
 
                 <!-- Narrator Configuration (Salad Bar) -->
