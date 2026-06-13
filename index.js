@@ -3785,7 +3785,7 @@ function createPanel() {
         if (helpBtn) {
             helpBtn.addEventListener('click', () => {
                 const content = `
-                        <div style="text-align: left; font-size: 13px; line-height: 1.5;">
+                        <div style="text-align: left; font-size: 13px; line-height: 1.5; max-height: 65vh; overflow-y: auto; padding-right: 8px;">
                             <h3 style="margin-top: 0; color: var(--rt-custom-accent, #3498db);">The Lorebook Agent</h3>
                             <p>An autonomous narrative researcher. After each generation it scans your recent chat, decides what has changed, and writes new or updated entries directly into your SillyTavern lorebooks — no manual data entry needed.</p>
 
