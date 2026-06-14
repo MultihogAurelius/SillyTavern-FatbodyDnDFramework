@@ -207,14 +207,17 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         worldProgressionInjectionPosition: 4,     // Default to 4 (at Depth)
         worldProgressionInjectionDepth: 4,
         worldProgressionInjectionRole: 0,         // System
-        worldProgressionRandomizeNPCs: false,      // toggle to randomize NPC pool
-        worldProgressionRandomNPCCount: 5,        // number of NPCs to incorporate
-        worldProgressionRandomizeLocations: false,  // toggle to randomize locations
-        worldProgressionRandomLocationCount: 4,    // number of locations to incorporate
-        worldProgressionRandomizeFactions: false,   // toggle to randomize factions
-        worldProgressionRandomFactionCount: 4,     // number of factions to incorporate
-        worldProgressionRandomizeConflicts: false,  // toggle to randomize conflicts
-        worldProgressionRandomConflictCount: 3,    // number of conflicts to incorporate
+        worldProgressionRandomizeNPCs: false,            // toggle to randomize NPC pool
+        worldProgressionRandomSkeletonNPCCount: 2,        // skeleton NPCs to spotlight per report
+        worldProgressionRandomNarrativeNPCCount: 3,       // narrative NPCs to spotlight per report
+        worldProgressionRandomizeLocations: false,        // toggle to randomize locations
+        worldProgressionRandomSkeletonLocationCount: 2,   // skeleton locations to spotlight per report
+        worldProgressionRandomNarrativeLocationCount: 2,  // narrative locations to spotlight per report
+        worldProgressionRandomizeFactions: false,         // toggle to randomize factions
+        worldProgressionRandomSkeletonFactionCount: 2,    // skeleton factions to spotlight per report
+        worldProgressionRandomNarrativeFactionCount: 2,   // narrative factions to spotlight per report
+        worldProgressionRandomizeConflicts: false,        // toggle to randomize conflicts
+        worldProgressionRandomConflictCount: 3,           // number of conflicts to incorporate
         worldProgressionSkeletonFactions: 4,       // number of factions in skeleton
         worldProgressionSkeletonLocations: 4,      // number of locations in skeleton
         worldProgressionSkeletonNPCs: 0,           // number of NPCs in skeleton
@@ -239,7 +242,9 @@ The report covers the in-world period: **{periodLabel}**
 9. You must strictly respect geographical and logistical boundaries to preserve spatial plausibility; isolated or distant entities cannot physically interact and must instead collide via informational, digital, or financial ripples (e.g., radio tracking, digital alerts, automated network scrapers, or news traveling from afar).
 10. Character vectors must take place only at or ripple through the designated locations provided for this period; if an active NPC cannot logically travel to a selected location within this time window, their connection must manifest purely as an off-screen reaction or informational dependency.`,
         // ── World Skeleton ─────────────────────────────────────────────────────────
-        worldProgressionSkeletonTheme: '',         // user seed/theme for skeleton generation
+        worldProgressionSkeletonAtmosphereSummary: '', // single paragraph atmosphere description (required only if not using existing entries context)
+        worldProgressionSkeletonAtmosphereLookback: 30, // messages lookback count for atmosphere generation
+        worldProgressionSkeletonUseExisting: true, // toggle to feed existing entries context when appending
         worldProgressionSkeletonSystemPrompt: `You are a World Architect. Given a world theme/seed, generate a sparse foundational skeleton for an RPG campaign simulation.
 
 ## FACTIONS ({factionCount} total)
@@ -599,11 +604,14 @@ export function saveChatState(chatId) {
         worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 4,
         worldProgressionInjectionRole: s.worldProgressionInjectionRole ?? 0,
         worldProgressionRandomizeNPCs: s.worldProgressionRandomizeNPCs ?? false,
-        worldProgressionRandomNPCCount: s.worldProgressionRandomNPCCount ?? 5,
+        worldProgressionRandomSkeletonNPCCount: s.worldProgressionRandomSkeletonNPCCount ?? 2,
+        worldProgressionRandomNarrativeNPCCount: s.worldProgressionRandomNarrativeNPCCount ?? 3,
         worldProgressionRandomizeLocations: s.worldProgressionRandomizeLocations ?? false,
-        worldProgressionRandomLocationCount: s.worldProgressionRandomLocationCount ?? 4,
+        worldProgressionRandomSkeletonLocationCount: s.worldProgressionRandomSkeletonLocationCount ?? 2,
+        worldProgressionRandomNarrativeLocationCount: s.worldProgressionRandomNarrativeLocationCount ?? 2,
         worldProgressionRandomizeFactions: s.worldProgressionRandomizeFactions ?? false,
-        worldProgressionRandomFactionCount: s.worldProgressionRandomFactionCount ?? 4,
+        worldProgressionRandomSkeletonFactionCount: s.worldProgressionRandomSkeletonFactionCount ?? 2,
+        worldProgressionRandomNarrativeFactionCount: s.worldProgressionRandomNarrativeFactionCount ?? 2,
         worldProgressionRandomizeConflicts: s.worldProgressionRandomizeConflicts ?? false,
         worldProgressionRandomConflictCount: s.worldProgressionRandomConflictCount ?? 3,
         worldProgressionSkeletonFactions: s.worldProgressionSkeletonFactions ?? 4,
@@ -613,6 +621,9 @@ export function saveChatState(chatId) {
         // World Progression per-chat time tracking
         worldProgressionLastFiredAtMinutes: s.worldProgressionLastFiredAtMinutes ?? -1,
         worldProgressionLastFiredPeriodLabel: s.worldProgressionLastFiredPeriodLabel || '',
+        worldProgressionSkeletonAtmosphereSummary: s.worldProgressionSkeletonAtmosphereSummary || '',
+        worldProgressionSkeletonAtmosphereLookback: s.worldProgressionSkeletonAtmosphereLookback ?? 30,
+        worldProgressionSkeletonUseExisting: s.worldProgressionSkeletonUseExisting ?? true,
         worldProgressionConsolidateEnabled: s.worldProgressionConsolidateEnabled ?? false,
         worldProgressionConsolidateInterval: s.worldProgressionConsolidateInterval ?? 7,
         // Preserve lorebook stack link — written by Link button and router, not by normal state saves
@@ -660,11 +671,14 @@ export function saveProfile(name) {
         worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 4,
         worldProgressionInjectionRole: s.worldProgressionInjectionRole ?? 0,
         worldProgressionRandomizeNPCs: s.worldProgressionRandomizeNPCs ?? false,
-        worldProgressionRandomNPCCount: s.worldProgressionRandomNPCCount ?? 5,
+        worldProgressionRandomSkeletonNPCCount: s.worldProgressionRandomSkeletonNPCCount ?? 2,
+        worldProgressionRandomNarrativeNPCCount: s.worldProgressionRandomNarrativeNPCCount ?? 3,
         worldProgressionRandomizeLocations: s.worldProgressionRandomizeLocations ?? false,
-        worldProgressionRandomLocationCount: s.worldProgressionRandomLocationCount ?? 4,
+        worldProgressionRandomSkeletonLocationCount: s.worldProgressionRandomSkeletonLocationCount ?? 2,
+        worldProgressionRandomNarrativeLocationCount: s.worldProgressionRandomNarrativeLocationCount ?? 2,
         worldProgressionRandomizeFactions: s.worldProgressionRandomizeFactions ?? false,
-        worldProgressionRandomFactionCount: s.worldProgressionRandomFactionCount ?? 4,
+        worldProgressionRandomSkeletonFactionCount: s.worldProgressionRandomSkeletonFactionCount ?? 2,
+        worldProgressionRandomNarrativeFactionCount: s.worldProgressionRandomNarrativeFactionCount ?? 2,
         worldProgressionRandomizeConflicts: s.worldProgressionRandomizeConflicts ?? false,
         worldProgressionRandomConflictCount: s.worldProgressionRandomConflictCount ?? 3,
         worldProgressionSkeletonFactions: s.worldProgressionSkeletonFactions ?? 4,
@@ -675,6 +689,9 @@ export function saveProfile(name) {
         worldProgressionLastFiredPeriodLabel: s.worldProgressionLastFiredPeriodLabel || '',
         worldProgressionConsolidateEnabled: s.worldProgressionConsolidateEnabled ?? false,
         worldProgressionConsolidateInterval: s.worldProgressionConsolidateInterval ?? 7,
+        worldProgressionSkeletonAtmosphereSummary: s.worldProgressionSkeletonAtmosphereSummary || '',
+        worldProgressionSkeletonAtmosphereLookback: s.worldProgressionSkeletonAtmosphereLookback ?? 30,
+        worldProgressionSkeletonUseExisting: s.worldProgressionSkeletonUseExisting ?? true,
     };
     s.activeProfile = name;
     SillyTavern.getContext().saveSettingsDebounced();

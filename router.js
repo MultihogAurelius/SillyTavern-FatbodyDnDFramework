@@ -2612,10 +2612,17 @@ ${rawDump}`;
     const skeletonLines = [];
     const loreGrouped = {}; // categoryHeader -> Array of entry lines
     const historicalReportLines = [];
-    const npcNames = [];
-    const locationNames = [];
-    const factionNames = [];
+    // Typed entity name pools — skeleton vs. narrative
+    const skeletonNpcNames = [];
+    const narrativeNpcNames = [];
+    const skeletonLocationNames = [];
+    const narrativeLocationNames = [];
+    const skeletonFactionNames = [];
+    const narrativeFactionNames = [];
     const conflictNames = [];
+    // First-sentence descriptions for the fallback generator context
+    const skeletonFactionDescs = []; // { name, desc }
+    const skeletonLocationDescs = []; // { name, desc }
 
     function getBookCategoryHeader(bookName, prefix) {
         let cleanName = bookName;
@@ -2657,10 +2664,14 @@ ${rawDump}`;
 
             if (isSkeletonBook) {
                 skeletonLines.push(`### ${label}\n${entry.content.trim()}`);
-                if (isNpc) npcNames.push(label);
-                else if (isLoc) locationNames.push(label);
-                else if (isFac) factionNames.push(label);
-                else if (isConflict) conflictNames.push(label);
+                if (isNpc) skeletonNpcNames.push(label);
+                else if (isLoc) {
+                    skeletonLocationNames.push(label);
+                    skeletonLocationDescs.push({ name: label, desc: entry.content.trim().split(/[.!?]/)[0].trim() });
+                } else if (isFac) {
+                    skeletonFactionNames.push(label);
+                    skeletonFactionDescs.push({ name: label, desc: entry.content.trim().split(/[.!?]/)[0].trim() });
+                } else if (isConflict) conflictNames.push(label);
             } else if (isWorldBook) {
                 historicalReportLines.push(`### ${label}\n${entry.content.trim()}`);
             } else {
@@ -2668,9 +2679,9 @@ ${rawDump}`;
                     loreGrouped[categoryHeader] = [];
                 }
                 loreGrouped[categoryHeader].push(`### ${label}\n${entry.content.trim()}`);
-                if (isNpc) npcNames.push(label);
-                else if (isLoc) locationNames.push(label);
-                else if (isFac) factionNames.push(label);
+                if (isNpc) narrativeNpcNames.push(label);
+                else if (isLoc) narrativeLocationNames.push(label);
+                else if (isFac) narrativeFactionNames.push(label);
                 else if (isConflict) conflictNames.push(label);
             }
         }
@@ -2722,36 +2733,94 @@ ${rawDump}`;
         .replace(/\{periodLabel\}/g, periodLabel)
         .replace(/\{wordTarget\}/g, String(wordTarget));
 
-    // Determine designated entities randomly
+    // Auto-generation fallback: ensure skeleton NPC pool meets requested count
+    if (settings.worldProgressionRandomizeNPCs) {
+        const requestedSkeletonNpcs = settings.worldProgressionRandomSkeletonNPCCount || 0;
+        if (requestedSkeletonNpcs > 0 && skeletonNpcNames.length < requestedSkeletonNpcs) {
+            const missingCount = requestedSkeletonNpcs - skeletonNpcNames.length;
+            const atmosphereSummary = settings.worldProgressionSkeletonAtmosphereSummary || '';
+            try {
+                broadcastStep('thought', `\uD83E\uDDEC World Skeleton: Auto-generating ${missingCount} NPC(s) to meet requested pool size...`);
+                const newNames = await runSkeletonGeneratorAgent(
+                    missingCount, atmosphereSummary,
+                    skeletonFactionDescs, conflictNames, skeletonLocationDescs, archiveBooks
+                );
+                skeletonNpcNames.push(...newNames);
+                if (typeof globalThis._rpgUpdateSkeletonStatus === 'function') {
+                    globalThis._rpgUpdateSkeletonStatus().catch(() => {});
+                }
+            } catch (e) {
+                broadcastStep('error', `World Skeleton auto-generation failed: ${e.message} \u2014 proceeding with existing pool.`);
+            }
+        }
+    }
+
+    // Determine designated entities using typed skeleton/narrative pools
     const designations = [];
-    const handleRandomization = (enabled, namesList, count, sectionLabel) => {
+    const shuffleAndSelect = (arr, count) => {
+        const unique = Array.from(new Set(arr)).filter(Boolean);
+        const clamped = Math.min(Math.max(count, 0), unique.length);
+        if (clamped === 0) return [];
+        const shuffled = [...unique];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled.slice(0, clamped);
+    };
+
+    const handleTypedRandomization = (enabled, skeletonNames, narrativeNames, skeletonCount, narrativeCount, category) => {
         if (!enabled) return;
-        const uniqueNames = Array.from(new Set(namesList)).filter(Boolean);
-        if (uniqueNames.length > 0) {
-            const clampedCount = Math.min(count, uniqueNames.length);
-            const shuffled = [...uniqueNames];
-            for (let i = shuffled.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const skelSelected = shuffleAndSelect(skeletonNames, skeletonCount);
+        const narSelected = shuffleAndSelect(narrativeNames, narrativeCount);
+        if (skelSelected.length > 0 || narSelected.length > 0) {
+            let block = `### ${category}`;
+            if (skelSelected.length > 0) {
+                block += `\n#### SKELETON ENTITIES [drawn from skeleton lorebook only]\n` + skelSelected.map(n => `- ${n}`).join('\n');
             }
-            const selected = shuffled.slice(0, clampedCount);
-            if (selected.length > 0) {
-                designations.push(`### ${sectionLabel}\n` + selected.map(n => `- ${n}`).join('\n'));
+            if (narSelected.length > 0) {
+                block += `\n#### NARRATIVE ENTITIES [drawn from active world lore only]\n` + narSelected.map(n => `- ${n}`).join('\n');
             }
+            designations.push(block);
         }
     };
 
-    handleRandomization(settings.worldProgressionRandomizeNPCs, npcNames, settings.worldProgressionRandomNPCCount || 5, 'NPCs');
-    handleRandomization(settings.worldProgressionRandomizeLocations, locationNames, settings.worldProgressionRandomLocationCount || 4, 'Locations');
-    handleRandomization(settings.worldProgressionRandomizeFactions, factionNames, settings.worldProgressionRandomFactionCount || 4, 'Factions');
-    handleRandomization(settings.worldProgressionRandomizeConflicts, conflictNames, settings.worldProgressionRandomConflictCount || 3, 'Conflicts/Quests');
+    handleTypedRandomization(
+        settings.worldProgressionRandomizeNPCs,
+        skeletonNpcNames, narrativeNpcNames,
+        settings.worldProgressionRandomSkeletonNPCCount || 0,
+        settings.worldProgressionRandomNarrativeNPCCount || 0,
+        'NPCs'
+    );
+    handleTypedRandomization(
+        settings.worldProgressionRandomizeLocations,
+        skeletonLocationNames, narrativeLocationNames,
+        settings.worldProgressionRandomSkeletonLocationCount || 0,
+        settings.worldProgressionRandomNarrativeLocationCount || 0,
+        'Locations'
+    );
+    handleTypedRandomization(
+        settings.worldProgressionRandomizeFactions,
+        skeletonFactionNames, narrativeFactionNames,
+        settings.worldProgressionRandomSkeletonFactionCount || 0,
+        settings.worldProgressionRandomNarrativeFactionCount || 0,
+        'Factions'
+    );
+
+    // Conflicts remain a flat pool (no skeleton/narrative split)
+    if (settings.worldProgressionRandomizeConflicts) {
+        const selected = shuffleAndSelect(conflictNames, settings.worldProgressionRandomConflictCount || 3);
+        if (selected.length > 0) {
+            designations.push(`### Conflicts/Quests\n` + selected.map(n => `- ${n}`).join('\n'));
+        }
+    }
 
     let selectedNPCsText = '';
     if (designations.length > 0) {
         selectedNPCsText = `\n\n## DESIGNATED ENTITIES FOR THIS PERIOD\n` +
-            `The following entities have been pre-selected by the system simulator. You MUST focus on and ONLY change the status, advance the timeline, or create new narrative beats for these designated entities:\n\n` +
+            `The following entities have been pre-selected by the system simulator. Entities listed under SKELETON ENTITIES originate from the hidden background skeleton (off-screen, undiscovered by the player). Entities listed under NARRATIVE ENTITIES originate from the active discovered world lore. You MUST focus on and advance the timeline only for these designated entities:\n\n` +
             designations.join('\n\n') +
-            `\n\nYou are strictly forbidden from changing the status, advancing the timeline, or creating new narrative beats for unauthorized entities. However, you MAY mention them passively as background context if their past, established actions are a direct catalyst for the designated entities.`;
+            `\n\nYou are strictly forbidden from changing the status, advancing the timeline, or creating new narrative beats for entities not listed above. You MAY mention them passively as background context where their prior established actions are a direct catalyst for a designated entity.`;
     }
 
     let userPrompt =
@@ -2956,19 +3025,137 @@ function parseSkeletonOutput(rawText) {
 }
 
 /**
- * Generates the World Skeleton: a hidden lorebook of foundational undiscovered
- * entities (factions, locations, NPCs, conflicts) seeded from the user's theme.
- * Saves all entries to [CampaignPrefix]_Skeleton. Overwrites any existing skeleton.
+ * Auto-generates skeleton NPCs when the pool is below the requested count.
+ * Operates in informational isolation — receives only the skeleton theme, atmosphere
+ * summary, and existing skeleton faction/location/conflict names.
+ * Never sees narrative content, active NPC stats, quest details, or player logs.
  *
- * @param {string} theme - User-provided theme/seed for the world
- * @returns {Promise<number>} Number of skeleton entries created
+ * @param {number} missingCount  Number of NPCs to generate
+ * @param {string} atmosphere    Atmosphere summary (single paragraph, required foundation for skeleton generation)
+ * @param {Array}  factionDescs  Array of {name, desc} from skeleton factions
+ * @param {Array}  conflictNames Skeleton conflict/event names (names only)
+ * @param {Array}  locationDescs Array of {name, desc} from skeleton locations
+ * @param {Object} archiveBooks  Loaded lorebook map for writing back to skeleton
+ * @returns {Promise<string[]>}  Names of newly created skeleton NPCs
  */
-export async function runSkeletonGenerationPass(theme, append = false) {
+async function runSkeletonGeneratorAgent(missingCount, atmosphere, factionDescs, conflictNames, locationDescs, archiveBooks) {
     const settings = getSettings();
     const prefix = getLivePrefix();
     const skeletonBookName = prefix ? `${prefix}_Skeleton` : 'World_Skeleton';
 
-    broadcastStep('thought', `\uD83D\uDDE6 World Skeleton: Generating from theme...`);
+    const factionContext = factionDescs.length > 0
+        ? factionDescs.map(f => `- ${f.name}: ${f.desc}`).join('\n')
+        : '(none defined yet)';
+    const locationContext = locationDescs.length > 0
+        ? locationDescs.map(l => `- ${l.name}: ${l.desc}`).join('\n')
+        : '(none defined yet)';
+    const conflictContext = conflictNames.length > 0
+        ? conflictNames.map(n => `- ${n}`).join('\n')
+        : '(none defined yet)';
+
+    const systemPrompt =
+`You are a World Architect. Generate background skeleton NPCs for an RPG campaign simulation.
+These NPCs are undiscovered background characters — they have never appeared in the narrative.
+Do NOT reference any player characters, recent events, or narrative content.
+Output ONLY structured content:
+
+## NPCS
+### [Name]
+[Role in the world. Current situation or agenda in 1-2 sentences.]`;
+
+    let userPrompt = `## ATMOSPHERE / DESCRIPTION\n${atmosphere || '(No atmosphere description provided)'}\n\n`;
+    userPrompt +=
+`## EXISTING SKELETON CONTEXT (for thematic consistency — do not replicate)
+### Factions
+${factionContext}
+
+### Locations
+${locationContext}
+
+### Active Conflicts
+${conflictContext}
+
+Generate exactly ${missingCount} new skeleton NPC(s). Each must be unique, thematically consistent, and not affiliated with or named after any player character.`;
+
+    const routerSettings = {
+        connectionSource: settings.routerConnectionSource || 'default',
+        connectionProfileId: settings.routerConnectionProfileId,
+        completionPresetId: settings.routerCompletionPresetId,
+        ollamaUrl: settings.routerOllamaUrl,
+        ollamaModel: settings.routerOllamaModel,
+        openaiUrl: settings.routerOpenaiUrl,
+        openaiKey: settings.routerOpenaiKey,
+        openaiModel: settings.routerOpenaiModel,
+    };
+
+    const rawOutput = await sendStateRequest(routerSettings, systemPrompt, userPrompt);
+    if (!rawOutput?.trim()) throw new Error('Skeleton generator agent returned empty response');
+
+    const records = parseSkeletonOutput(rawOutput).filter(r => r.category === 'NPC');
+    if (records.length === 0) throw new Error('Skeleton generator: no NPC records parsed from output');
+
+    // Load or reuse the skeleton book
+    let skeletonBook = (archiveBooks && archiveBooks[skeletonBookName]) || null;
+    if (!skeletonBook || !skeletonBook.entries) {
+        const ctx = SillyTavern.getContext();
+        try { skeletonBook = await ctx.loadWorldInfo(skeletonBookName); } catch (_) {}
+        if (!skeletonBook || !skeletonBook.entries) {
+            skeletonBook = { entries: {}, name: skeletonBookName, scan_depth: 4, token_budget: 400, recursive: false, extensions: {} };
+        }
+    }
+
+    const existingUids = Object.keys(skeletonBook.entries).map(Number).filter(n => !isNaN(n));
+    let nextUid = existingUids.length > 0 ? Math.max(...existingUids) + 1 : 0;
+
+    const newNames = [];
+    for (const rec of records) {
+        skeletonBook.entries[nextUid] = {
+            uid: nextUid,
+            key: [],
+            keysecondary: [],
+            comment: `NPC: ${rec.label}`,
+            content: `[Day 0 Baseline — Auto-generated]\n${rec.content}`,
+            constant: false, selective: false, selectiveLogic: 0, addMemo: true,
+            order: 100, position: 0,
+            disable: true,
+            probability: 100, useProbability: false,
+            depth: 4, group: '', groupOverride: false, groupWeight: 100,
+            extensions: { rpgCategory: 'NPC', rpgSkeleton: true },
+        };
+        newNames.push(rec.label);
+        nextUid++;
+    }
+
+    const saveRes = await fetch('/api/worldinfo/edit', {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ name: skeletonBookName, data: skeletonBook })
+    });
+    if (!saveRes.ok) throw new Error(`Skeleton generator save failed: HTTP ${saveRes.status}`);
+
+    const ctx = SillyTavern.getContext();
+    try { await ctx.saveWorldInfo(skeletonBookName, skeletonBook); } catch (_) {}
+
+    if (archiveBooks) archiveBooks[skeletonBookName] = skeletonBook;
+
+    broadcastStep('thought', `\uD83E\uDDEC Skeleton Generator: ${newNames.length} NPC(s) created (${newNames.join(', ')}).`);
+    return newNames;
+}
+
+/**
+ * Generates the World Skeleton: a hidden lorebook of foundational undiscovered
+ * entities (factions, locations, NPCs, conflicts) seeded from the user's atmosphere summary.
+ * Saves all entries to [CampaignPrefix]_Skeleton. Overwrites any existing skeleton.
+ *
+ * @param {string} atmosphereSummary - User-provided setting/atmosphere summary for the world
+ * @returns {Promise<number>} Number of skeleton entries created
+ */
+export async function runSkeletonGenerationPass(atmosphereSummary, append = false, useExisting = true) {
+    const settings = getSettings();
+    const prefix = getLivePrefix();
+    const skeletonBookName = prefix ? `${prefix}_Skeleton` : 'World_Skeleton';
+
+    broadcastStep('thought', `\uD83D\uDDE6 World Skeleton: Generating entries...`);
 
     const ctx = SillyTavern.getContext();
     let skeletonBook = null;
@@ -2985,6 +3172,7 @@ export async function runSkeletonGenerationPass(theme, append = false) {
     const locationCount = settings.worldProgressionSkeletonLocations ?? 4;
     const npcCount = settings.worldProgressionSkeletonNPCs ?? 0;
     const conflictCount = settings.worldProgressionSkeletonConflicts ?? 3;
+    const atmosphere = (atmosphereSummary || settings.worldProgressionSkeletonAtmosphereSummary || '').trim();
 
     const systemPrompt = (settings.worldProgressionSkeletonSystemPrompt || '')
         .replace(/\{factionCount\}/g, String(factionCount))
@@ -2992,20 +3180,23 @@ export async function runSkeletonGenerationPass(theme, append = false) {
         .replace(/\{npcCount\}/g, String(npcCount))
         .replace(/\{conflictCount\}/g, String(conflictCount));
 
-    // Gather existing entity comments to avoid duplication
-    let existingNamesStr = '';
-    if (append && skeletonBook.entries) {
-        const existingComments = Object.values(skeletonBook.entries)
-            .map(e => e.comment || '')
-            .filter(Boolean);
-        if (existingComments.length > 0) {
-            existingNamesStr = `The following entities already exist in the skeleton: ${existingComments.join(', ')}. Avoid duplicating these or generating entities with similar names.`;
+    // Gather existing entity details to avoid duplication and provide full context
+    let existingEntitiesStr = '';
+    if (append && useExisting && skeletonBook.entries) {
+        const entries = Object.values(skeletonBook.entries)
+            .filter(e => e.comment && e.content);
+        if (entries.length > 0) {
+            const formattedEntries = entries.map(e => {
+                const cleanContent = e.content.replace(/^\[Day 0 Baseline\]\n?/i, '').trim();
+                return `### ${e.comment}\n${cleanContent}`;
+            }).join('\n\n');
+            existingEntitiesStr = `Avoid duplicating these or generating similar entities. Build on top of or expand this context with new, unique entities:\n\n${formattedEntries}`;
         }
     }
 
-    let userPrompt = `## WORLD THEME / SEED\n${theme || '(No theme provided — generate a generic fantasy world skeleton.)'}\n\n`;
-    if (existingNamesStr) {
-        userPrompt += `## EXISTING ENTITIES\n${existingNamesStr}\n\n`;
+    let userPrompt = `## ATMOSPHERE / DESCRIPTION\n${atmosphere || '(No atmosphere description provided — generate a generic fantasy world skeleton.)'}\n\n`;
+    if (existingEntitiesStr) {
+        userPrompt += `## EXISTING SKELETON ENTITIES\n${existingEntitiesStr}\n\n`;
     }
     userPrompt += `Generate ${append ? 'additional' : 'the'} world skeleton ${append ? 'entities' : ''} now.`;
 
@@ -3331,3 +3522,104 @@ ${rawDump}`;
     broadcastStep('finish', `\uD83C\uDF0D World Progression: "${consolidatedLabel}" consolidated — ${toDeleteUids.length} raw reports removed.`);
     return consolidatedLabel;
 }
+
+/**
+ * Generates a single paragraph Atmosphere Summary based on a lookback window of the chat.
+ * Uses sendStateRequest to execute the generation call.
+ * @param {number} lookbackCount
+ * @returns {Promise<string>}
+ */
+export async function runAtmosphereGenerationPass(lookbackCount) {
+    const settings = getSettings();
+    const ctx = SillyTavern.getContext();
+    const chat = ctx.chat || [];
+    if (chat.length === 0) {
+        throw new Error('No chat history available to generate atmosphere summary.');
+    }
+
+    // Grab the last lookbackCount messages
+    const recentMessages = chat.slice(-lookbackCount);
+
+    // Format them
+    const lines = [];
+    for (const msg of recentMessages) {
+        const sender = msg.name || (msg.is_user ? 'User' : 'Assistant');
+        let text = msg.mes || msg.content || '';
+        if (Array.isArray(text)) {
+            text = text.filter(p => p && p.type === 'text').map(p => p.text || '').join('\n');
+        } else if (typeof text !== 'string') {
+            text = String(text);
+        }
+        // Basic cleanup of tracking structures
+        text = text.replace(/###\s*STATE MEMO[^]*?(?=\n\[RNG_QUEUE|\n###|\n\[(?!RNG_QUEUE)[A-Z]|$)/i, '');
+        text = text.replace(/\[RNG_QUEUE\s[^\]]*\][\s\S]*?\[\/RNG_QUEUE\][ \t]*\n?/gi, '');
+        text = text.replace(/\[[A-Z_]+\][\s\S]*?\[\/[A-Z_]+\]/g, '');
+        text = text.replace(/###\s*CURRENT USER INPUT[^\n]*\n?/gi, '');
+        text = text.replace(/\[Continue the narrative\]/gi, '');
+        text = text.trim();
+
+        if (text) {
+            lines.push(`${sender}: ${text}`);
+        }
+    }
+
+    if (lines.length === 0) {
+        throw new Error('No readable chat messages found within the lookback window.');
+    }
+
+    const formattedChatHistory = lines.join('\n\n');
+
+    const systemPrompt =
+`You are a World Architect. Analyze the provided chat history segment and extract a concise, thematic Atmosphere Summary of the world setting.
+
+## Atmosphere Summary Definition
+A single paragraph description of the social texture, recurring tensions, and thematic tone of this world.
+- Focus on the atmosphere, environment, social hierarchy, and mood.
+- Do NOT name specific characters or list specific plot events.
+- Keep it generalized to the setting.
+- Example: 'Poverty and desperation define daily life. The nobility maintains control through debt bondage. Corruption is endemic — even the church answers to noble patrons.'
+
+Output ONLY the single paragraph Atmosphere Summary. No preamble, no meta-commentary.`;
+
+    const userPrompt =
+`## RECENT CHAT HISTORY
+${formattedChatHistory}
+
+Generate the Atmosphere Summary:`;
+
+    const routerSettings = {
+        connectionSource: settings.routerConnectionSource || 'default',
+        connectionProfileId: settings.routerConnectionProfileId,
+        completionPresetId: settings.completionPresetId, // Match overall extension preset override if set
+        ollamaUrl: settings.routerOllamaUrl,
+        ollamaModel: settings.routerOllamaModel,
+        openaiUrl: settings.routerOpenaiUrl,
+        openaiKey: settings.routerOpenaiKey,
+        openaiModel: settings.routerOpenaiModel,
+    };
+
+    // Fall back to general settings if router specific settings are empty
+    if (routerSettings.connectionSource === 'default') {
+        routerSettings.connectionProfileId = settings.connectionProfileId;
+        routerSettings.completionPresetId = settings.completionPresetId;
+        routerSettings.ollamaUrl = settings.ollamaUrl;
+        routerSettings.ollamaModel = settings.ollamaModel;
+        routerSettings.openaiUrl = settings.openaiUrl;
+        routerSettings.openaiKey = settings.openaiKey;
+        routerSettings.openaiModel = settings.openaiModel;
+    }
+
+    const rawOutput = await sendStateRequest(routerSettings, systemPrompt, userPrompt);
+    if (!rawOutput?.trim()) throw new Error('LLM returned an empty response.');
+
+    // Clean up surrounding quotes/newlines
+    let summary = rawOutput.trim();
+    if (summary.startsWith('"') && summary.endsWith('"')) {
+        summary = summary.slice(1, -1).trim();
+    }
+    if (summary.startsWith("'") && summary.endsWith("'")) {
+        summary = summary.slice(1, -1).trim();
+    }
+
+    return summary;
+}
