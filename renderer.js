@@ -864,6 +864,9 @@ function wrapEntityHtml(entityName, contentHtml) {
                         <li><b>State Tracker:</b> <code>State Tracker Model</code> &rarr; <code>Connection Settings</code></li>
                         <li><b>Lorebook Agent &amp; World Progression:</b> <code>Lorebook Agent</code> &rarr; <code>Connection Settings</code></li>
                     </ul>
+                    <div style="margin-top: 8px;">
+                        🪙 <b>Token Optimization:</b> To reduce token costs, especially when in tool use mode, consider using a summarizer such as the <b>Summaryception</b> extension. Summarization combined with <b>Lorebook Agent</b> will guarantee the AI stays on track and keep token costs low.
+                    </div>
                 </div>
 
                 <!-- Narrator Configuration (Salad Bar) -->
