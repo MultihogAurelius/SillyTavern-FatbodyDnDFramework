@@ -79,6 +79,14 @@ export function highlightParens(text) {
     return text.replace(/\(([^)]+)\)/g, '<span class="rt-paren-highlight">($1)</span>');
 }
 
+/** Wraps signed numbers or standalone digits in a highlight span, ignoring HTML tags. */
+export function highlightNumbers(text) {
+    return text.replace(/(<[^>]+>)|([+-]\d+|\b\d+\b)/g, (match, tag, num) => {
+        return tag ? tag : `<span class="rt-paren-highlight">${num}</span>`;
+    });
+}
+
+
 /**
  * Extracts the current time string from a [TIME] block content.
  * Ignores any 'Last Rest:' lines and strips optional 'Current Time:' prefixes.

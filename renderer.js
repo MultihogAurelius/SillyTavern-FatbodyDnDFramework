@@ -1,5 +1,5 @@
 import { getSettings, getBarBackground } from './state-manager.js';
-import { escapeHtml, highlightParens, parseInWorldTime, formatTimeDiff } from './memo-processor.js';
+import { escapeHtml, highlightParens, highlightNumbers, parseInWorldTime, formatTimeDiff } from './memo-processor.js';
 import { BLOCK_ICONS, BLOCK_ORDER, PAGE_SIZE, NO_PAGINATE } from './constants.js';
 
 // ── Renderer module: pure HTML string producers, localStorage helpers ──
@@ -9,13 +9,13 @@ const DEFAULT_HP_COLOR = '#00ffaa';
 const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
 
     export const STOCK_FIELD_RULES = {
-        'combat': 'highlight',
+        'combat': 'numbers',
         'gear': 'highlight',
         'attr': 'highlight',
         'attributes': 'highlight',
         'skills': 'pills',
         'key skills': 'pills',
-        'saves': 'highlight',
+        'saves': 'numbers',
         'status': 'pills',
         'traits': 'pills',
         'other': 'pills',
@@ -23,7 +23,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
         'res': 'pills',
         'hd': 'hd_pips',
         'weapon': 'highlight',
-        'att/def': 'highlight',
+        'att/def': 'numbers',
         'primary weapon': 'highlight',
         'spells': 'spell_group',
         'ac': 'text'
@@ -47,6 +47,8 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
                 return `<div class="rt-entity-sub-line rt-units-container">${labelHtml} <span class="rt-unit-pill no-desc"><span class="rt-unit-name">${escapeHtmlWithColor(value)}</span></span></div>`;
             case 'highlight':
                 return `<div class="rt-entity-sub-line">${labelHtml} ${highlightParens(escapeHtmlWithColor(value))}</div>`;
+            case 'numbers':
+                return `<div class="rt-entity-sub-line">${labelHtml} ${highlightNumbers(escapeHtmlWithColor(value))}</div>`;
             case 'hp_bar': {
                 // Flexible: parses any "X/Y" optionally with extra text e.g. "45/100 (5 temp)"
                 const m = value.match(/(\d[\d,]*)\s*\/\s*(\d[\d,]*)/);
