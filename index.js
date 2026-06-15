@@ -2412,6 +2412,41 @@ function refreshProfileDropdown() {
         names.map(n => `<option value="${escapeHtml(n)}"${n === s.activeProfile ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
 }
 
+// Compress an image File to a Base64 data URL via canvas (max 128×128)
+function fileToPortraitDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) return reject(new Error('Not an image'));
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const MAX = 128;
+                const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width  = Math.round(img.width  * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            };
+            img.onerror = reject;
+            img.src = ev.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+function applyPortraitData(entityName, src) {
+    const s = getSettings();
+    if (!s.customPortraits) s.customPortraits = {};
+    if (src) {
+        s.customPortraits[entityName] = src;
+    } else {
+        delete s.customPortraits[entityName];
+    }
+    saveSettings();
+}
+
 async function showRngExplanation() {
     const { Popup } = SillyTavern.getContext();
     const card = (icon, title, body) => `
@@ -2880,37 +2915,8 @@ Saves: Fort +X | Ref +X | Will +X`;
         const entityName = container.closest('.rt-entity-container')?.dataset?.entityName || '';
         if (!entityName) return;
 
-        // Compress an image File to a Base64 data URL via canvas (max 128×128)
-        const fileToPortraitDataUrl = (file) => new Promise((resolve, reject) => {
-            if (!file || !file.type.startsWith('image/')) return reject(new Error('Not an image'));
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const img = new Image();
-                img.onload = () => {
-                    const MAX = 128;
-                    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-                    const canvas = document.createElement('canvas');
-                    canvas.width  = Math.round(img.width  * scale);
-                    canvas.height = Math.round(img.height * scale);
-                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.85));
-                };
-                img.onerror = reject;
-                img.src = ev.target.result;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-
-        const applyPortrait = (src) => {
-            const s = getSettings();
-            if (!s.customPortraits) s.customPortraits = {};
-            if (src) {
-                s.customPortraits[entityName] = src;
-            } else {
-                delete s.customPortraits[entityName];
-            }
-            saveSettings();
+        const localApply = (src) => {
+            applyPortraitData(entityName, src);
             refresh();
         };
 
@@ -2933,13 +2939,13 @@ Saves: Fort +X | Ref +X | Will +X`;
             if (file && file.type.startsWith('image/')) {
                 try {
                     const dataUrl = await fileToPortraitDataUrl(file);
-                    applyPortrait(dataUrl);
+                    localApply(dataUrl);
                 } catch { toastr['warning']('Could not read image file.', 'RPG Tracker'); }
                 return;
             }
             const url = e.dataTransfer?.getData('text/plain')?.trim();
             if (url && /^https?:\/\//i.test(url)) {
-                applyPortrait(url);
+                localApply(url);
             } else {
                 toastr['warning']('Drop an image file or drag an image URL from a browser.', 'RPG Tracker');
             }
@@ -2964,7 +2970,7 @@ Saves: Fort +X | Ref +X | Will +X`;
                         <button id="${browseBtnId}" class="menu_button" style="white-space:nowrap;flex-shrink:0;">Browse\u2026</button>
                     </div>
                     <input id="${fileId}" type="file" accept="image/*" style="display:none"/>
-                    <div style="font-size:0.78em;opacity:0.55;margin-top:5px;">Or drag &amp; drop an image file directly onto the portrait box.</div>
+                    <div style="font-size:0.78em;opacity:0.55;margin-top:5px;">Or drag &amp; drop onto the portrait box / paste (Ctrl+V) anywhere on this screen.</div>
                 </div>`;
             const ctx = SillyTavern.getContext();
             if (!ctx.callGenericPopup) { toastr['warning']('Popup API not available.', 'RPG Tracker'); return; }
@@ -2974,9 +2980,27 @@ Saves: Fort +X | Ref +X | Will +X`;
             }
 
             // capturedUrl is the source of truth — updated while the popup is open.
-            // We CANNOT read DOM elements after callGenericPopup resolves because the
-            // popup HTML is torn down before our code after the await runs.
             let capturedUrl = currentSrc.startsWith('http') ? currentSrc : '';
+
+            // Define paste handler for this popup session
+            const popupPasteHandler = async (ev) => {
+                const file = ev.clipboardData?.files?.[0];
+                if (file && file.type.startsWith('image/')) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    try {
+                        const dataUrl = await fileToPortraitDataUrl(file);
+                        capturedUrl = dataUrl;
+                        const urlInput = /** @type {HTMLInputElement|null} */ (document.getElementById(inputId));
+                        if (urlInput) {
+                            urlInput.value = '(pasted image selected ✔)';
+                        }
+                        toastr['success']('Image pasted from clipboard!', 'RPG Tracker');
+                    } catch {
+                        toastr['warning']('Could not read image from clipboard.', 'RPG Tracker');
+                    }
+                }
+            };
 
             setTimeout(() => {
                 const fileInput = /** @type {HTMLInputElement|null} */ (document.getElementById(fileId));
@@ -3005,15 +3029,22 @@ Saves: Fort +X | Ref +X | Will +X`;
                         } catch { toastr['warning']('Could not read image file.', 'RPG Tracker'); }
                     });
                 }
+
+                // Attach paste event listener to document
+                document.addEventListener('paste', popupPasteHandler);
             }, 0);
 
             const result = await ctx.callGenericPopup(popupContent, ctx.POPUP_TYPE?.CONFIRM ?? 1, '', popupOpts);
+            
+            // Clean up paste event listener immediately after popup closes
+            document.removeEventListener('paste', popupPasteHandler);
+
             if (result === 2) {
-                applyPortrait(null);
+                localApply(null);
             } else if (result) {
-                // capturedUrl was set by input/change events while the popup was open
+                // capturedUrl was set by input/change/paste events while the popup was open
                 if (capturedUrl && (capturedUrl.startsWith('data:image/') || /^https?:\/\//i.test(capturedUrl))) {
-                    applyPortrait(capturedUrl);
+                    localApply(capturedUrl);
                 } else if (capturedUrl) {
                     toastr['warning']('Please enter a valid https:// URL or use the Browse button.', 'RPG Tracker');
                 }
