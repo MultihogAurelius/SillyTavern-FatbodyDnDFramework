@@ -546,22 +546,53 @@ function parseValueToCopper(str) {
 }
 
 /**
- * Helper to format a Copper Pieces value back to a standard GP, SP, CP string.
+ * Helper to detect currency type from a string.
+ * @param {string} str
+ * @returns {string|null}
+ */
+function detectCurrency(str) {
+    if (/\$|\b(usd|dollars?)\b/i.test(str)) return 'usd';
+    if (/€|\b(eur|euros?)\b/i.test(str)) return 'eur';
+    if (/£|\b(gbp|pounds?)\b/i.test(str)) return 'gbp';
+    if (/\b(gp|sp|cp|gold|silver|bronze|copper)\b/i.test(str)) return 'gp';
+    return null;
+}
+
+/**
+ * Helper to format a Copper Pieces value back to a standard GP, SP, CP string or modern currency representation.
  * @param {number} totalCp 
+ * @param {string} detectedCurrency
  * @returns {string}
  */
-function formatCopperToCurrency(totalCp) {
+function formatValueToCurrency(totalCp, detectedCurrency) {
     if (totalCp <= 0) return '';
-    const gp = Math.floor(totalCp / 100);
-    const sp = Math.floor((totalCp % 100) / 10);
-    const cp = Math.floor(totalCp % 10);
+    const amount = totalCp / 100;
+    const formattedAmount = amount.toLocaleString('en-US', {
+        minimumFractionDigits: totalCp % 100 === 0 ? 0 : 2,
+        maximumFractionDigits: 2
+    });
+    
+    switch (detectedCurrency) {
+        case 'usd':
+            return `$${formattedAmount}`;
+        case 'eur':
+            return `€${formattedAmount}`;
+        case 'gbp':
+            return `£${formattedAmount}`;
+        case 'gp':
+        default: {
+            const gp = Math.floor(totalCp / 100);
+            const sp = Math.floor((totalCp % 100) / 10);
+            const cp = Math.floor(totalCp % 10);
 
-    const parts = [];
-    if (gp > 0) parts.push(`${gp.toLocaleString('en-US')} GP`);
-    if (sp > 0) parts.push(`${sp} SP`);
-    if (cp > 0) parts.push(`${cp} CP`);
+            const parts = [];
+            if (gp > 0) parts.push(`${gp.toLocaleString('en-US')} GP`);
+            if (sp > 0) parts.push(`${sp} SP`);
+            if (cp > 0) parts.push(`${cp} CP`);
 
-    return parts.join(', ');
+            return parts.join(', ');
+        }
+    }
 }
 
     export function blockToItems(tag, content, renderTypeOverride = null) {
@@ -837,6 +868,12 @@ function formatCopperToCurrency(totalCp) {
                 const inventoryResults = [];
                 const pendingBullets = [];
                 let totalCp = 0;
+                const currencyCounts = { gp: 0, usd: 0, eur: 0, gbp: 0 };
+
+                const trackCurrency = (val) => {
+                    const cur = detectCurrency(val);
+                    if (cur) currencyCounts[cur]++;
+                };
 
                 const flushBullets = () => {
                     if (!pendingBullets.length) return;
@@ -851,7 +888,7 @@ function formatCopperToCurrency(totalCp) {
 
                     // Bare currency item: a line that IS the currency (e.g. "45 GP", "💰 45 GP", "$500")
                     // — no parenthesised worth annotation, just a number + currency unit
-                    const BARE_CURRENCY_RX = /^[^(]*?\d[\d,]*\s*(gp|sp|cp|gold|silver|bronze|copper|dollar|usd|euro|eur|pound|gbp|£|\$|€)\s*$/i;
+                    const BARE_CURRENCY_RX = /^[^(]*?(?:([$£€])\s*\d[\d,]*|\d[\d,]*\s*(gp|sp|cp|gold|silver|bronze|copper|dollar|usd|euro|eur|pound|gbp|£|\$|€))\s*$/i;
 
                     const worthMode = getSettings().inventoryWorthMode || 'hover'; // 'hover' | 'display'
                     const worthRx = /\s*\(~([^)]+)\)\s*$|\s*\(Worth:\s*([^)]+)\)\s*$/i;
@@ -865,6 +902,7 @@ function formatCopperToCurrency(totalCp) {
                         if (worthMatch) {
                             // Item has a (~X GP) or (Worth: X GP) annotation
                             const worthVal = (worthMatch[1] || worthMatch[2]).trim();
+                            trackCurrency(worthVal);
                             totalCp += parseValueToCopper(worthVal);
                             displayText = i.replace(worthRx, '').trim();
                             titleAttr = ` title="Worth: ${escapeHtml(worthVal)}"`;
@@ -883,6 +921,7 @@ function formatCopperToCurrency(totalCp) {
                             // Strip any leading bullet dash — safety guard (pendingBullets already strips it,
                             // but comma-split path might not)
                             const cleanText = i.trim().replace(/^\s*[-*]\s*/, '');
+                            trackCurrency(cleanText);
                             totalCp += parseValueToCopper(cleanText);
                             const COIN_COLORS = [
                                 { rx: /\b(gold|gp)\b/i,                               color: '#ffd700' },
@@ -924,7 +963,17 @@ function formatCopperToCurrency(totalCp) {
                 flushBullets();
 
                 if (totalCp > 0) {
-                    inventoryResults.totalValueGP = formatCopperToCurrency(totalCp);
+                    // Find currency with highest count, default to 'gp'
+                    let detectedCurrency = 'gp';
+                    let maxCount = 0;
+                    for (const [cur, count] of Object.entries(currencyCounts)) {
+                        if (count > maxCount) {
+                            maxCount = count;
+                            detectedCurrency = cur;
+                        }
+                    }
+                    inventoryResults.totalValueGP = formatValueToCurrency(totalCp, detectedCurrency);
+                    inventoryResults.detectedCurrency = detectedCurrency;
                 }
                 return inventoryResults;
             }
@@ -1143,7 +1192,12 @@ function formatCopperToCurrency(totalCp) {
 
             let totalValueBadge = '';
             if (tag === 'INVENTORY' && items.totalValueGP) {
-                totalValueBadge = `<span class="rt-total-value-badge" style="color: #ffd700; font-weight: bold; background: rgba(255, 215, 0, 0.08); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(255, 215, 0, 0.3); font-size: 0.85em; white-space: nowrap; text-transform: none; letter-spacing: 0;">💰 ${items.totalValueGP}</span>`;
+                const isModern = ['usd', 'eur', 'gbp'].includes(items.detectedCurrency);
+                const badgeColor = isModern ? '#85bb65' : '#ffd700';
+                const badgeBg = isModern ? 'rgba(133, 187, 101, 0.08)' : 'rgba(255, 215, 0, 0.08)';
+                const badgeBorder = isModern ? 'rgba(133, 187, 101, 0.3)' : 'rgba(255, 215, 0, 0.3)';
+                const badgeIcon = isModern ? '💵' : '💰';
+                totalValueBadge = `<span class="rt-total-value-badge" style="color: ${badgeColor}; font-weight: bold; background: ${badgeBg}; padding: 2px 8px; border-radius: 12px; border: 1px solid ${badgeBorder}; font-size: 0.85em; white-space: nowrap; text-transform: none; letter-spacing: 0;">${badgeIcon} ${items.totalValueGP}</span>`;
             }
 
             const renderType = customField?.renderType || tag;
