@@ -760,6 +760,17 @@ export function getNarrativeBlocks(chat, limit = -1, includeHidden = false) {
 
 // ── Generation-ended handler ───────────────────────────────────────────────────
 
+/** Tracks the type of the last started generation. */
+let _lastGenerationType = null;
+
+/**
+ * Fires on GENERATION_STARTED. Stores the type of generation.
+ * @param {string} type
+ */
+export function onGenerationStarted(type) {
+    _lastGenerationType = type;
+}
+
 /** In-memory counter: how many generations have fired since the agent last ran. Resets on chat change. */
 let _routerAutoTick = 0;
 
@@ -799,6 +810,21 @@ export async function onGenerationEnded() {
     const settings = getSettings();
     const isStateRunning = typeof globalThis._rpgStateModelRunning === 'function' && globalThis._rpgStateModelRunning();
     if (!settings.enabled || settings.paused || isStateRunning) return;
+
+    // Check if the generation was for Impersonation or Quiet tasks.
+    // In these cases, the chat history did not actually change.
+    const currentType = _lastGenerationType;
+    // Reset the tracker after a timeout (next tick) to handle synchronous multi-event triggers (e.g. ENDED + STOPPED)
+    setTimeout(() => {
+        _lastGenerationType = null;
+    }, 0);
+
+    if (currentType === 'impersonate' || currentType === 'quiet') {
+        if (settings.debugMode) {
+            console.log(`[RPG Tracker] Skipping State Tracker and Researcher passes for generation type: ${currentType}`);
+        }
+        return;
+    }
 
     const { chat } = SillyTavern.getContext();
     const combinedNarrative = getNarrativeBlocks(chat, -1, !!settings.routerIncludeHidden);

@@ -871,6 +871,18 @@ function wrapEntityHtml(entityName, contentHtml) {
                     <div style="margin-top: 8px;">
                         🪙 <b>Token Optimization:</b> To reduce token costs, especially when in tool use mode, consider using a summarizer such as the <b>Summaryception</b> extension. Summarization combined with <b>Lorebook Agent</b> will guarantee the AI stays on track and keep token costs low.
                     </div>
+                    <div style="margin-top: 12px;">
+                        🤖 <b>Recommended Models:</b>
+                        <ol style="margin: 6px 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px;">
+                            <li><b>Mistral Le Chaton Fat:</b> The new uncontested heavyweight champion.</li>
+                            <li><b>MiMo 2.5 Pro:</b> Great bang for the buck; high output quality.</li>
+                            <li><b>Gemini 3 Flash (or 3.5 Flash):</b> Good quality, costs quite low. Handles everything well and doesn't get bogged down thinking. Probably a good idea to put reasoning effort to medium to force them to think at least a little.</li>
+                            <li><b>DeepSeek 4 Pro:</b> Very good overall and very low cost but sometimes fails to obey formatting rules. May forget status footer sometimes.</li>
+                            <li><b>DeepSeek 3.2:</b> Extremely low cost and decent quality. Next to free.</li>
+                            <li><b>Kimi, GLM:</b> Good models but sometimes think too long, Kimi especially. Adjusting reasoning effort may help.</li>
+                            <li><b>Claude Sonnet+, GPT, Gemini Pro, etc.:</b> Obviously amazing but expensive.</li>
+                        </ol>
+                    </div>
                 </div>
 
                 <!-- Narrator Configuration (Salad Bar) -->

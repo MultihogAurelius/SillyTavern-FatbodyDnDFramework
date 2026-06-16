@@ -3684,4 +3684,4 @@ Generate the Atmosphere Summary:`;
     }
 
     return summary;
-}
+}
