@@ -1,5 +1,5 @@
 /**
- * narrative-hooks.js — Fatbody D&D Framework
+ * narrative-hooks.js — Multihog D&D Framework
  * RNG engine, dice tools, chat interceptor, and narrative collector.
  * This file is the primary hook into the SillyTavern chat pipeline:
  * it intercepts outgoing messages to inject context (RNG queue, state memo,
@@ -179,6 +179,7 @@ export function registerDiceFunctionTool() {
 
         unregisterFunctionTool('RollTheDice');
         unregisterFunctionTool('FatbodyRollTheDice');
+        unregisterFunctionTool('MultihogRollTheDice');
 
         const settings = getSettings();
         if (!settings.rngEnabled || !settings.diceFunctionTool) return;
@@ -647,19 +648,19 @@ export function installInterceptor() {
 
             if (typeof msg.content === 'string') {
                 msg.content = coreBlock + userHeader;
-                if (settings.debugMode) console.log("[Fatbody Framework] Core injection prepended to string msg.content");
+                if (settings.debugMode) console.log("[Multihog Framework] Core injection prepended to string msg.content");
             } else if (Array.isArray(msg.content)) {
                 const nonTextParts = msg.content.filter(p => p && p.type !== 'text');
                 msg.content = [
                     { type: 'text', text: coreBlock + userHeader },
                     ...nonTextParts
                 ];
-                if (settings.debugMode) console.log("[Fatbody Framework] Core injection prepended to array msg.content");
+                if (settings.debugMode) console.log("[Multihog Framework] Core injection prepended to array msg.content");
             } else if (typeof msg.mes === 'string') {
                 msg.mes = coreBlock + userHeader;
-                if (settings.debugMode) console.log("[Fatbody Framework] Core injection prepended to msg.mes");
+                if (settings.debugMode) console.log("[Multihog Framework] Core injection prepended to msg.mes");
             } else {
-                if (settings.debugMode) console.log("[Fatbody Framework] Core injection failed — unknown msg structure:", Object.keys(msg));
+                if (settings.debugMode) console.log("[Multihog Framework] Core injection failed — unknown msg structure:", Object.keys(msg));
             }
 
             if (settings.debugMode) {
@@ -684,7 +685,7 @@ export function installInterceptor() {
             };
             chat.splice(insertIdx, 0, loreMessage);
             if (settings.debugMode) {
-                console.log(`[Fatbody Framework] Lore depth injection: spliced at index ${insertIdx} (depth ${depth}), chat now ${chat.length} messages.`);
+                console.log(`[Multihog Framework] Lore depth injection: spliced at index ${insertIdx} (depth ${depth}), chat now ${chat.length} messages.`);
                 const roleName = roleVal === 1 ? 'user' : roleVal === 2 ? 'assistant' : 'system';
                 logTransaction('Lore (Depth Splice)', [{ role: roleName, content: loreInjections }]);
             }
@@ -703,7 +704,7 @@ export function installInterceptor() {
             };
             chat.splice(insertIdx, 0, wpMessage);
             if (settings.debugMode) {
-                console.log(`[Fatbody Framework] World Progression depth injection: spliced at index ${insertIdx} (depth ${wpDepth}), chat now ${chat.length} messages.`);
+                console.log(`[Multihog Framework] World Progression depth injection: spliced at index ${insertIdx} (depth ${wpDepth}), chat now ${chat.length} messages.`);
                 const roleName = wpRoleVal === 1 ? 'user' : wpRoleVal === 2 ? 'assistant' : 'system';
                 logTransaction('World Progression (Depth Splice)', [{ role: roleName, content: wpInjections }]);
             }

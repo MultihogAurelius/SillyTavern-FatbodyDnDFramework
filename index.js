@@ -48,14 +48,14 @@ export const RENDERING_TAGS_LIBRARY = [
 // Capture the folder name dynamically from the module URL so it works regardless of what the user names the folder
 const FOLDER_NAME = (function () {
     try {
-        const scripts = /** @type {HTMLScriptElement[]} */ (Array.from(document.querySelectorAll('script[src]')));
-        const myScript = scripts.find(s => s.src.includes('SillyTavern-FatbodyDnDFramework') || s.src.includes('SillyTavern-RPGStateTracker'));
-        if (myScript) {
-            const match = myScript.src.match(/third-party\/([^\/]+)\//);
-            if (match) return decodeURIComponent(match[1]);
+        const urlObj = new URL(import.meta.url);
+        const parts = urlObj.pathname.split('/');
+        const idx = parts.indexOf('third-party');
+        if (idx !== -1 && idx + 1 < parts.length) {
+            return decodeURIComponent(parts[idx + 1]);
         }
     } catch (e) { }
-    return 'SillyTavern-FatbodyDnDFramework';
+    return 'SillyTavern-MultihogDnDFramework';
 })();
 
 let _stateModelRunning = false;
@@ -3457,7 +3457,7 @@ function createPanel() {
             <div class="rt-resizer-tr" id="rt-resizer-tr" title="Resize from top-right"></div>
             <div class="rpg-tracker-header" id="rpg-tracker-header">
                 <div class="rpg-tracker-header-left">
-                    <span>Fatbody D&D Framework</span>
+                    <span>Multihog D&D Framework</span>
                     <div class="rpg-tracker-status-indicator active" id="rpg-tracker-status"></div>
                     <button class="rpg-tracker-stop-btn" id="rpg-tracker-stop-btn" title="Stop Generation" style="display:none;">■</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-chat-link-btn" style="font-size:13px;" title="Chat Link ON">🔗</button>
@@ -6573,7 +6573,7 @@ function openPromptEditor(tag, title, currentText, defaultText, onSave) {
  */
 function exportModules(fields) {
     const payload = {
-        format: 'fatbody-custom-module',
+        format: 'multihog-custom-module',
         version: 1,
         exportedAt: new Date().toISOString(),
         modules: fields.map(f => ({
@@ -6628,7 +6628,7 @@ function openShareModal(jsonString) {
                     // Use modern Clipboard API if available and in secure context
                     if (navigator.clipboard && window.isSecureContext) {
                         await navigator.clipboard.writeText(jsonString);
-                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                        toastr['success']('Module code copied to clipboard!', 'Multihog Framework');
                         return;
                     }
 
@@ -6648,13 +6648,13 @@ function openShareModal(jsonString) {
                     document.body.removeChild(ta);
 
                     if (success) {
-                        toastr['success']('Module code copied to clipboard!', 'Fatbody Framework');
+                        toastr['success']('Module code copied to clipboard!', 'Multihog Framework');
                     } else {
                         throw new Error('execCommand returned false');
                     }
                 } catch (err) {
-                    console.error('[Fatbody Framework] clipboard copy failed:', err);
-                    toastr['error']('Could not copy automatically. Please select the text manually.', 'Fatbody Framework');
+                    console.error('[Multihog Framework] clipboard copy failed:', err);
+                    toastr['error']('Could not copy automatically. Please select the text manually.', 'Multihog Framework');
                 }
             });
         }
@@ -6666,7 +6666,7 @@ function openShareModal(jsonString) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `fatbody_module_${new Date().getTime()}.json`;
+                a.download = `multihog_module_${new Date().getTime()}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -6689,12 +6689,12 @@ async function importModulesFromJson(jsonString) {
     try {
         parsed = JSON.parse(jsonString.trim());
     } catch {
-        toastr['error']('Invalid JSON. Please paste a valid module export.', 'Fatbody Framework');
+        toastr['error']('Invalid JSON. Please paste a valid module export.', 'Multihog Framework');
         return;
     }
 
-    if (parsed?.format !== 'fatbody-custom-module' || !Array.isArray(parsed?.modules)) {
-        toastr['error']("This doesn't look like a Fatbody module export.", 'Fatbody Framework');
+    if (parsed?.format !== 'multihog-custom-module' && parsed?.format !== 'fatbody-custom-module' || !Array.isArray(parsed?.modules)) {
+        toastr['error']("This doesn't look like a Multihog module export.", 'Multihog Framework');
         return;
     }
 
@@ -6706,7 +6706,7 @@ async function importModulesFromJson(jsonString) {
     });
 
     if (incoming.length === 0) {
-        toastr['warning']('No valid modules found in the export.', 'Fatbody Framework');
+        toastr['warning']('No valid modules found in the export.', 'Multihog Framework');
         return;
     }
 
@@ -6718,7 +6718,7 @@ async function importModulesFromJson(jsonString) {
     if (stockConflicts.length > 0) {
         toastr['error'](
             `Cannot import: [${stockConflicts.map(m => m.tag).join('], [')}] clash with built-in stock modules.`,
-            'Fatbody Framework'
+            'Multihog Framework'
         );
         return;
     }
@@ -6766,14 +6766,14 @@ async function importModulesFromJson(jsonString) {
     }
 
     if (importedCount === 0) {
-        toastr['info']('No modules were imported (all conflicts were skipped).', 'Fatbody Framework');
+        toastr['info']('No modules were imported (all conflicts were skipped).', 'Multihog Framework');
         return;
     }
 
     saveSettings();
     refreshOrderList();
     syncMemoView();
-    toastr['success'](`Imported ${importedCount} custom module(s).`, 'Fatbody Framework');
+    toastr['success'](`Imported ${importedCount} custom module(s).`, 'Multihog Framework');
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -6987,7 +6987,7 @@ async function autoApplySysprompt() {
             throw new Error(`Server returned ${response.status}`);
         }
     } catch (err) {
-        console.warn(`[Fatbody Framework] autoApplySysprompt: could not fetch ${fileName}, using fallback:`, err);
+        console.warn(`[Multihog Framework] autoApplySysprompt: could not fetch ${fileName}, using fallback:`, err);
         content = RT_PROMPTS[fileName];
     }
     if (!content) return;
@@ -8263,7 +8263,7 @@ RULES:
         $('#rpg_tracker_export_all_modules').on('click', () => {
             const s = getSettings();
             if (!s.customFields || s.customFields.length === 0) {
-                toastr['info']('No custom modules to export.', 'Fatbody Framework');
+                toastr['info']('No custom modules to export.', 'Multihog Framework');
                 return;
             }
             exportModules(s.customFields);
@@ -8288,7 +8288,7 @@ RULES:
                         </p>
                         <textarea id="rt_import_blob" rows="12" class="text_pole"
                             style="font-family:monospace; font-size:11px; resize:vertical; width:100%;"
-                            placeholder='{"format": "fatbody-custom-module", ...}'
+                            placeholder='{"format": "multihog-custom-module", ...}'
                         ></textarea>
                         <button id="rt_import_file_btn" class="menu_button interactable" style="width:100%;">
                             <i class="fa-solid fa-file-upload"></i> Load from File
@@ -8434,7 +8434,7 @@ RULES:
                     throw new Error(`Server returned ${response.status}`);
                 }
             } catch (err) {
-                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                console.warn(`[Multihog Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
                 content = RT_PROMPTS[fileName];
             }
 
@@ -8468,7 +8468,7 @@ RULES:
                     throw new Error(`Server returned ${response.status}`);
                 }
             } catch (err) {
-                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                console.warn(`[Multihog Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
                 content = RT_PROMPTS[fileName];
             }
 
@@ -9033,12 +9033,12 @@ RULES:
                 const response = await fetch(`/scripts/extensions/third-party/${FOLDER_NAME}/${fileName}`);
                 if (response.ok) {
                     content = await response.text();
-                    console.log(`[Fatbody Framework] Loaded ${fileName} from live file for auto-apply.`);
+                    console.log(`[Multihog Framework] Loaded ${fileName} from live file for auto-apply.`);
                 } else {
                     throw new Error(`Server returned ${response.status}`);
                 }
             } catch (err) {
-                console.warn(`[Fatbody Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
+                console.warn(`[Multihog Framework] Could not fetch ${fileName}, using hardcoded fallback:`, err);
                 content = RT_PROMPTS[fileName];
             }
 
@@ -10394,7 +10394,7 @@ RULES:
 
         btn.innerHTML = `
             <div class="fa-solid fa-clipboard-list extensionsMenuExtensionButton"></div>
-            <span>Fatbody D&D Framework</span>
+            <span>Multihog D&D Framework</span>
         `;
 
         btn.addEventListener('click', () => {

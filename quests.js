@@ -1,5 +1,5 @@
 /**
- * quests.js — Fatbody D&D Framework
+ * quests.js — Multihog D&D Framework
  * Quest management, deadline tracking, and tool registration.
  */
 

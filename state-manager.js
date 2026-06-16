@@ -1,5 +1,5 @@
 /**
- * state-manager.js — Fatbody D&D Framework
+ * state-manager.js — Multihog D&D Framework
  * Game state schema, defaults, persistence, migration, and profile I/O.
  * Owns the single source of truth for all runtime state (currentMemo, quests,
  * modules, chat-linked snapshots, connection settings, etc.).

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the **Fatbody D&D Framework** will be documented in this file.
+All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
 ## [3.4.9] - 2026-06-16
 
@@ -773,7 +773,7 @@ Significant upgrades to editing custom fields. The formatting is now clear, and 
 - **Global Deselect**: Clicking any empty space on the tracker now automatically closes any open interactive elements.
 
 ## [2026-04-21] - Rebranding & Physics Integration
-- **Framework Rebranding**: Renamed from RPG Tracker to **Fatbody D&D Framework**.
+- **Framework Rebranding**: Renamed from RPG Tracker to **Multihog D&D Framework**.
 - **RNG Physics Engine**: Integrated the Prompt Injection RNG system for transparent, physics-based rolling.
 - **HUD Controls**: Added "SYSPROMPT" and "RNG" toggle buttons directly to the tracker panel.
 - **Optimized Layout**: Reordered sections to prioritize Character and Combat status over meta-stats like XP and Time.

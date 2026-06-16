@@ -1,5 +1,5 @@
 /**
- * constants.js — Fatbody D&D Framework
+ * constants.js — Multihog D&D Framework
  * All static, hardcoded data. No logic, no side effects.
  * Imported by: state-manager.js, memo-processor.js, renderer.js, panel.js, settings-ui.js
  */

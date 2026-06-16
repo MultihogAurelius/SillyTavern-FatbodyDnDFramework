@@ -1,5 +1,5 @@
 /**
- * memo-processor.js — Fatbody D&D Framework
+ * memo-processor.js — Multihog D&D Framework
  * Pure text/logic utilities for memo management and state model context assembly.
  * Handles [TAG]...[/TAG] block merging, deduplication, delta computation,
  * lorebook assembly, and quest text serialization.

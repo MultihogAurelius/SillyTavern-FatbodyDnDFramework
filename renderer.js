@@ -1000,7 +1000,7 @@ function formatValueToCurrency(totalCp, detectedCurrency) {
             return `<div class="rt-empty" style="text-align: left; align-items: flex-start; padding: 12px; gap: 10px; overflow-y: auto;">
                 <div style="text-align: center; width: 100%; margin-bottom: 4px; flex-shrink: 0;">
                     <div class="rt-empty-icon">📜</div>
-                    <div style="font-size: 17px; font-weight: bold; color: var(--rt-text);">Fatbody D&D Framework</div>
+                    <div style="font-size: 17px; font-weight: bold; color: var(--rt-text);">Multihog D&D Framework</div>
                 </div>
 
                 <div style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: 8px 0 4px 0; flex-shrink: 0;">

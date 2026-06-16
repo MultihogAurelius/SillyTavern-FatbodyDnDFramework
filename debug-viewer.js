@@ -1,5 +1,5 @@
 /**
- * debug-viewer.js — Fatbody D&D Framework
+ * debug-viewer.js — Multihog D&D Framework
  * A high-fidelity context viewer for inspecting LLM input and output.
  */
 

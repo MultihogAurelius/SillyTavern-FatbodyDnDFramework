@@ -1,5 +1,5 @@
 /**
- * llm-client.js — Fatbody D&D Framework
+ * llm-client.js — Multihog D&D Framework
  * All external LLM networking. Stateless — reads state via parameter, no DOM.
  * Handles Ollama, OpenAI-compatible, and SillyTavern Profile/generateRaw modes.
  *
