@@ -370,6 +370,22 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         categoryRenderOptions: {},
         experimentalHalfReviewMode: false,
         experimentalFullReviewMode: false,
+        portraitConnectionSource: "default",
+        portraitConnectionProfileId: "",
+        portraitCompletionPresetId: "",
+        portraitOllamaUrl: "http://localhost:11434",
+        portraitOllamaModel: "",
+        portraitOpenaiUrl: "",
+        portraitOpenaiKey: "",
+        portraitOpenaiModel: "",
+        worldConnectionSource: "default",
+        worldConnectionProfileId: "",
+        worldCompletionPresetId: "",
+        worldOllamaUrl: "http://localhost:11434",
+        worldOllamaModel: "",
+        worldOpenaiUrl: "",
+        worldOpenaiKey: "",
+        worldOpenaiModel: "",
     };
 
     if (!extensionSettings[MODULE_NAME]) {
@@ -664,6 +680,23 @@ export function saveChatState(chatId) {
         worldProgressionExclusionList: s.worldProgressionExclusionList || '',
         worldProgressionAutoExcludeParty: s.worldProgressionAutoExcludeParty ?? false,
 
+        portraitConnectionSource: s.portraitConnectionSource ?? "default",
+        portraitConnectionProfileId: s.portraitConnectionProfileId || "",
+        portraitCompletionPresetId: s.portraitCompletionPresetId || "",
+        portraitOllamaUrl: s.portraitOllamaUrl || "http://localhost:11434",
+        portraitOllamaModel: s.portraitOllamaModel || "",
+        portraitOpenaiUrl: s.portraitOpenaiUrl || "",
+        portraitOpenaiKey: s.portraitOpenaiKey || "",
+        portraitOpenaiModel: s.portraitOpenaiModel || "",
+        worldConnectionSource: s.worldConnectionSource ?? "default",
+        worldConnectionProfileId: s.worldConnectionProfileId || "",
+        worldCompletionPresetId: s.worldCompletionPresetId || "",
+        worldOllamaUrl: s.worldOllamaUrl || "http://localhost:11434",
+        worldOllamaModel: s.worldOllamaModel || "",
+        worldOpenaiUrl: s.worldOpenaiUrl || "",
+        worldOpenaiKey: s.worldOpenaiKey || "",
+        worldOpenaiModel: s.worldOpenaiModel || "",
+
         // Preserve lorebook stack link — written by Link button and router, not by normal state saves
         campaignBooks: existing.campaignBooks || [],
     };
@@ -733,6 +766,22 @@ export function saveProfile(name) {
         worldProgressionExclusionList: s.worldProgressionExclusionList || '',
         worldProgressionAutoExcludeParty: s.worldProgressionAutoExcludeParty ?? false,
 
+        portraitConnectionSource: s.portraitConnectionSource ?? "default",
+        portraitConnectionProfileId: s.portraitConnectionProfileId || "",
+        portraitCompletionPresetId: s.portraitCompletionPresetId || "",
+        portraitOllamaUrl: s.portraitOllamaUrl || "http://localhost:11434",
+        portraitOllamaModel: s.portraitOllamaModel || "",
+        portraitOpenaiUrl: s.portraitOpenaiUrl || "",
+        portraitOpenaiKey: s.portraitOpenaiKey || "",
+        portraitOpenaiModel: s.portraitOpenaiModel || "",
+        worldConnectionSource: s.worldConnectionSource ?? "default",
+        worldConnectionProfileId: s.worldConnectionProfileId || "",
+        worldCompletionPresetId: s.worldCompletionPresetId || "",
+        worldOllamaUrl: s.worldOllamaUrl || "http://localhost:11434",
+        worldOllamaModel: s.worldOllamaModel || "",
+        worldOpenaiUrl: s.worldOpenaiUrl || "",
+        worldOpenaiKey: s.worldOpenaiKey || "",
+        worldOpenaiModel: s.worldOpenaiModel || "",
     };
     s.activeProfile = name;
     SillyTavern.getContext().saveSettingsDebounced();

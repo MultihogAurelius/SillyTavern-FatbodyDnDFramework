@@ -2425,14 +2425,14 @@ export async function runWorldProgressionPass(timeStr, currentMinutes) {
     // Connection settings shared by all LLM calls within this pass
     // (consolidation pre-step + main report generation).
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.routerCompletionPresetId,
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
     const lastFired = settings.worldProgressionLastFiredAtMinutes ?? -1;
@@ -3126,14 +3126,14 @@ ${conflictContext}
 Generate exactly ${missingCount} new skeleton NPC(s). Each must be unique, thematically consistent, and not affiliated with or named after any player character.`;
 
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.routerCompletionPresetId,
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
     const rawOutput = await sendStateRequest(routerSettings, systemPrompt, userPrompt);
@@ -3249,14 +3249,14 @@ export async function runSkeletonGenerationPass(atmosphereSummary, append = fals
     userPrompt += `Generate ${append ? 'additional' : 'the'} world skeleton ${append ? 'entities' : ''} now.`;
 
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.routerCompletionPresetId,
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
     let rawOutput;
@@ -3417,14 +3417,14 @@ ${newContent}
 Synthesize the above into one complete, up-to-date lore entry.`;
 
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.routerCompletionPresetId,
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
     let mergedContent;
@@ -3453,14 +3453,14 @@ export async function runWorldProgressionConsolidationPass(targetCount) {
     const worldBookName = prefix ? `${prefix}_World` : 'World';
 
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.routerCompletionPresetId,
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
     const ctx = SillyTavern.getContext();
@@ -3650,17 +3650,17 @@ ${formattedChatHistory}
 Generate the Atmosphere Summary:`;
 
     const routerSettings = {
-        connectionSource: settings.routerConnectionSource || 'default',
-        connectionProfileId: settings.routerConnectionProfileId,
-        completionPresetId: settings.completionPresetId, // Match overall extension preset override if set
-        ollamaUrl: settings.routerOllamaUrl,
-        ollamaModel: settings.routerOllamaModel,
-        openaiUrl: settings.routerOpenaiUrl,
-        openaiKey: settings.routerOpenaiKey,
-        openaiModel: settings.routerOpenaiModel,
+        connectionSource: settings.worldConnectionSource || 'default',
+        connectionProfileId: settings.worldConnectionProfileId,
+        completionPresetId: settings.worldCompletionPresetId,
+        ollamaUrl: settings.worldOllamaUrl,
+        ollamaModel: settings.worldOllamaModel,
+        openaiUrl: settings.worldOpenaiUrl,
+        openaiKey: settings.worldOpenaiKey,
+        openaiModel: settings.worldOpenaiModel,
     };
 
-    // Fall back to general settings if router specific settings are empty
+    // Fall back to general settings if world specific settings are empty
     if (routerSettings.connectionSource === 'default') {
         routerSettings.connectionProfileId = settings.connectionProfileId;
         routerSettings.completionPresetId = settings.completionPresetId;

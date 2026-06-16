@@ -27,21 +27,64 @@
                                 title="When enabled, the tracker state (memo) is automatically saved and restored per chat ID. Switching chats will reload that specific campaign's state."></i>
                         </label>
 
-                        <label class="checkbox_label">
-                            <input id="rpg_tracker_enable_portraits" type="checkbox" />
-                            <span>Enable Character Portraits</span>
-                            <i class="fa-solid fa-circle-question interactable"
-                                title="Show portrait thumbnails on Character, Party, and Combat cards. Per-chat: each campaign retains its own portraits. Drag &amp; drop an image onto any portrait box, or click to paste a URL."></i>
-                        </label>
-
-                        <div id="rpg_tracker_pollinations_group" style="margin-top: 2px; padding-left: 22px; margin-bottom: 6px;">
-                            <label style="font-size: 0.82em; opacity: 0.75; display: block; margin-bottom: 3px;">Pollinations API Key
+                        <div id="rpg_portrait_config_block" style="margin-top: 6px; border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 8px 10px;">
+                            <small style="display: block; margin-bottom: 6px; font-weight: bold; opacity: 0.9;">AI Character Portraits</small>
+                            <label class="checkbox_label">
+                                <input id="rpg_tracker_enable_portraits" type="checkbox" />
+                                <span>Enable Character Portraits</span>
                                 <i class="fa-solid fa-circle-question interactable"
-                                    title="Why Pollinations? Pollinations.ai was created to preserve free AI access. It is a non-profit project committed to remaining free forever. It offers generous hourly rate limits and only requires a GitHub account to get a permanent API key. Using budget models like ZImage, you can generate approximately 10–20 portraits per hour at no cost."></i>
+                                    title="Show portrait thumbnails on Character, Party, and Combat cards. Per-chat: each campaign retains its own portraits. Drag &amp; drop an image onto any portrait box, or click to paste a URL."></i>
                             </label>
-                            <input id="rpg_tracker_pollinations_key" type="password" class="text_pole" placeholder="sk_… or pk_…" style="font-size: 0.85em;" />
-                            <div style="font-size: 0.72em; opacity: 0.5; margin-top: 2px;">
-                                Free key from <a href="https://enter.pollinations.ai/#keys" target="_blank" style="color: #7ec8e3;">enter.pollinations.ai</a> — a non-profit, forever-free AI image service. Only requires a GitHub account. ~10–20 portraits/hour with ZImage.
+
+                            <div id="rpg_tracker_pollinations_group" style="margin-top: 4px; padding-left: 20px; margin-bottom: 6px;">
+                                <label style="font-size: 0.82em; opacity: 0.75; display: block; margin-bottom: 3px;">Pollinations API Key
+                                    <i class="fa-solid fa-circle-question interactable"
+                                        title="Why Pollinations? Pollinations.ai was created to preserve free AI access. It is a non-profit project committed to remaining free forever. It offers generous hourly rate limits and only requires a GitHub account to get a permanent API key. Using budget models like ZImage, you can generate approximately 10–20 portraits per hour at no cost."></i>
+                                </label>
+                                <input id="rpg_tracker_pollinations_key" type="password" class="text_pole" placeholder="sk_… or pk_…" style="font-size: 0.85em;" />
+                                <div style="font-size: 0.72em; opacity: 0.5; margin-top: 2px;">
+                                    Free key from <a href="https://enter.pollinations.ai/#keys" target="_blank" style="color: #7ec8e3;">enter.pollinations.ai</a>. ~10–20 portraits/hour with ZImage.
+                                </div>
+                            </div>
+
+                            <!-- Portrait Prompt LLM Connection Settings -->
+                            <div class="inline-drawer" style="margin-top: 6px; margin-bottom: 2px; margin-left: 20px;">
+                                <div class="inline-drawer-toggle inline-drawer-header" style="font-size: 0.82em; padding: 3px 6px;">
+                                    <b>Prompt LLM Connection</b>
+                                    <div class="inline-drawer-icon fa-solid fa-circle-down down" style="font-size: 0.8em;"></div>
+                                </div>
+                                <div class="inline-drawer-content" style="padding: 6px 4px 0 4px;">
+                                    <div class="flex-container flexFlowColumn gap-1">
+                                        <label style="font-size: 0.8em;">Connection Source</label>
+                                        <select id="rpg_portrait_connection_source" class="text_pole" style="font-size: 0.8em;">
+                                            <option value="default">Main API</option>
+                                            <option value="profile">Profile</option>
+                                            <option value="ollama">Ollama</option>
+                                            <option value="openai">OpenAI</option>
+                                        </select>
+                                        <div id="rpg_portrait_profile_group" style="display: none;">
+                                            <select id="rpg_portrait_connection_profile" class="text_pole" style="font-size: 0.8em;"></select>
+                                        </div>
+                                        <div id="rpg_portrait_ollama_group" style="display: none;">
+                                            <input id="rpg_portrait_ollama_url" type="text" class="text_pole" placeholder="URL" style="font-size: 0.8em;" />
+                                            <div class="flex-container gap-1">
+                                                <select id="rpg_portrait_ollama_model" class="text_pole" style="flex: 1; font-size: 0.8em;"></select>
+                                                <button id="rpg_portrait_ollama_refresh" class="menu_button interactable" style="font-size: 0.8em; padding: 2px 6px;"><i class="fa-solid fa-arrows-rotate"></i></button>
+                                            </div>
+                                        </div>
+                                        <div id="rpg_portrait_openai_group" style="display: none;">
+                                            <input id="rpg_portrait_openai_url" type="text" class="text_pole" placeholder="URL" style="font-size: 0.8em;" />
+                                            <input id="rpg_portrait_openai_key" type="password" class="text_pole" placeholder="Key" style="font-size: 0.8em;" />
+                                            <div class="flex-container gap-1">
+                                                <select id="rpg_portrait_openai_model" class="text_pole" style="flex: 1; font-size: 0.8em;"></select>
+                                                <button id="rpg_portrait_openai_refresh" class="menu_button interactable" style="font-size: 0.8em; padding: 2px 6px;"><i class="fa-solid fa-arrows-rotate"></i></button>
+                                            </div>
+                                            <input id="rpg_portrait_openai_model_manual" type="text" class="text_pole" placeholder="Manual Model Name" style="font-size: 0.8em;" />
+                                        </div>
+                                        <label style="font-size: 0.8em;">Preset</label>
+                                        <select id="rpg_portrait_completion_preset" class="text_pole" style="font-size: 0.8em;"></select>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -468,6 +511,46 @@
                             <span>Enable World Progression</span>
                             <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="When enabled, World Progression fires automatically after State Tracker updates whenever the in-world interval has elapsed. Requires the Lorebook Agent to be enabled and a valid campaign prefix set."></i>
                         </label>
+
+                        <!-- World Progression Connection Settings -->
+                        <div class="inline-drawer" style="margin-top: 6px; margin-bottom: 6px; margin-left: 20px;">
+                            <div class="inline-drawer-toggle inline-drawer-header" style="font-size: 0.88em; padding: 4px 8px;">
+                                <i class="fa-solid fa-network-wired" style="opacity: 0.7; margin-right: 5px;"></i><b>Connection Settings</b>
+                                <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
+                            </div>
+                            <div class="inline-drawer-content" style="padding: 6px 4px 0 4px;">
+                                <div class="flex-container flexFlowColumn gap-1">
+                                    <label style="font-size: 0.82em;">Connection Source</label>
+                                    <select id="rpg_world_connection_source" class="text_pole" style="font-size: 0.82em;">
+                                        <option value="default">Main API</option>
+                                        <option value="profile">Profile</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="openai">OpenAI</option>
+                                    </select>
+                                    <div id="rpg_world_profile_group" style="display: none;">
+                                        <select id="rpg_world_connection_profile" class="text_pole" style="font-size: 0.82em;"></select>
+                                    </div>
+                                    <div id="rpg_world_ollama_group" style="display: none;">
+                                        <input id="rpg_world_ollama_url" type="text" class="text_pole" placeholder="URL" style="font-size: 0.82em;" />
+                                        <div class="flex-container gap-1">
+                                            <select id="rpg_world_ollama_model" class="text_pole" style="flex: 1; font-size: 0.82em;"></select>
+                                            <button id="rpg_world_ollama_refresh" class="menu_button interactable" style="font-size: 0.82em; padding: 2px 6px;"><i class="fa-solid fa-arrows-rotate"></i></button>
+                                        </div>
+                                    </div>
+                                    <div id="rpg_world_openai_group" style="display: none;">
+                                        <input id="rpg_world_openai_url" type="text" class="text_pole" placeholder="URL" style="font-size: 0.82em;" />
+                                        <input id="rpg_world_openai_key" type="password" class="text_pole" placeholder="Key" style="font-size: 0.82em;" />
+                                        <div class="flex-container gap-1">
+                                            <select id="rpg_world_openai_model" class="text_pole" style="flex: 1; font-size: 0.82em;"></select>
+                                            <button id="rpg_world_openai_refresh" class="menu_button interactable" style="font-size: 0.82em; padding: 2px 6px;"><i class="fa-solid fa-arrows-rotate"></i></button>
+                                        </div>
+                                        <input id="rpg_world_openai_model_manual" type="text" class="text_pole" placeholder="Manual Model Name" style="font-size: 0.82em;" />
+                                    </div>
+                                    <label style="font-size: 0.82em;">Preset</label>
+                                    <select id="rpg_world_completion_preset" class="text_pole" style="font-size: 0.82em;"></select>
+                                </div>
+                            </div>
+                        </div>
 
                         <hr style="margin: 6px 0;">
 
