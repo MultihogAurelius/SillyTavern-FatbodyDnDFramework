@@ -1,7 +1,5 @@
 # Multihog D&D Framework
 
-**"Multihog D&D gives you the Private Pyle experience."** —Gny. Sgt. Hartman
-
 *A D&D-based RPG platform/simulation engine for SillyTavern.*
 
 What this framework does is essentially turn SillyTavern into something like AI Dungeon, but with actual mechanics/consequences. Losing or dying is actually a thing. In Big Rigs, you're always WINNER. Not in Multihog D&D! That being said, **the system works just as well for casual "slice of life" type scenarios or modern settings, so no need to worry that you're limited to wizards and goblins.**
