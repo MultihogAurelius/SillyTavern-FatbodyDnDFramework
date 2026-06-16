@@ -36,6 +36,35 @@
                                     title="Show portrait thumbnails on Character, Party, and Combat cards. Per-chat: each campaign retains its own portraits. Drag &amp; drop an image onto any portrait box, or click to paste a URL."></i>
                             </label>
 
+                            <div style="margin-top: 6px; padding-left: 20px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                                <label style="font-size: 0.82em; opacity: 0.75; white-space: nowrap;">Generator Source</label>
+                                <select id="rpg_portrait_generator_source" class="text_pole" style="font-size: 0.82em; padding: 2px 4px; height: 24px; flex: 1;">
+                                    <option value="pollinations">Pollinations.ai</option>
+                                    <option value="native">ST Image Generation Extension</option>
+                                </select>
+                            </div>
+
+                            <label class="checkbox_label" style="margin-top: 6px; padding-left: 20px;">
+                                <input id="rpg_tracker_portrait_skip_prompt" type="checkbox" />
+                                <span>Skip Prompt Edit Dialog</span>
+                                <i class="fa-solid fa-circle-question interactable"
+                                    title="When enabled, clicking 'AI Generate' will instantly generate and apply the portrait in the background without opening the confirmation/prompt editor dialog first."></i>
+                            </label>
+
+                            <label class="checkbox_label" style="margin-top: 6px; padding-left: 20px;">
+                                <input id="rpg_tracker_portrait_auto_party" type="checkbox" />
+                                <span>Always Auto-Generate Party</span>
+                                <i class="fa-solid fa-circle-question interactable"
+                                    title="When enabled, portraits will be automatically generated in the background for new party members added to the PARTY block if they don't already have one."></i>
+                            </label>
+
+                            <label class="checkbox_label" style="margin-top: 6px; padding-left: 20px;">
+                                <input id="rpg_tracker_portrait_auto_enemies" type="checkbox" />
+                                <span>Always Auto-Generate Enemies</span>
+                                <i class="fa-solid fa-circle-question interactable"
+                                    title="When enabled, portraits will be automatically generated in the background for new combatants in the COMBAT block if they are not in the party and don't already have one."></i>
+                            </label>
+
                             <div id="rpg_tracker_pollinations_group" style="margin-top: 4px; padding-left: 20px; margin-bottom: 6px;">
                                 <label style="font-size: 0.82em; opacity: 0.75; display: block; margin-bottom: 3px;">Pollinations API Key
                                     <i class="fa-solid fa-circle-question interactable"

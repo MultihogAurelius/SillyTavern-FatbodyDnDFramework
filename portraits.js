@@ -256,15 +256,25 @@ export async function showPortraitPromptPopup(prompt, entityName, localApply, re
     const s = getSettings();
     if (!ctx.callGenericPopup) return;
 
+    const isNative = s.portraitGeneratorSource === 'native';
+    const subText = isNative
+        ? 'Edit the prompt below, then copy it or generate directly with the ST Image Generation extension'
+        : 'Edit the prompt below, then copy it or generate directly with Pollinations.ai';
+
     const textareaId = `rt-ai-prompt-${Date.now()}`;
+    const skipCheckboxId = `rt-skip-prompt-${Date.now()}`;
     const popupContent = `<div style="padding:10px;min-width:320px;max-width:500px;">
         <b style="display:block;margin-bottom:8px;">🤖 AI Portrait Prompt — ${escapeHtml(entityName)}</b>
-        <div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">Edit the prompt below, then copy it or generate directly with Pollinations.ai</div>
+        <div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">${escapeHtml(subText)}</div>
         <textarea id="${textareaId}" style="width:100%;min-height:120px;resize:vertical;font-size:0.9em;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:inherit;box-sizing:border-box;">${escapeHtml(prompt)}</textarea>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.8em;margin-top:8px;cursor:pointer;user-select:none;opacity:0.8;">
+            <input id="${skipCheckboxId}" type="checkbox" style="margin:0;cursor:pointer;"/>
+            Don't show this dialog again (Auto-Generate & Auto-Apply)
+        </label>
     </div>`;
 
     const popupOpts = {
-        okButton: '🎨 Generate with Pollinations',
+        okButton: isNative ? '🎨 Generate with ST Image Gen' : '🎨 Generate with Pollinations',
         cancelButton: 'Cancel',
         wide: false,
         customButtons: [
@@ -273,12 +283,17 @@ export async function showPortraitPromptPopup(prompt, entityName, localApply, re
     };
 
     let finalPrompt = prompt;
+    let skipChecked = false;
     setTimeout(() => {
         const ta = /** @type {HTMLTextAreaElement|null} */ (document.getElementById(textareaId));
         if (ta) {
             ta.addEventListener('input', () => { finalPrompt = ta.value; });
             ta.focus();
             ta.setSelectionRange(ta.value.length, ta.value.length);
+        }
+        const chk = /** @type {HTMLInputElement|null} */ (document.getElementById(skipCheckboxId));
+        if (chk) {
+            chk.addEventListener('change', () => { skipChecked = chk.checked; });
         }
     }, 0);
 
@@ -293,8 +308,76 @@ export async function showPortraitPromptPopup(prompt, entityName, localApply, re
             toastr['warning']('Could not copy to clipboard.', 'RPG Tracker');
         }
     } else if (result) {
-        // Generate with Pollinations
-        await generateWithPollinations(finalPrompt, entityName, localApply, refresh);
+        if (skipChecked) {
+            s.portraitSkipPromptDialog = true;
+            $('#rpg_tracker_portrait_skip_prompt').prop('checked', true);
+            saveSettings();
+        }
+        if (isNative) {
+            await generateWithNativeExtension(finalPrompt, entityName, localApply, refresh);
+        } else {
+            // Generate with Pollinations
+            await generateWithPollinations(finalPrompt, entityName, localApply, refresh);
+        }
+    }
+}
+
+/**
+ * Direct image generation backend helper. Generates the image based on settings source.
+ * @param {string} prompt
+ * @param {string} entityName
+ * @returns {Promise<string>} data URL or image relative URL
+ */
+export async function generatePortraitDirect(prompt, entityName) {
+    const s = getSettings();
+    const isNative = s.portraitGeneratorSource === 'native';
+
+    if (isNative) {
+        const { SlashCommandParser } = SillyTavern.getContext();
+        const hasImagine = SlashCommandParser && SlashCommandParser.commands && SlashCommandParser.commands['imagine'];
+        if (!hasImagine) {
+            throw new Error('ST Image Generation extension is not enabled. Please enable it in SillyTavern settings.');
+        }
+        const parser = new SlashCommandParser();
+        const escapedPrompt = prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const command = `/imagine quiet=true gallery=false "${escapedPrompt}"`;
+        const closure = parser.parse(command);
+        const result = await closure.execute();
+        if (result && result.isError) {
+            throw new Error(result.errorMessage || 'ST Image Generation execution failed');
+        }
+        const imageUrl = result && result.pipe;
+        if (!imageUrl) {
+            throw new Error('No image URL returned from the ST Image Generation extension');
+        }
+        return imageUrl;
+    } else {
+        const apiKey = await ensurePollinationsKey();
+        if (!apiKey) throw new Error('Pollinations API key is required');
+
+        const ctx = SillyTavern.getContext();
+        const targetUrl = 'https://gen.pollinations.ai/v1/images/generations';
+        let headers;
+        try {
+            headers = (typeof ctx.getRequestHeaders === 'function') ? { ...ctx.getRequestHeaders() } : {};
+        } catch { headers = {}; }
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['Content-Type'] = 'application/json';
+
+        const currentModel = s.pollinationsModel || 'flux';
+        const resp = await fetch(`/proxy/${targetUrl}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ prompt, model: currentModel, size: '512x512', response_format: 'b64_json' }),
+        });
+        if (!resp.ok) {
+            const errText = await resp.text().catch(() => 'Unknown error');
+            throw new Error(`Pollinations ${resp.status}: ${errText.substring(0, 300)}`);
+        }
+        const data = await resp.json();
+        const b64 = data?.data?.[0]?.b64_json;
+        if (!b64) throw new Error('No image data in API response');
+        return `data:image/png;base64,${b64}`;
     }
 }
 
@@ -356,39 +439,11 @@ export async function ensurePollinationsKey() {
  * @param {function} refresh
  */
 export async function generateWithPollinations(prompt, entityName, localApply, refresh) {
-    const apiKey = await ensurePollinationsKey();
-    if (!apiKey) return;
-
     const s = getSettings();
     const ctx = SillyTavern.getContext();
     if (!ctx.callGenericPopup) return;
 
     let currentModel = s.pollinationsModel || 'flux';
-
-    // POST-based generation via ST's CORS proxy
-    const doGenerate = async () => {
-        const targetUrl = 'https://gen.pollinations.ai/v1/images/generations';
-        let headers;
-        try {
-            headers = (typeof ctx.getRequestHeaders === 'function') ? { ...ctx.getRequestHeaders() } : {};
-        } catch { headers = {}; }
-        headers['Authorization'] = `Bearer ${apiKey}`;
-        headers['Content-Type'] = 'application/json';
-
-        const resp = await fetch(`/proxy/${targetUrl}`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ prompt, model: currentModel, size: '512x512', response_format: 'b64_json' }),
-        });
-        if (!resp.ok) {
-            const errText = await resp.text().catch(() => 'Unknown error');
-            throw new Error(`Pollinations ${resp.status}: ${errText.substring(0, 300)}`);
-        }
-        const data = await resp.json();
-        const b64 = data?.data?.[0]?.b64_json;
-        if (!b64) throw new Error('No image data in API response');
-        return `data:image/png;base64,${b64}`;
-    };
 
     const showPreview = async () => {
         const modelOptions = POLLINATIONS_IMAGE_MODELS.map(m => {
@@ -402,7 +457,7 @@ export async function generateWithPollinations(prompt, entityName, localApply, r
         const errorId = `rt-poll-error-${Date.now()}`;
 
         // Fire generation immediately
-        const genPromise = doGenerate();
+        const genPromise = generatePortraitDirect(prompt, entityName);
         genPromise.then(dataUrl => {
             const img = document.getElementById(imgId);
             const spinner = document.getElementById(spinnerId);
@@ -459,4 +514,389 @@ export async function generateWithPollinations(prompt, entityName, localApply, r
     };
 
     await showPreview();
+}
+
+/**
+ * Generates an image via the native SillyTavern Image Generation extension and shows a preview/approve popup.
+ * @param {string} prompt
+ * @param {string} entityName
+ * @param {function} localApply
+ * @param {function} refresh
+ */
+export async function generateWithNativeExtension(prompt, entityName, localApply, refresh) {
+    const ctx = SillyTavern.getContext();
+    if (!ctx.callGenericPopup) return;
+
+    const showPreview = async () => {
+        const imgId = `rt-native-img-${Date.now()}`;
+        const spinnerId = `rt-native-spinner-${Date.now()}`;
+        const errorId = `rt-native-error-${Date.now()}`;
+
+        // Fire generation immediately
+        const genPromise = generatePortraitDirect(prompt, entityName);
+        genPromise.then(imageUrl => {
+            const img = document.getElementById(imgId);
+            const spinner = document.getElementById(spinnerId);
+            if (img) { img.src = imageUrl; img.style.display = 'block'; }
+            if (spinner) spinner.style.display = 'none';
+        }).catch(err => {
+            const spinner = document.getElementById(spinnerId);
+            const errEl = document.getElementById(errorId);
+            if (spinner) spinner.style.display = 'none';
+            if (errEl) { errEl.textContent = `⚠ ${err.message}`; errEl.style.display = 'block'; }
+        });
+
+        const popupContent = `<div style="padding:10px;min-width:320px;max-width:460px;">
+            <b style="display:block;margin-bottom:8px;">🖼️ Generated Portrait — ${escapeHtml(entityName)}</b>
+            <div style="position:relative;text-align:center;margin-bottom:10px;min-height:200px;">
+                <div id="${spinnerId}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.9em;opacity:0.6;">
+                    <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Generating image with native extension…
+                </div>
+                <img id="${imgId}" style="max-width:100%;max-height:400px;border-radius:8px;display:none;margin:0 auto;" />
+                <div id="${errorId}" style="display:none;color:#ff6b6b;font-size:0.9em;margin-top:10px;"></div>
+            </div>
+            <div style="font-size:0.72em;opacity:0.45;margin-top:2px;">Prompt: ${escapeHtml(prompt.substring(0, 100))}${prompt.length > 100 ? '…' : ''}</div>
+        </div>`;
+
+        const popupOpts = {
+            okButton: '✅ Apply Portrait', cancelButton: 'Cancel', wide: false,
+            customButtons: [{ text: '🔄 Regenerate', result: 3, classes: ['menu_button'] }],
+        };
+
+        const result = await ctx.callGenericPopup(popupContent, ctx.POPUP_TYPE?.CONFIRM ?? 1, '', popupOpts);
+
+        if (result === 3) {
+            await showPreview(); // Regenerate
+        } else if (result) {
+            // Wait for generation to finish, then scale and apply
+            try {
+                const imageUrl = await genPromise;
+                const scaled = await scaleImageTo512Square(imageUrl);
+                localApply(scaled);
+                toastr['success'](`Portrait applied for ${entityName}!`, 'RPG Tracker');
+            } catch (err) {
+                toastr['error']('Cannot apply — generation failed: ' + err.message, 'RPG Tracker');
+            }
+        }
+    };
+
+    await showPreview();
+}
+
+/**
+ * Scans the current PARTY block in state memo for member names.
+ * @returns {string[]} list of party member names
+ */
+export function getPartyMembers() {
+    const s = getSettings();
+    if (!s.currentMemo) return [];
+    const blocks = parseMemoBlocks(s.currentMemo);
+    const partyBlock = blocks['PARTY'];
+    if (!partyBlock) return [];
+
+    const lines = partyBlock.split('\n').map(l => l.trim()).filter(Boolean);
+    const partyMembers = [];
+    for (const line of lines) {
+        // Match "Name: X/Y HP"
+        const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP/i);
+        if (hpMatch) {
+            partyMembers.push(hpMatch[1].trim());
+        }
+    }
+    return partyMembers;
+}
+
+/**
+ * Sequentially auto-generates and auto-applies portraits for all party members and the player character.
+ * Skips those who already have portraits.
+ * @param {function} refresh - callback to refresh the UI
+ */
+export async function autoGeneratePartyPortraits(refresh) {
+    const s = getSettings();
+    if (!s.currentMemo) {
+        toastr['warning']('No live state memo found.', 'RPG Tracker');
+        return;
+    }
+
+    const blocks = parseMemoBlocks(s.currentMemo);
+    const namesSet = new Set();
+    
+    // Include player character (from CHARACTER block)
+    const charBlock = blocks['CHARACTER'] || '';
+    for (const line of charBlock.split('\n')) {
+        const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP/i);
+        if (hpMatch) namesSet.add(hpMatch[1].trim());
+    }
+
+    // Include party members
+    const partyBlock = blocks['PARTY'] || '';
+    for (const line of partyBlock.split('\n')) {
+        const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP/i);
+        if (hpMatch) namesSet.add(hpMatch[1].trim());
+    }
+
+    const partyMembers = Array.from(namesSet);
+    if (partyMembers.length === 0) {
+        toastr['warning']('No party members or characters found in the current state memo.', 'RPG Tracker');
+        return;
+    }
+
+    // Filter out those who already have a portrait
+    const toGenerate = partyMembers.filter(name => !hasPortrait(name));
+    if (toGenerate.length === 0) {
+        toastr['info']('All party members and characters already have portraits.', 'RPG Tracker');
+        return;
+    }
+
+    toastr['info'](`Starting auto-generation for ${toGenerate.length} party members...`, 'RPG Tracker');
+    let successCount = 0;
+
+    for (const name of toGenerate) {
+        toastr['info'](`Generating for ${name}...`, 'RPG Tracker');
+        try {
+            const prompt = await generatePortraitPrompt(name);
+            const dataUrl = await generatePortraitDirect(prompt, name);
+            const scaled = await scaleImageTo512Square(dataUrl);
+            applyPortraitData(name, scaled);
+            successCount++;
+            if (typeof refresh === 'function') refresh();
+        } catch (err) {
+            toastr['error'](`Failed for ${name}: ${err.message}`, 'RPG Tracker');
+        }
+    }
+
+    if (successCount > 0) {
+        toastr['success'](`Finished! Applied ${successCount} party portraits.`, 'RPG Tracker');
+    }
+}
+
+/**
+ * Sequentially auto-generates and auto-applies portraits for all enemies (COMBAT block).
+ * Skips enemies who already have portraits.
+ * @param {function} refresh - callback to refresh the UI
+ */
+export async function autoGenerateEnemyPortraits(refresh) {
+    const enemies = getEnemyEntities();
+    if (enemies.length === 0) {
+        toastr['warning']('No enemies found in the current COMBAT block.', 'RPG Tracker');
+        return;
+    }
+
+    // Filter out those who already have a portrait
+    const toGenerate = enemies.filter(name => !hasPortrait(name));
+    if (toGenerate.length === 0) {
+        toastr['info']('All enemies already have portraits.', 'RPG Tracker');
+        return;
+    }
+
+    toastr['info'](`Starting auto-generation for ${toGenerate.length} enemies...`, 'RPG Tracker');
+    let successCount = 0;
+
+    for (const name of toGenerate) {
+        toastr['info'](`Generating for enemy ${name}...`, 'RPG Tracker');
+        try {
+            const prompt = await generatePortraitPrompt(name);
+            const dataUrl = await generatePortraitDirect(prompt, name);
+            const scaled = await scaleImageTo512Square(dataUrl);
+            applyPortraitData(name, scaled);
+            successCount++;
+            if (typeof refresh === 'function') refresh();
+        } catch (err) {
+            toastr['error'](`Failed for enemy ${name}: ${err.message}`, 'RPG Tracker');
+        }
+    }
+
+    if (successCount > 0) {
+        toastr['success'](`Finished! Applied ${successCount} enemy portraits.`, 'RPG Tracker');
+    }
+}
+
+/**
+ * Removes all custom portraits from the settings.
+ * @param {function} refresh - callback to refresh the UI
+ */
+export function removeAllPortraits(refresh) {
+    const s = getSettings();
+    s.customPortraits = {};
+    saveSettings();
+    toastr['success']('All custom portraits removed.', 'RPG Tracker');
+    if (typeof refresh === 'function') refresh();
+}
+
+// Keep track of names currently generating to avoid duplicate requests
+const activeGenerations = new Set();
+
+/**
+ * Checks if a custom portrait already exists for the given entity name.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function hasPortrait(name) {
+    const s = getSettings();
+    return !!(s.customPortraits && s.customPortraits[name]);
+}
+
+/**
+ * Scans the current COMBAT block in state memo for combatants who are not party members or characters.
+ * @returns {string[]} list of enemy names
+ */
+export function getEnemyEntities() {
+    const s = getSettings();
+    if (!s.currentMemo) return [];
+    const blocks = parseMemoBlocks(s.currentMemo);
+    
+    // Gather all party/character names to exclude
+    const excludeNames = new Set();
+    const partyMembers = getPartyMembers();
+    for (const name of partyMembers) {
+        excludeNames.add(name.toUpperCase());
+    }
+    
+    const charBlock = blocks['CHARACTER'] || '';
+    for (const line of charBlock.split('\n')) {
+        const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP/i);
+        if (hpMatch) excludeNames.add(hpMatch[1].trim().toUpperCase());
+    }
+
+    const combatBlock = blocks['COMBAT'] || '';
+    const lines = combatBlock.split('\n').map(l => l.trim()).filter(Boolean);
+    const enemies = [];
+    for (const line of lines) {
+        if (/Combat Round\s*\d+/i.test(line)) continue;
+        const hpMatch = line.match(/^(.+?):\s*([\d,]+)(?:\/([\d,]+))?\s*HP/i);
+        if (hpMatch) {
+            const name = hpMatch[1].trim();
+            if (!excludeNames.has(name.toUpperCase())) {
+                enemies.push(name);
+            }
+        }
+    }
+    return enemies;
+}
+
+/**
+ * Triggers background portrait generation for a name asynchronously.
+ * Does not block the main execution flow.
+ * @param {string} name
+ * @param {function} refresh - callback to refresh the UI on success
+ */
+export function triggerBackgroundPortraitGeneration(name, refresh) {
+    if (hasPortrait(name)) return;
+    if (activeGenerations.has(name)) return;
+
+    activeGenerations.add(name);
+    toastr['info'](`Auto-generating portrait for ${name} in background...`, 'RPG Tracker');
+
+    (async () => {
+        try {
+            const prompt = await generatePortraitPrompt(name);
+            if (!prompt) {
+                console.warn(`[RPG Tracker] Could not generate prompt for ${name} - no context found.`);
+                activeGenerations.delete(name);
+                return;
+            }
+            const dataUrl = await generatePortraitDirect(prompt, name);
+            const scaled = await scaleImageTo512Square(dataUrl);
+            applyPortraitData(name, scaled);
+            toastr['success'](`Portrait auto-generated and applied for ${name}!`, 'RPG Tracker');
+            if (typeof refresh === 'function') refresh();
+        } catch (err) {
+            console.error(`[RPG Tracker] Background portrait generation failed for ${name}:`, err);
+        } finally {
+            activeGenerations.delete(name);
+        }
+    })();
+}
+
+// Track entities already in the party/combat to avoid auto-generating on page refresh (F5)
+const knownEntities = new Set();
+let isFirstCheck = true;
+
+/**
+ * Resets the session-known tracking state.
+ * Called when switching chats or starting a new session.
+ */
+export function resetAutoGenerationTracking() {
+    knownEntities.clear();
+    isFirstCheck = true;
+}
+
+/**
+ * Force checks auto-generation for all active party members or enemies, bypassing the newly-added check.
+ * Used when the user explicitly enables auto-generation options in the settings panel.
+ * @param {function} refresh - callback to refresh the UI
+ */
+export function forceCheckAutoGenerations(refresh) {
+    const s = getSettings();
+    if (s.enablePortraits === false) return;
+
+    if (s.portraitAutoGenerateParty) {
+        const party = getPartyMembers();
+        for (const name of party) {
+            knownEntities.add(name.toUpperCase());
+            triggerBackgroundPortraitGeneration(name, refresh);
+        }
+    }
+
+    if (s.portraitAutoGenerateEnemies) {
+        const enemies = getEnemyEntities();
+        for (const name of enemies) {
+            knownEntities.add(name.toUpperCase());
+            triggerBackgroundPortraitGeneration(name, refresh);
+        }
+    }
+}
+
+/**
+ * Checks if auto-generation is enabled and triggers it ONLY for newly added entities (not in knownEntities).
+ * @param {function} refresh - callback to refresh the UI when done
+ */
+export function checkAndTriggerAutoGenerations(refresh) {
+    const s = getSettings();
+    if (s.enablePortraits === false) return;
+
+    const currentParty = getPartyMembers();
+    const currentEnemies = getEnemyEntities();
+
+    // On initial startup/F5, record all existing entities as already known without generating anything
+    if (isFirstCheck) {
+        isFirstCheck = false;
+        for (const name of currentParty) {
+            knownEntities.add(name.toUpperCase());
+        }
+        for (const name of currentEnemies) {
+            knownEntities.add(name.toUpperCase());
+        }
+        return;
+    }
+
+    if (s.portraitAutoGenerateParty) {
+        for (const name of currentParty) {
+            const key = name.toUpperCase();
+            if (!knownEntities.has(key)) {
+                knownEntities.add(key);
+                triggerBackgroundPortraitGeneration(name, refresh);
+            }
+        }
+    } else {
+        // Even if auto-generate is disabled, keep track of current members so that
+        // if enabled later, they aren't incorrectly flagged as "newly added"
+        for (const name of currentParty) {
+            knownEntities.add(name.toUpperCase());
+        }
+    }
+
+    if (s.portraitAutoGenerateEnemies) {
+        for (const name of currentEnemies) {
+            const key = name.toUpperCase();
+            if (!knownEntities.has(key)) {
+                knownEntities.add(key);
+                triggerBackgroundPortraitGeneration(name, refresh);
+            }
+        }
+    } else {
+        for (const name of currentEnemies) {
+            knownEntities.add(name.toUpperCase());
+        }
+    }
 }

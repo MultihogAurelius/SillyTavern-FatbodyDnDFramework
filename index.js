@@ -8,7 +8,7 @@ import { registerLogQuestTool, checkQuestDeadlines, renderQuestsAsPlainText } fr
 import { initializeDebugViewer, toggleDebugViewer } from './debug-viewer.js';
 import { runRouterPass, rollbackRouterPass, reapplyRouterPass, getLorebookManifest, deleteLorebookEntry, updateLorebookEntry, disableManagedEntries, isRouterRunning, stopRouterPass } from './router.js';
 import { getRequestHeaders } from '../../../../script.js';
-import { fileToDataUrl, scaleImageTo512Square, applyPortraitData, generatePortraitPrompt, showPortraitPromptPopup } from './portraits.js';
+import { fileToDataUrl, scaleImageTo512Square, applyPortraitData, generatePortraitPrompt, showPortraitPromptPopup, generatePortraitDirect, autoGeneratePartyPortraits, removeAllPortraits, checkAndTriggerAutoGenerations, autoGenerateEnemyPortraits, forceCheckAutoGenerations, resetAutoGenerationTracking } from './portraits.js';
 
 export const RENDERING_TAGS_LIBRARY = [
     'Health: ((BAR)) 50/100',
@@ -780,6 +780,7 @@ function refreshQuestLegacyPrompt(s) {
  */
 function loadChatState(chatId) {
     if (!chatId) return false;
+    resetAutoGenerationTracking();
     const s = getSettings();
     const saved = s.chatStates?.[chatId];
     if (!saved) return false;
@@ -832,6 +833,10 @@ function loadChatState(chatId) {
     s.worldProgressionConsolidateEnabled = saved.worldProgressionConsolidateEnabled ?? false;
     s.worldProgressionConsolidateInterval = saved.worldProgressionConsolidateInterval ?? 7;
 
+    s.portraitGeneratorSource = saved.portraitGeneratorSource ?? "pollinations";
+    s.portraitSkipPromptDialog = saved.portraitSkipPromptDialog ?? false;
+    s.portraitAutoGenerateParty = saved.portraitAutoGenerateParty ?? false;
+    s.portraitAutoGenerateEnemies = saved.portraitAutoGenerateEnemies ?? false;
     s.portraitConnectionSource = saved.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = saved.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = saved.portraitCompletionPresetId || "";
@@ -872,6 +877,11 @@ function loadChatState(chatId) {
     $('#rpg_world_progression_auto_exclude_party').prop('checked', !!s.worldProgressionAutoExcludeParty);
 
     // Sync portrait connection settings UI
+    $('#rpg_portrait_generator_source').val(s.portraitGeneratorSource || 'pollinations');
+    $('#rpg_tracker_pollinations_group').toggle((s.portraitGeneratorSource || 'pollinations') === 'pollinations');
+    $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
+    $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
+    $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
     $('#rpg_portrait_connection_profile').val(s.portraitConnectionProfileId || '');
     $('#rpg_portrait_completion_preset').val(s.portraitCompletionPresetId || '');
@@ -2417,6 +2427,10 @@ function loadProfile(name) {
     s.worldProgressionExclusionList = p.worldProgressionExclusionList ?? '';
     s.worldProgressionAutoExcludeParty = p.worldProgressionAutoExcludeParty ?? false;
 
+    s.portraitGeneratorSource = p.portraitGeneratorSource ?? "pollinations";
+    s.portraitSkipPromptDialog = p.portraitSkipPromptDialog ?? false;
+    s.portraitAutoGenerateParty = p.portraitAutoGenerateParty ?? false;
+    s.portraitAutoGenerateEnemies = p.portraitAutoGenerateEnemies ?? false;
     s.portraitConnectionSource = p.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = p.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = p.portraitCompletionPresetId || "";
@@ -2454,6 +2468,11 @@ function loadProfile(name) {
     $('#rpg_world_progression_auto_exclude_party').prop('checked', !!s.worldProgressionAutoExcludeParty);
 
     // Sync portrait connection settings UI
+    $('#rpg_portrait_generator_source').val(s.portraitGeneratorSource || 'pollinations');
+    $('#rpg_tracker_pollinations_group').toggle((s.portraitGeneratorSource || 'pollinations') === 'pollinations');
+    $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
+    $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
+    $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
     $('#rpg_portrait_connection_profile').val(s.portraitConnectionProfileId || '');
     $('#rpg_portrait_completion_preset').val(s.portraitCompletionPresetId || '');
@@ -3133,16 +3152,30 @@ Saves: Fort +X | Ref +X | Will +X`;
             } else if (result === 4) {
                 // AI Generate — launch the prompt generation flow
                 try {
-                    toastr['info']('Generating portrait prompt…', 'RPG Tracker');
-                    const aiPrompt = await generatePortraitPrompt(entityName);
-                    if (aiPrompt) {
-                        await showPortraitPromptPopup(aiPrompt, entityName, localApply, refresh);
+                    if (s.portraitSkipPromptDialog) {
+                        toastr['info'](`Generating portrait for ${entityName} in background…`, 'RPG Tracker');
+                        const aiPrompt = await generatePortraitPrompt(entityName);
+                        if (!aiPrompt) {
+                            toastr['warning']('Could not generate prompt — no context found.', 'RPG Tracker');
+                            return;
+                        }
+                        toastr['info'](`Generating image for ${entityName}…`, 'RPG Tracker');
+                        const dataUrl = await generatePortraitDirect(aiPrompt, entityName);
+                        const scaled = await scaleImageTo512Square(dataUrl);
+                        localApply(scaled);
+                        toastr['success'](`Portrait auto-generated and applied for ${entityName}!`, 'RPG Tracker');
                     } else {
-                        toastr['warning']('Could not generate prompt — no context found.', 'RPG Tracker');
+                        toastr['info']('Generating portrait prompt…', 'RPG Tracker');
+                        const aiPrompt = await generatePortraitPrompt(entityName);
+                        if (aiPrompt) {
+                            await showPortraitPromptPopup(aiPrompt, entityName, localApply, refresh);
+                        } else {
+                            toastr['warning']('Could not generate prompt — no context found.', 'RPG Tracker');
+                        }
                     }
                 } catch (err) {
                     console.error('[RPG Tracker] AI portrait error:', err);
-                    toastr['error']('AI prompt generation failed: ' + (err.message || err), 'RPG Tracker');
+                    toastr['error']('AI portrait generation failed: ' + (err.message || err), 'RPG Tracker');
                 }
             } else if (result) {
                 if (capturedRawUrl) {
@@ -3244,6 +3277,10 @@ function refreshRenderedView() {
             createDetachedPanel(tag);
         }
     });
+
+    if (_historyViewIndex === -1) {
+        checkAndTriggerAutoGenerations(refreshRenderedView);
+    }
 }
 
 function createDetachedPanel(tag) {
@@ -3430,7 +3467,7 @@ function createPanel() {
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-pause-btn" title="Pause Tracker">⏸</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-prompt-btn" title="Toggle direct prompt">💬</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-view-btn" title="Toggle rendered view">⊞</button>
-                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-delta-btn" title="Toggle change log">δ</button>
+                    <button class="rpg-tracker-icon-btn" id="rpg-tracker-portraits-menu-btn" title="AI Portrait Actions">🖼️</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-btn" title="Lorebook Agent">🤖</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-debug-btn" title="Context Debugger" style="display:none;">🛠️</button>
                     <button class="rpg-tracker-icon-btn" id="rpg-tracker-collapse-btn" title="Collapse Panel"><i class="fa-solid ${settings.trackerCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}"></i></button>
@@ -3685,6 +3722,7 @@ function createPanel() {
                 <div id="rt-footer-location" style="font-size: 0.769em; color: var(--rt-accent); flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; cursor: help;" title="Current Location (Main, Sub)"></div>
                 <div class="flex-container gap-1 alignitemscenter rt-utility-footer-group">
                     <span id="rpg-tracker-count">~${Math.round(settings.currentMemo.length / 2.62)} tokens</span>
+                    <button class="rpg-tracker-nav-btn" id="rpg-tracker-delta-btn" title="Toggle change log" style="padding: 1px 5px; font-size: 0.692em; opacity: 0.8; margin-left: 5px;">δ</button>
                     <button class="rpg-tracker-nav-btn" id="rpg-tracker-memo-clear" style="padding: 1px 5px; font-size: 0.692em; opacity: 0.8; margin-left: 5px;" title="Clear memo and history">CLEAR</button>
                 </div>
             </div>
@@ -5516,6 +5554,38 @@ function createPanel() {
         applyViewState();
     });
 
+    // Portraits menu action
+    panel.querySelector('#rpg-tracker-portraits-menu-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ctx = SillyTavern.getContext();
+        if (!ctx.callGenericPopup) return;
+
+        const popupContent = `<div style="padding:10px;min-width:260px;">
+            <b style="display:block;margin-bottom:8px;">🖼️ AI Portrait Actions</b>
+            <div style="font-size:0.85em;opacity:0.8;margin-bottom:12px;">Choose an action to manage or generate portraits for active entities.</div>
+        </div>`;
+
+        const popupOpts = {
+            okButton: false,
+            cancelButton: 'Cancel',
+            wide: false,
+            customButtons: [
+                { text: '✨ Auto-Generate Party Portraits', result: 1001, classes: ['menu_button'] },
+                { text: '😈 Auto-Generate Enemy Portraits', result: 1003, classes: ['menu_button'] },
+                { text: '🗑 Remove All Portraits', result: 1002, classes: ['menu_button', 'danger'] },
+            ],
+        };
+
+        const choice = await ctx.callGenericPopup(popupContent, ctx.POPUP_TYPE?.TEXT ?? 1, '', popupOpts);
+        if (choice === 1001) {
+            await autoGeneratePartyPortraits(refreshRenderedView);
+        } else if (choice === 1002) {
+            removeAllPortraits(refreshRenderedView);
+        } else if (choice === 1003) {
+            await autoGenerateEnemyPortraits(refreshRenderedView);
+        }
+    });
+
     // Delta toggle — also shows/hides the resize handle
     panel.querySelector('#rpg-tracker-delta-btn').addEventListener('click', () => {
         const deltaEl = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-delta'));
@@ -7145,6 +7215,34 @@ function buildSysprompt(rawText) {
             settings.enablePortraits = !!$(this).prop('checked');
             saveSettings();
             refreshRenderedView();
+        });
+
+        $('#rpg_portrait_generator_source').val(settings.portraitGeneratorSource || 'pollinations').on('change', function () {
+            settings.portraitGeneratorSource = String($(this).val());
+            saveSettings();
+            $('#rpg_tracker_pollinations_group').toggle(settings.portraitGeneratorSource === 'pollinations');
+        });
+        $('#rpg_tracker_pollinations_group').toggle((settings.portraitGeneratorSource || 'pollinations') === 'pollinations');
+
+        $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!settings.portraitSkipPromptDialog).on('change', function () {
+            settings.portraitSkipPromptDialog = !!$(this).prop('checked');
+            saveSettings();
+        });
+
+        $('#rpg_tracker_portrait_auto_party').prop('checked', !!settings.portraitAutoGenerateParty).on('change', function () {
+            settings.portraitAutoGenerateParty = !!$(this).prop('checked');
+            saveSettings();
+            if (settings.portraitAutoGenerateParty) {
+                forceCheckAutoGenerations(refreshRenderedView);
+            }
+        });
+
+        $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!settings.portraitAutoGenerateEnemies).on('change', function () {
+            settings.portraitAutoGenerateEnemies = !!$(this).prop('checked');
+            saveSettings();
+            if (settings.portraitAutoGenerateEnemies) {
+                forceCheckAutoGenerations(refreshRenderedView);
+            }
         });
 
         $('#rpg_tracker_pollinations_key').val(settings.pollinationsApiKey || '').on('change', function () {

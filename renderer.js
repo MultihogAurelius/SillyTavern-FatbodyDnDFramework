@@ -498,6 +498,72 @@ function wrapEntityHtml(entityName, contentHtml) {
     </div>`;
 }
 
+/**
+ * Helper to parse a currency/worth string to a total value in Copper Pieces (CP).
+ * Supports both D&D standard pieces (GP, SP, CP) and generic dollar/euro/pound.
+ * @param {string} str 
+ * @returns {number}
+ */
+function parseValueToCopper(str) {
+    let totalCp = 0;
+    
+    // Suffix regex (matching gp, sp, cp, gold, silver, bronze, copper, usd, eur, gbp, dollar, euro, pound, etc.)
+    const suffixRx = /([\d,]+(?:\.\d+)?)\s*(gp|sp|cp|gold|silver|bronze|copper|usd|eur|gbp|dollar|euros?|pounds?)\b/gi;
+    // Prefix regex (matching $, £, €)
+    const prefixRx = /([$£€])\s*([\d,]+(?:\.\d+)?)/gi;
+
+    let match;
+    let found = false;
+
+    const cleanNum = (numStr) => parseFloat(numStr.replace(/,/g, ''));
+
+    // Reset regex indices since they are global
+    suffixRx.lastIndex = 0;
+    prefixRx.lastIndex = 0;
+
+    // Check suffix matches
+    while ((match = suffixRx.exec(str)) !== null) {
+        found = true;
+        const num = cleanNum(match[1]);
+        const unit = match[2].toLowerCase();
+        if (/\b(gold|gp|usd|eur|gbp|dollar|euro|pound)\b/.test(unit)) {
+            totalCp += num * 100;
+        } else if (/\b(silver|sp)\b/.test(unit)) {
+            totalCp += num * 10;
+        } else if (/\b(bronze|copper|cp)\b/.test(unit)) {
+            totalCp += num;
+        }
+    }
+
+    // Check prefix matches
+    while ((match = prefixRx.exec(str)) !== null) {
+        found = true;
+        const num = cleanNum(match[2]);
+        totalCp += num * 100;
+    }
+
+    return found ? totalCp : 0;
+}
+
+/**
+ * Helper to format a Copper Pieces value back to a standard GP, SP, CP string.
+ * @param {number} totalCp 
+ * @returns {string}
+ */
+function formatCopperToCurrency(totalCp) {
+    if (totalCp <= 0) return '';
+    const gp = Math.floor(totalCp / 100);
+    const sp = Math.floor((totalCp % 100) / 10);
+    const cp = Math.floor(totalCp % 10);
+
+    const parts = [];
+    if (gp > 0) parts.push(`${gp.toLocaleString('en-US')} GP`);
+    if (sp > 0) parts.push(`${sp} SP`);
+    if (cp > 0) parts.push(`${cp} CP`);
+
+    return parts.join(', ');
+}
+
     export function blockToItems(tag, content, renderTypeOverride = null) {
         const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
         let renderType = renderTypeOverride || tag;
@@ -770,6 +836,7 @@ function wrapEntityHtml(entityName, contentHtml) {
                 // Lines with a ((MARKER)) prefix bypass the bullet-list renderer
                 const inventoryResults = [];
                 const pendingBullets = [];
+                let totalCp = 0;
 
                 const flushBullets = () => {
                     if (!pendingBullets.length) return;
@@ -798,6 +865,7 @@ function wrapEntityHtml(entityName, contentHtml) {
                         if (worthMatch) {
                             // Item has a (~X GP) or (Worth: X GP) annotation
                             const worthVal = (worthMatch[1] || worthMatch[2]).trim();
+                            totalCp += parseValueToCopper(worthVal);
                             displayText = i.replace(worthRx, '').trim();
                             titleAttr = ` title="Worth: ${escapeHtml(worthVal)}"`;
 
@@ -815,6 +883,7 @@ function wrapEntityHtml(entityName, contentHtml) {
                             // Strip any leading bullet dash — safety guard (pendingBullets already strips it,
                             // but comma-split path might not)
                             const cleanText = i.trim().replace(/^\s*[-*]\s*/, '');
+                            totalCp += parseValueToCopper(cleanText);
                             const COIN_COLORS = [
                                 { rx: /\b(gold|gp)\b/i,                               color: '#ffd700' },
                                 { rx: /\b(dollar|usd|euro|eur|pound|gbp|£|\$|€)\b/i,  color: '#85bb65' },
@@ -853,6 +922,10 @@ function wrapEntityHtml(entityName, contentHtml) {
                     }
                 }
                 flushBullets();
+
+                if (totalCp > 0) {
+                    inventoryResults.totalValueGP = formatCopperToCurrency(totalCp);
+                }
                 return inventoryResults;
             }
             case 'ABILITIES': {
@@ -1068,6 +1141,11 @@ function wrapEntityHtml(entityName, contentHtml) {
             const items = blockToItems(tag, content);
             const isCollapsed = collapsed.has(tag);
 
+            let totalValueBadge = '';
+            if (tag === 'INVENTORY' && items.totalValueGP) {
+                totalValueBadge = `<span class="rt-total-value-badge" style="color: #ffd700; font-weight: bold; background: rgba(255, 215, 0, 0.08); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(255, 215, 0, 0.3); font-size: 0.85em; white-space: nowrap; text-transform: none; letter-spacing: 0;">💰 ${items.totalValueGP}</span>`;
+            }
+
             const renderType = customField?.renderType || tag;
             const isFullView = getSettings().fullViewSections.includes(tag) || NO_PAGINATE.has(renderType);
             const localPageSize = getPageSize(tag);
@@ -1116,6 +1194,7 @@ function wrapEntityHtml(entityName, contentHtml) {
                 <div class="rt-section-header" data-tag="${tag}">
                     <span>${icon} ${displayName}</span>
                     <div class="rt-section-header-right">
+                        ${totalValueBadge}
                         ${detachBtn}
                         ${fullViewBtn}
                         <button class="rt-category-settings-btn" data-tag="${tag}" title="Category Rendering Options">

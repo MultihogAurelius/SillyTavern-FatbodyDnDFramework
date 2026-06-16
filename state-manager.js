@@ -54,6 +54,10 @@ export function getSettings() {
         rngEnabled: true,
         diceFunctionTool: true,
         enablePortraits: true,
+        portraitGeneratorSource: "pollinations",
+        portraitSkipPromptDialog: false,
+        portraitAutoGenerateParty: false,
+        portraitAutoGenerateEnemies: false,
         pollinationsApiKey: "",
         pollinationsModel: "zimage",
         inventoryWorthMode: "hover",   // 'hover' = worth shown as tooltip only | 'display' = coin badge shown inline
@@ -680,6 +684,10 @@ export function saveChatState(chatId) {
         worldProgressionExclusionList: s.worldProgressionExclusionList || '',
         worldProgressionAutoExcludeParty: s.worldProgressionAutoExcludeParty ?? false,
 
+        portraitGeneratorSource: s.portraitGeneratorSource ?? "pollinations",
+        portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
+        portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
+        portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",
@@ -766,6 +774,10 @@ export function saveProfile(name) {
         worldProgressionExclusionList: s.worldProgressionExclusionList || '',
         worldProgressionAutoExcludeParty: s.worldProgressionAutoExcludeParty ?? false,
 
+        portraitGeneratorSource: s.portraitGeneratorSource ?? "pollinations",
+        portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
+        portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
+        portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",
