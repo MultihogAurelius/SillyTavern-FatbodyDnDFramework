@@ -1883,7 +1883,8 @@ export async function saveSceneToLorebook(hint = "") {
         (/** @type {any} */ (toastr)).info("Saving scene...", "Lorebook Agent");
         
         const { chat } = ctx;
-        const recentChat = chat.slice(-5).map(m => `${(/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator')}: ${((/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '').replace(/<[^>]+>/g, '')}`).join('\n\n');
+        const filteredChat = (chat || []).filter(m => !m.is_system && m.mes && m.mes.trim());
+        const recentChat = filteredChat.slice(-5).map(m => `${(/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator')}: ${((/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '').replace(/<[^>]+>/g, '')}`).join('\n\n');
 
         const systemPrompt = `You are the Scene Archiver. Based on the recent narrative, generate a Lorebook entry for this scene.
 Output a JSON object:
