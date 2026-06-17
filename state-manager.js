@@ -213,7 +213,7 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         worldProgressionLookback: 20,             // number of recent chat messages to include (0 = disabled)
         worldProgressionHistoryLookback: 0,       // number of historical reports to incorporate (0 = include all)
         worldProgressionInjectionPosition: 4,     // Default to 4 (at Depth)
-        worldProgressionInjectionDepth: 4,
+        worldProgressionInjectionDepth: 3,
         worldProgressionInjectionRole: 0,         // System
         worldProgressionRandomizeNPCs: false,            // toggle to randomize NPC pool
         worldProgressionRandomSkeletonNPCCount: 2,        // skeleton NPCs to spotlight per report
@@ -657,7 +657,7 @@ export function saveChatState(chatId) {
         worldProgressionLookback: s.worldProgressionLookback ?? 20,
         worldProgressionHistoryLookback: s.worldProgressionHistoryLookback ?? 0,
         worldProgressionInjectionPosition: s.worldProgressionInjectionPosition ?? 4,
-        worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 4,
+        worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 3,
         worldProgressionInjectionRole: s.worldProgressionInjectionRole ?? 0,
         worldProgressionRandomizeNPCs: s.worldProgressionRandomizeNPCs ?? false,
         worldProgressionRandomSkeletonNPCCount: s.worldProgressionRandomSkeletonNPCCount ?? 2,
@@ -748,7 +748,7 @@ export function saveProfile(name) {
         worldProgressionLookback: s.worldProgressionLookback ?? 20,
         worldProgressionHistoryLookback: s.worldProgressionHistoryLookback ?? 0,
         worldProgressionInjectionPosition: s.worldProgressionInjectionPosition ?? 4,
-        worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 4,
+        worldProgressionInjectionDepth: s.worldProgressionInjectionDepth ?? 3,
         worldProgressionInjectionRole: s.worldProgressionInjectionRole ?? 0,
         worldProgressionRandomizeNPCs: s.worldProgressionRandomizeNPCs ?? false,
         worldProgressionRandomSkeletonNPCCount: s.worldProgressionRandomSkeletonNPCCount ?? 2,

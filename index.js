@@ -919,7 +919,7 @@ function loadChatState(chatId) {
     const wpRoleAttr = wpPosition === 4 ? String(wpRole) : '';
     wpPosSelect.find(`option[value="${wpPosition}"][data-role="${wpRoleAttr}"]`).prop('selected', true);
 
-    $('#rpg_world_progression_injection_depth').val(s.worldProgressionInjectionDepth ?? 4);
+    $('#rpg_world_progression_injection_depth').val(s.worldProgressionInjectionDepth ?? 3);
 
     if (wpPosition === 4) {
         $('#rpg_world_progression_injection_depth_container').show();
@@ -9950,7 +9950,7 @@ RULES:
         const wpRoleAttrVal = wpPositionVal === 4 ? String(wpRoleVal) : '';
         $wpInjectionPosition.find(`option[value="${wpPositionVal}"][data-role="${wpRoleAttrVal}"]`).prop('selected', true);
 
-        $wpInjectionDepth.val(settings.worldProgressionInjectionDepth ?? 4);
+        $wpInjectionDepth.val(settings.worldProgressionInjectionDepth ?? 3);
 
         function updateWpPositionFieldsVisibility() {
             const posVal = parseInt(String($wpInjectionPosition.val() || '4'));
