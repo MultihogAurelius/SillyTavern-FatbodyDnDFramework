@@ -4018,10 +4018,10 @@ function createPanel() {
             e.stopPropagation();
             const isHidden = (/** @type {HTMLElement} */ (agentPanel)).style.display === 'none';
             if (isHidden) {
+                const s = getSettings();
                 (/** @type {HTMLElement} */ (agentPanel)).style.display = 'flex';
                 // Auto-expand the main tracker if it's collapsed; agent panel is an absolute
                 // child, so overflow:hidden on the main panel would clip it otherwise.
-                const s = getSettings();
                 if (s.trackerCollapsed) {
                     s.trackerCollapsed = false;
                     saveSettings();
@@ -4038,9 +4038,20 @@ function createPanel() {
                     if (rvEl) rvEl.style.display = 'none';
                 }
 
-                syncRouterPrefixDisplays(getSettings().routerCampaignPrefix || '');
+                syncRouterPrefixDisplays(s.routerCampaignPrefix || '');
                 renderRouterUI();
                 refreshManifest();
+
+                // Show undock tip once on first launch if docked
+                if (!isAgentDetached() && !s.routerUndockHintShown) {
+                    s.routerUndockHintShown = true;
+                    saveSettings();
+                    toastr['info'](
+                        'Tip: Click the ⧉ (Detach) button in the Agent header to run the Lorebook Agent as a standalone draggable panel. It is designed to work best when undocked!',
+                        'Lorebook Agent',
+                        { timeOut: 8000, closeButton: true }
+                    );
+                }
             } else {
                 (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
                 // Restore Raw/Rendered view if docked

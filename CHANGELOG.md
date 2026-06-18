@@ -2,6 +2,11 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.5.8] - 2026-06-18
+
+### Added
+- **Undock Hint Notification**: Added a one-time user notification advising the user to undock the Lorebook Agent panel for the best user experience. Toggles persist via settings.
+
 ## [3.5.7] - 2026-06-18
 
 ### Added
