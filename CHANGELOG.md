@@ -2,6 +2,12 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.6.4] - 2026-06-18
+
+### Changed
+- **Lorebook Agent Direct Prompt Layout**: Removed the Direct Command prompt textarea and direct lookback inputs from the settings drawer. Added a new direct prompt `💬` button to the Lorebook Agent header that mirrors the State Tracker Direct Prompt button.
+- **Replicated Prompt Bar**: Appended a dedicated Agent Direct Prompt input bar matching the State Tracker's design directly above the Agent's footer. The box features draft preservation, auto-resizing text area, Enter-to-submit support, lookback messaging limits, and highlights the `💬` icon button when active.
+
 ## [3.6.3] - 2026-06-18
 
 ### Added

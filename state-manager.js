@@ -661,6 +661,7 @@ export function saveChatState(chatId) {
         routerCampaignPrefix: s.routerCampaignPrefix || '',
         routerLookback: s.routerLookback || 4,
         routerDirectPrompt: s.routerDirectPrompt || '',
+        routerDirectLookback: s.routerDirectLookback || 10,
         routerDefaultPosition: s.routerDefaultPosition ?? 4,
         routerDefaultDepth: s.routerDefaultDepth ?? 4,
         routerDefaultOrder: s.routerDefaultOrder ?? 100,

@@ -3539,6 +3539,7 @@ function createPanel() {
                          </div>
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-enable-btn" title="${settings.routerEnabled ? 'Disable Lorebook Agent' : 'Enable Lorebook Agent'}" style="${settings.routerEnabled ? '' : 'opacity:0.35;'}">⏻</button>
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-pause-btn" title="${settings.routerPaused ? 'Resume Agent (auto-runs paused)' : 'Pause Agent (skip auto-runs)'}" style="${settings.routerPaused ? 'color:#ffa500;' : ''}">${settings.routerPaused ? '▶' : '⏸'}</button>
+                        <button class="rpg-tracker-icon-btn" id="rt-agent-prompt-btn" title="Toggle direct prompt">💬</button>
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-detach" title="Detach Lorebook Agent">⧉</button>
                         <button class="rpg-tracker-icon-btn" id="rt-agent-router-collapse-btn" title="Collapse Panel"><i class="fa-solid ${settings.agentCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'}"></i></button>
                         <button class="rpg-tracker-icon-btn" id="rpg-tracker-agent-close" title="Close">✕</button>
@@ -3597,19 +3598,7 @@ function createPanel() {
                             </div>
                         </div>
                         
-                        <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em; color: var(--rt-text-muted);">Direct Command:</div>
-                        <textarea id="rt-agent-router-direct-prompt" placeholder="Ask the agent to find or record something specific..." style="width: 100% !important; min-height: 60px !important; height: 60px !important; background: var(--rt-card-bg) !important; color: var(--rt-text) !important; border: var(--rt-border) !important; border-radius: 4px !important; padding: 6px !important; font-size: 0.846em !important; margin-bottom: 6px !important; resize: vertical !important; display: block !important; box-sizing: border-box !important; line-height: 1.3 !important;">${settings.routerDirectPrompt || ''}</textarea>
 
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; background: var(--rt-header-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); box-sizing: border-box; min-height: 32px;">
-                            <div style="display: flex; align-items: center; gap: 6px;" title="Direct lookback: last N chat messages (user and assistant) for this manual run.">
-                                <span style="font-size: 0.769em; opacity: 0.7; color: var(--rt-text-muted);">Lookback (user/assistant):</span>
-                                <input type="text" inputmode="numeric" pattern="[0-9]*" id="rt-agent-router-direct-lookback" value="${settings.routerDirectLookback || 10}" min="1" max="100" style="width: 38px; background: var(--rt-card-bg); border: 1px solid var(--rt-accent-dim); color: var(--rt-accent); border-radius: 3px; text-align: center; font-size: 0.769em; padding: 1px; box-sizing: border-box; height: 20px;">
-                                <span style="font-size: 0.769em; opacity: 0.5; color: var(--rt-text-muted);">msgs</span>
-                            </div>
-                            <button id="rt-agent-router-run-direct" class="rpg-tracker-prompt-send" style="width: auto; height: 22px; padding: 0 10px; font-size: 0.769em; font-weight: bold; gap: 4px; margin: 0;" title="Execute Lorebook Agent pass">
-                                <i class="fa-solid fa-paper-plane" style="font-size: 0.692em;"></i> RUN COMMAND
-                            </button>
-                        </div>
 
                     </div>
 
@@ -3713,6 +3702,16 @@ function createPanel() {
                         <div id="rt-agent-manifest-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
                             <div style="text-align: center; opacity: 0.5; font-size: 0.769em; padding: 10px;">Click refresh to load lore...</div>
                         </div>
+                    </div>
+                </div>
+                <div class="rpg-tracker-prompt-bar" id="rt-agent-prompt-bar" style="display:none; border-top: var(--rt-border); box-sizing: border-box;">
+                    <textarea class="rpg-tracker-prompt-input" id="rt-agent-prompt-input" rows="2" placeholder="Instruct the agent model… (Enter to send, Shift+Enter for newline)">${settings.routerDirectPrompt || ''}</textarea>
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: flex-end;">
+                        <div class="rt-prompt-ctx-control" style="font-size: 0.692em; display: flex; flex-direction: column; align-items: center; gap: 0;" title="Direct lookback: last N chat messages (user and assistant) for this manual run.">
+                            <input type="text" inputmode="numeric" pattern="[0-9]*" id="rt-agent-prompt-context-val" value="${settings.routerDirectLookback || 10}" min="1" max="100" style="width: 28px; height: 16px; font-size: 0.692em; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; text-align: center; padding: 0;">
+                            <span style="opacity: 0.5; font-size: 8px; line-height: 1;">msg</span>
+                        </div>
+                        <button class="rpg-tracker-prompt-send" id="rt-agent-prompt-send" title="Run command">▶</button>
                     </div>
                 </div>
                 <div class="rpg-tracker-footer" id="rt-agent-footer">
@@ -5370,14 +5369,7 @@ function createPanel() {
 
 
 
-        const directLookbackInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
-        if (directLookbackInput) {
-            directLookbackInput.addEventListener('change', (e) => {
-                const s = getSettings();
-                s.routerDirectLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value);
-                saveSettings();
-            });
-        }
+
 
         const maxAct = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-activations'));
         if (maxAct) {
@@ -5413,11 +5405,74 @@ function createPanel() {
             });
         }
 
-        const directPromptInp = /** @type {HTMLTextAreaElement} */ (agentPanel.querySelector('#rt-agent-router-direct-prompt'));
-        if (directPromptInp) {
-            directPromptInp.addEventListener('input', (e) => {
+        const agentPromptBtn = agentPanel.querySelector('#rt-agent-prompt-btn');
+        if (agentPromptBtn) {
+            agentPromptBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const btn = /** @type {HTMLElement} */ (e.currentTarget);
+                const bar = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-prompt-bar'));
+                const isVisible = bar.style.display !== 'none';
+                bar.style.display = isVisible ? 'none' : 'flex';
+                btn.classList.toggle('active', !isVisible);
+                if (!isVisible) {
+                    const input = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-prompt-input'));
+                    if (input) input.focus();
+                }
+            });
+        }
+
+        const agentPromptSend = async () => {
+            const input = /** @type {HTMLTextAreaElement} */ (agentPanel.querySelector('#rt-agent-prompt-input'));
+            if (!input) return;
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const s = getSettings();
+            const dlInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-prompt-context-val'));
+            const lookback = dlInput ? (parseInt(dlInput.value) || 10) : (s.routerDirectLookback || 10);
+
+            input.value = '';
+            s.routerDirectPrompt = '';
+            saveSettings();
+
+            if (agentPromptBtn) agentPromptBtn.classList.remove('active');
+            const bar = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-prompt-bar'));
+            if (bar) bar.style.display = 'none';
+
+            const { chat } = SillyTavern.getContext();
+            const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
+            toastr['info']("Running agent with specific command...");
+            await runRouterPass(combinedNarrative, msg, lookback, true);
+        };
+
+        const agentPromptSendBtn = agentPanel.querySelector('#rt-agent-prompt-send');
+        if (agentPromptSendBtn) {
+            agentPromptSendBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await agentPromptSend();
+            });
+        }
+
+        const agentPromptInput = agentPanel.querySelector('#rt-agent-prompt-input');
+        if (agentPromptInput) {
+            agentPromptInput.addEventListener('input', (e) => {
                 const s = getSettings();
                 s.routerDirectPrompt = (/** @type {HTMLTextAreaElement} */ (e.target)).value;
+                saveSettings();
+            });
+            agentPromptInput.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    agentPromptSend();
+                }
+            });
+        }
+
+        const agentPromptContextVal = agentPanel.querySelector('#rt-agent-prompt-context-val');
+        if (agentPromptContextVal) {
+            agentPromptContextVal.addEventListener('change', (e) => {
+                const s = getSettings();
+                s.routerDirectLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 10;
                 saveSettings();
             });
         }
@@ -5472,22 +5527,7 @@ function createPanel() {
             });
         }
 
-        const runDirectBtn = agentPanel.querySelector('#rt-agent-router-run-direct');
-        if (runDirectBtn) {
-            runDirectBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const s = getSettings();
-                const prompt = s.routerDirectPrompt?.trim() || null;
 
-                const dlInput = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-direct-lookback'));
-                const lookback = dlInput ? parseInt(dlInput.value) : (s.routerDirectLookback || 10);
-
-                const { chat } = SillyTavern.getContext();
-                const combinedNarrative = getNarrativeBlocks(chat, -1, !!s.routerIncludeHidden);
-                toastr['info'](prompt ? "Running agent with specific command..." : "Starting manual research pass...");
-                await runRouterPass(combinedNarrative, prompt, lookback, true);
-            });
-        }
 
         const manualRunBtn = agentPanel.querySelector('#rt-agent-router-manual-run');
         if (manualRunBtn) {
@@ -6080,10 +6120,12 @@ function createPanel() {
     });
 
     // Direct prompt toggle
-    panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', () => {
+    panel.querySelector('#rpg-tracker-prompt-btn').addEventListener('click', (e) => {
+        const btn = /** @type {HTMLElement} */ (e.currentTarget);
         const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
         const isVisible = bar.style.display !== 'none';
         bar.style.display = isVisible ? 'none' : 'flex';
+        btn.classList.toggle('active', !isVisible);
         if (!isVisible) /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-input')).focus();
     });
 
@@ -6093,6 +6135,9 @@ function createPanel() {
         const msg = input.value.trim();
         if (!msg) return;
         input.value = '';
+        panel.querySelector('#rpg-tracker-prompt-btn').classList.remove('active');
+        const bar = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-prompt-bar'));
+        if (bar) bar.style.display = 'none';
         await sendDirectPrompt(msg);
     };
     panel.querySelector('#rpg-tracker-prompt-send').addEventListener('click', promptSend);
@@ -7552,7 +7597,7 @@ function buildSysprompt(rawText) {
 
         // --- Automatic Prompt Update on Version Change ---
         {
-            let currentVersion = '3.6.3'; // Fallback
+            let currentVersion = '3.6.4'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);
