@@ -396,6 +396,7 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         worldOpenaiUrl: "",
         worldOpenaiKey: "",
         worldOpenaiModel: "",
+        lastResetVersion: "",
     };
 
     if (!extensionSettings[MODULE_NAME]) {

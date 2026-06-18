@@ -2,6 +2,11 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.6.3] - 2026-06-18
+
+### Added
+- **One-time Version-based Prompt Upgrade**: Implemented an automated script that resets the Lorebook Agent's system and modular prompts to their updated factory defaults exactly once upon detecting a framework version upgrade. Shows a visual toast notification to inform the user of the successful upgrade without continuously overwriting subsequent user prompt edits.
+
 ## [3.6.2] - 2026-06-18
 
 ### Fixed

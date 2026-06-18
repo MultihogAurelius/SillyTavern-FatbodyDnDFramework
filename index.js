@@ -7550,6 +7550,51 @@ function buildSysprompt(rawText) {
 
         const settings = getSettings();
 
+        // --- Automatic Prompt Update on Version Change ---
+        {
+            let currentVersion = '3.6.3'; // Fallback
+            try {
+                const manifestUrl = new URL('./manifest.json', import.meta.url);
+                const response = await fetch(manifestUrl);
+                const manifest = await response.json();
+                if (manifest && manifest.version) {
+                    currentVersion = manifest.version;
+                }
+            } catch (e) {
+                console.warn('[RPG Tracker] Could not fetch manifest.json for version check', e);
+            }
+
+            if (settings.lastResetVersion !== currentVersion) {
+                const { extensionSettings } = SillyTavern.getContext();
+                if (extensionSettings[MODULE_NAME]) {
+                    delete extensionSettings[MODULE_NAME].routerSystemPromptTemplate;
+                    delete extensionSettings[MODULE_NAME].routerModularPromptTemplate;
+                }
+                const fresh = getSettings();
+                fresh.lastResetVersion = currentVersion;
+                saveSettings();
+
+                // If textareas are in DOM, sync their values
+                const $promptEl = $('#rpg_tracker_router_prompt');
+                if ($promptEl.length) {
+                    $promptEl.val(fresh.routerSystemPromptTemplate).trigger('input');
+                    if (typeof (/** @type {any} */ ($promptEl)).trigger === 'function') {
+                        (/** @type {any} */ ($promptEl)).trigger('autosize.resize');
+                    }
+                }
+                const $modularEl = $('#rpg_tracker_router_modular_prompt');
+                if ($modularEl.length) {
+                    $modularEl.val(fresh.routerModularPromptTemplate).trigger('input');
+                    if (typeof (/** @type {any} */ ($modularEl)).trigger === 'function') {
+                        (/** @type {any} */ ($modularEl)).trigger('autosize.resize');
+                    }
+                }
+
+                console.log(`[RPG Tracker] Automatically reset Lorebook Agent prompts to defaults for version ${currentVersion}.`);
+                toastr['info'](`Lorebook Agent prompts have been updated to the latest version (${currentVersion}) defaults.`, 'RPG Tracker');
+            }
+        }
+
         // --- Automatic Stock Prompt Synchronization ---
         // Always ensure stockPrompts exists — users without saved settings need defaults
         if (!settings.stockPrompts) settings.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
