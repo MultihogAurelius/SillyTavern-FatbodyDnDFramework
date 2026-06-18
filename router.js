@@ -947,6 +947,11 @@ Location hierarchy: use " :: " separator in labels (e.g. "Khelt :: Rust-Lantern 
 Include the entity name/title itself (without timestamps like "[Day 1]") as a keyword, plus any ancestor location names (e.g. keys: ["The Guilded Anvil", "Khelt", "Rust-Lantern District", "tavern"]).
 **Keyword cap: maximum 6 per entry.** Keep only the most essential trigger words.
 
+## CONTENT FORMAT
+- Each time-stamped event must start on its own line. Do NOT chain multiple '[Day X, ...]' entries on the same line.
+- Correct: '[Day 2, 10:42] Corruption manifests.\n[Day 2, 10:44] Sentry targets Rozach.'
+- Wrong:   '[Day 2, 10:42] Corruption manifests. [Day 2, 10:44] Sentry targets Rozach.'
+
 ## FIELD INSTRUCTIONS
 ${Object.values(settings.routerModules || {}).filter(m => m.enabled).map(m => `- ${m.tag}: ${m.instruction}`).join('\n')}${(settings.routerCustomTags || []).length ? '\n\n### CUSTOM CATEGORIES\n' + (settings.routerCustomTags || []).map(m => `- ${m.tag.toUpperCase()}: ${m.instruction}`).join('\n') : ''}`;
 
@@ -1231,6 +1236,8 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
         if (book?.entries?.[uid]) {
             // Strip [ID:] stamp from anywhere in the delta (model sometimes echoes it)
             let delta = (up.content || '').replace(/\[ID:[^\]]+\]\n?/gi, '').trim();
+            // Ensure each [Day X,...] timestamp begins on its own line (model sometimes chains them on one line)
+            delta = delta.replace(/(.)\s+(\[Day\s)/g, '$1\n$2');
             // Append delta to the existing chronicle
             const existing = (book.entries[uid].content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trimEnd();
             delta = deduplicateContent(existing, delta);
@@ -1451,6 +1458,8 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
                 } else {
                     // Append delta to existing chronicle (dedup path)
                     const existing = (bookData.entries[existingUid].content || '').replace(/^\[ID:[^\]]+\]\n?/i, '').trimEnd();
+                    // Ensure each [Day X,...] timestamp begins on its own line
+                    delta = delta.replace(/(.)\s+(\[Day\s)/g, '$1\n$2');
                     delta = deduplicateContent(existing, delta);
                     bookData.entries[existingUid].content = existing && delta ? `${existing}\n${delta}` : (existing || delta);
 
