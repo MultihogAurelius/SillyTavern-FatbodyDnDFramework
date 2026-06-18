@@ -4002,11 +4002,13 @@ function createPanel() {
     let refreshManifest = async (_source = 'uninitialized') => { };
 
     if (agentBtn && agentPanel && agentCloseBtn) {
+        const isAgentDetached = () => localStorage.getItem('rpg_tracker_agent_detached') === 'true';
+
         agentBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             const isHidden = (/** @type {HTMLElement} */ (agentPanel)).style.display === 'none';
-            (/** @type {HTMLElement} */ (agentPanel)).style.display = isHidden ? 'flex' : 'none';
             if (isHidden) {
+                (/** @type {HTMLElement} */ (agentPanel)).style.display = 'flex';
                 // Auto-expand the main tracker if it's collapsed; agent panel is an absolute
                 // child, so overflow:hidden on the main panel would clip it otherwise.
                 const s = getSettings();
@@ -4017,13 +4019,31 @@ function createPanel() {
                     const colIcon = panel.querySelector('#rpg-tracker-collapse-btn i');
                     if (colIcon) colIcon.className = 'fa-solid fa-chevron-up';
                 }
+
+                // Hide Raw/Rendered view if docked
+                if (!isAgentDetached()) {
+                    const taEl = panel.querySelector('#rpg-tracker-memo');
+                    const rvEl = panel.querySelector('#rpg-tracker-render');
+                    if (taEl) taEl.style.display = 'none';
+                    if (rvEl) rvEl.style.display = 'none';
+                }
+
                 syncRouterPrefixDisplays(getSettings().routerCampaignPrefix || '');
                 renderRouterUI();
                 refreshManifest();
+            } else {
+                (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
+                // Restore Raw/Rendered view if docked
+                if (!isAgentDetached()) {
+                    applyViewState();
+                }
             }
         });
         agentCloseBtn.addEventListener('click', () => {
             (/** @type {HTMLElement} */ (agentPanel)).style.display = 'none';
+            if (!isAgentDetached()) {
+                applyViewState();
+            }
         });
         const helpBtn = agentPanel.querySelector('#rt-agent-help-btn');
         if (helpBtn) {
@@ -5153,6 +5173,11 @@ function createPanel() {
                     detachBtn.innerHTML = '↓';
                     detachBtn.title = 'Re-attach Lorebook Agent';
 
+                    // Reset styling overrides set for docked mode
+                    agentPanel.style.position = 'absolute';
+                    agentPanel.style.boxShadow = '';
+                    agentPanel.style.border = '';
+
                     // Restore geometry with off-screen protection
                     try {
                         const savedStr = localStorage.getItem(GEO_KEY);
@@ -5189,6 +5214,9 @@ function createPanel() {
                         agentPanel.style.top = '100px';
                         agentPanel.style.width = '300px';
                     }
+
+                    // Restore main panel view since agent is now detached
+                    applyViewState();
                 } else {
                     if (destroyAgentDraggable) {
                         destroyAgentDraggable();
@@ -5196,10 +5224,30 @@ function createPanel() {
                     }
                     agentPanel.classList.remove('rt-detached-panel');
                     panel.appendChild(agentPanel);
-                    agentPanel.style.left = ''; agentPanel.style.top = '30px'; agentPanel.style.right = '0';
-                    agentPanel.style.width = '300px'; agentPanel.style.height = '';
+                    
+                    // Style to cover the main panel content area when docked
+                    agentPanel.style.left = '0';
+                    agentPanel.style.top = '30px';
+                    agentPanel.style.right = '0';
+                    agentPanel.style.width = '100%';
+                    agentPanel.style.height = 'calc(100% - 30px)';
+                    agentPanel.style.position = 'absolute';
+                    agentPanel.style.boxShadow = 'none';
+                    agentPanel.style.border = 'none';
+                    
                     detachBtn.innerHTML = '⧉';
                     detachBtn.title = 'Detach Lorebook Agent';
+
+                    // Synchronize visibility of the main panel views
+                    const isVisible = agentPanel.style.display !== 'none';
+                    if (isVisible) {
+                        const taEl = panel.querySelector('#rpg-tracker-memo');
+                        const rvEl = panel.querySelector('#rpg-tracker-render');
+                        if (taEl) taEl.style.display = 'none';
+                        if (rvEl) rvEl.style.display = 'none';
+                    } else {
+                        applyViewState();
+                    }
                 }
             };
 
@@ -5210,7 +5258,19 @@ function createPanel() {
             });
 
             // Initial apply
-            if (isDetached()) applyDetachedState();
+            if (isDetached()) {
+                applyDetachedState();
+            } else {
+                // Ensure docked styles are applied initially
+                agentPanel.style.left = '0';
+                agentPanel.style.top = '30px';
+                agentPanel.style.right = '0';
+                agentPanel.style.width = '100%';
+                agentPanel.style.height = 'calc(100% - 30px)';
+                agentPanel.style.position = 'absolute';
+                agentPanel.style.boxShadow = 'none';
+                agentPanel.style.border = 'none';
+            }
         }
 
 
@@ -5396,8 +5456,6 @@ function createPanel() {
 
     // View toggle (Raw ↔ Rendered)
     let _viewBtn = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-view-btn'));
-    const ta = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-memo'));
-    const rv = /** @type {HTMLElement} */ (panel.querySelector('#rpg-tracker-render'));
 
     if (settings.renderedViewActive !== undefined) {
         _renderedViewActive = settings.renderedViewActive;
@@ -5406,20 +5464,30 @@ function createPanel() {
         settings.renderedViewActive = true;
     }
 
-    const applyViewState = () => {
+    function applyViewState() {
+        const isAgentDetached = () => localStorage.getItem('rpg_tracker_agent_detached') === 'true';
+        if (!isAgentDetached() && agentPanel && agentPanel.style.display !== 'none') {
+            agentPanel.style.display = 'none';
+        }
+
+        const taEl = panel.querySelector('#rpg-tracker-memo');
+        const rvEl = panel.querySelector('#rpg-tracker-render');
+        const viewBtnEl = panel.querySelector('#rpg-tracker-view-btn');
+        if (!taEl || !rvEl || !viewBtnEl) return;
+
         if (_renderedViewActive) {
-            ta.style.display = 'none';
-            rv.style.display = 'block';
-            _viewBtn.textContent = '≡';
-            _viewBtn.title = 'Switch to Raw view';
+            taEl.style.display = 'none';
+            rvEl.style.display = 'block';
+            viewBtnEl.textContent = '≡';
+            viewBtnEl.title = 'Switch to Raw view';
             refreshRenderedView();
         } else {
-            ta.style.display = '';
-            rv.style.display = 'none';
-            _viewBtn.textContent = '⊞';
-            _viewBtn.title = 'Switch to Rendered view';
+            taEl.style.display = '';
+            rvEl.style.display = 'none';
+            viewBtnEl.textContent = '⊞';
+            viewBtnEl.title = 'Switch to Rendered view';
         }
-    };
+    }
 
     applyViewState();
 

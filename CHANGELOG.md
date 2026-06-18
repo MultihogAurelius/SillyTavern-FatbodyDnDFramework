@@ -2,6 +2,11 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.5.5] - 2026-06-18
+
+### Changed
+- **Lorebook Agent Docked Mode**: Refactored the Lorebook Agent docked mode to open as a full-size toggled view inside the main tracker panel (replacing the Raw/Rendered content views) instead of an absolute floating tab sidebar. Resolves resize glitches and vanishing issues in docked mode.
+
 ## [3.5.4] - 2026-06-18
 
 ### Added
