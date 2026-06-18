@@ -3608,32 +3608,25 @@ function createPanel() {
                             </button>
                         </div>
 
-                        <details style="margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;">
-                            <summary style="cursor: pointer; font-size: 0.846em; font-weight: bold; opacity: 0.8; color: #aaa;">Modular Repertoire (Prompt Rules)</summary>
-                            <div style="padding-top: 10px;">
-                                <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em;">Enabled Modules (Stock):</div>
-                                <div id="rt-agent-stock-modules-list" style="margin-bottom: 10px;"></div>
-
-                                <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em;">Custom Tags:</div>
-                                <div id="rt-agent-custom-tags-list"></div>
-                                <button id="rt-agent-add-custom-tag" style="width: 100%; background: #333; border: 1px solid #444; color: #ddd; font-size: 0.769em; padding: 2px; border-radius: 3px; cursor: pointer; margin-top: 4px; flex-shrink: 0;">+ Add Custom Tag</button>
-                            </div>
-                        </details>
                     </div>
 
-                    <hr style="border-color: #333; margin: 10px 0; flex-shrink: 0;">
-
-                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-shrink: 0;">
-                        <div style="font-weight: bold; opacity: 0.8; font-size: 0.846em; display: flex; align-items: center; gap: 4px;">
-                            Active Lore Keys:
-                            <span id="rt-agent-active-tokens" style="font-weight: normal; opacity: 0.55; color: var(--rt-text-muted); font-size: 0.95em;">(0t)</span>
+                    <!-- Modular Repertoire Collapsible Header -->
+                    <div id="rt-agent-modules-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); user-select: none; flex-shrink: 0;">
+                        <div style="font-weight: bold; font-size: 0.846em; display: flex; align-items: center; gap: 6px; color: var(--rt-text-muted);">
+                            <i class="fa-solid ${settings.agentModulesOpen !== false ? 'fa-chevron-down' : 'fa-chevron-right'}" id="rt-agent-modules-toggle-icon"></i> Modular Repertoire (Prompt Rules)
                         </div>
-                        <button id="rt-agent-keys-refresh" title="Refresh active keys from disk" style="background: none; border: none; color: var(--rt-accent); font-size: 0.769em; cursor: pointer; opacity: 0.6; padding: 0;" ><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
-                    <div id="rt-agent-router-active-keys" style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; flex-shrink: 0;">
+
+                    <!-- Modular Repertoire Drawer -->
+                    <div id="rt-agent-modules-drawer" style="display: ${settings.agentModulesOpen !== false ? 'block' : 'none'}; margin-bottom: 10px; flex-shrink: 0;">
+                        <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em;">Enabled Modules (Stock):</div>
+                        <div id="rt-agent-stock-modules-list" style="margin-bottom: 10px;"></div>
+
+                        <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em;">Custom Tags:</div>
+                        <div id="rt-agent-custom-tags-list"></div>
+                        <button id="rt-agent-add-custom-tag" style="width: 100%; background: #333; border: 1px solid #444; color: #ddd; font-size: 0.769em; padding: 2px; border-radius: 3px; cursor: pointer; margin-top: 4px; flex-shrink: 0;">+ Add Custom Tag</button>
                     </div>
-                    <hr style="border-color: #333; margin: 10px 0; flex-shrink: 0;">
-                    
+
                     <!-- Console Collapsible Header -->
                     <div id="rt-agent-console-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); user-select: none; flex-shrink: 0;">
                         <div style="font-weight: bold; font-size: 0.846em; display: flex; align-items: center; gap: 6px; color: var(--rt-text-muted);">
@@ -3642,7 +3635,7 @@ function createPanel() {
                     </div>
 
                     <!-- Console Section Drawer -->
-                    <div id="rt-agent-console-section" style="display: ${settings.agentConsoleOpen !== false ? 'block' : 'none'}; margin-bottom: 10px; flex-shrink: 0;">
+                    <div id="rt-agent-console-drawer" style="display: ${settings.agentConsoleOpen !== false ? 'block' : 'none'}; margin-bottom: 10px; flex-shrink: 0;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                             <div style="font-weight: bold; opacity: 0.8; font-size: 0.846em;">Lorebook Terminal:</div>
                             <button id="rt-agent-router-terminal-clear" style="background: transparent; border: none; color: #ff5555; font-size: 0.692em; cursor: pointer; opacity: 0.7;">Clear</button>
@@ -3658,6 +3651,18 @@ function createPanel() {
                         </div>
                         <div id="rt-agent-router-log" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; max-height: 150px; overflow-y: auto;">
                         </div>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 10px 0; flex-shrink: 0;">
+
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-shrink: 0;">
+                        <div style="font-weight: bold; opacity: 0.8; font-size: 0.846em; display: flex; align-items: center; gap: 4px;">
+                            Active Lore Keys:
+                            <span id="rt-agent-active-tokens" style="font-weight: normal; opacity: 0.55; color: var(--rt-text-muted); font-size: 0.95em;">(0t)</span>
+                        </div>
+                        <button id="rt-agent-keys-refresh" title="Refresh active keys from disk" style="background: none; border: none; color: var(--rt-accent); font-size: 0.769em; cursor: pointer; opacity: 0.6; padding: 0;" ><i class="fa-solid fa-arrows-rotate"></i></button>
+                    </div>
+                    <div id="rt-agent-router-active-keys" style="margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px; min-height: 24px; flex-shrink: 0;">
                     </div>
 
                     <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; display: flex; flex-direction: column; flex: 1; min-height: 200px;">
@@ -4203,13 +4208,37 @@ function createPanel() {
             });
         }
 
+        // ── Agent Modular Repertoire Toggle ──
+        const toggleAgentModules = () => {
+            const s = getSettings();
+            s.agentModulesOpen = !s.agentModulesOpen;
+            saveSettings();
+
+            const modulesDrawer = agentPanel.querySelector('#rt-agent-modules-drawer');
+            if (modulesDrawer) {
+                modulesDrawer.style.display = s.agentModulesOpen ? 'block' : 'none';
+            }
+
+            const icon = agentPanel.querySelector('#rt-agent-modules-toggle-icon');
+            if (icon) {
+                icon.className = s.agentModulesOpen ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right';
+            }
+        };
+
+        const modulesHeader = agentPanel.querySelector('#rt-agent-modules-header');
+        if (modulesHeader) {
+            modulesHeader.addEventListener('click', () => {
+                toggleAgentModules();
+            });
+        }
+
         // ── Agent Console Toggle ──
         const toggleAgentConsole = () => {
             const s = getSettings();
             s.agentConsoleOpen = !s.agentConsoleOpen;
             saveSettings();
 
-            const consoleSection = agentPanel.querySelector('#rt-agent-console-section');
+            const consoleSection = agentPanel.querySelector('#rt-agent-console-drawer');
             if (consoleSection) {
                 consoleSection.style.display = s.agentConsoleOpen ? 'block' : 'none';
             }
