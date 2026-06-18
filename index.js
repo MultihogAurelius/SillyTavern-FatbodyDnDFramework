@@ -3585,7 +3585,7 @@ function createPanel() {
                             <input type="text" inputmode="numeric" pattern="[0-9]*" id="rt-agent-router-max-activations" value="${settings.routerMaxActivations || 8}" min="1" max="20" style="width: 100%; background: var(--rt-card-bg); color: var(--rt-text); border: var(--rt-border); border-radius: 4px; padding: 4px; font-size: 0.846em; box-sizing: border-box;">
                         </div>
                         <div style="flex: 1;" title="Keyword Overflow Cap: max keyword-triggered entries allowed above Max Active Keys (0 = no cap). When exceeded, the oldest keyword entries are evicted first. Example: Max Active=8, Cap=4 → hard ceiling of 12 total.">
-                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 0.846em; color: var(--rt-text-muted);">KW Overflow Cap:</div>
+                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 0.846em; color: var(--rt-text-muted); line-height: 1.2;">Keyword Overflow Cap<br><span style="font-size: 0.75em; opacity: 0.5; font-weight: normal;">(0 = no cap)</span>:</div>
                             <input type="text" inputmode="numeric" pattern="[0-9]*" id="rt-agent-router-kw-overflow-cap" value="${settings.routerMaxKeywordOverflow ?? 0}" min="0" max="50" style="width: 100%; background: var(--rt-card-bg); color: var(--rt-text); border: var(--rt-border); border-radius: 4px; padding: 4px; font-size: 0.846em; box-sizing: border-box;">
                         </div>
                     </div>
@@ -3617,51 +3617,7 @@ function createPanel() {
                         </div>
                     </details>
 
-                    <details style="margin-top: 10px; border-top: 1px solid #444; padding-top: 10px;">
-                        <summary style="cursor: pointer; font-size: 0.846em; font-weight: bold; opacity: 0.8; color: #aaa;">Lorebook Agent Connection</summary>
-                        <div style="padding-top: 10px;">
-                            <div style="margin-bottom: 5px; font-weight: bold; opacity: 0.8; font-size: 0.846em;">Connection Source:</div>
-                            <select id="rt-agent-router-source" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                <option value="default" ${settings.routerConnectionSource === 'default' ? 'selected' : ''}>Main API</option>
-                                <option value="profile" ${settings.routerConnectionSource === 'profile' ? 'selected' : ''}>SillyTavern Profile</option>
-                                <option value="ollama" ${settings.routerConnectionSource === 'ollama' ? 'selected' : ''}>Ollama (Local)</option>
-                                <option value="openai" ${settings.routerConnectionSource === 'openai' ? 'selected' : ''}>OpenAI Compatible</option>
-                            </select>
 
-                            <div id="rt-agent-router-profile-group" style="display: ${settings.routerConnectionSource === 'profile' ? 'block' : 'none'};">
-                                <select id="rt-agent-router-profile" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                    <option value="">-- No Profile Selected --</option>
-                                </select>
-                            </div>
-
-                            <div id="rt-agent-router-ollama-group" style="display: ${settings.routerConnectionSource === 'ollama' ? 'block' : 'none'};">
-                                <input type="text" id="rt-agent-router-ollama-url" placeholder="Ollama URL" value="${settings.routerOllamaUrl || 'http://localhost:11434'}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                <div style="display: flex; gap: 4px; margin-bottom: 5px;">
-                                    <select id="rt-agent-router-ollama-model" style="flex: 1; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                        <option value="">-- Select Model --</option>
-                                    </select>
-                                    <button id="rt-agent-router-ollama-refresh" style="background: #333; border: 1px solid #444; color: #ddd; border-radius: 3px; padding: 0 8px; cursor: pointer;" title="Refresh Models"><i class="fa-solid fa-arrows-rotate"></i></button>
-                                </div>
-                            </div>
-
-                            <div id="rt-agent-router-openai-group" style="display: ${settings.routerConnectionSource === 'openai' ? 'block' : 'none'};">
-                                <input type="text" id="rt-agent-router-openai-url" placeholder="Endpoint URL" value="${settings.routerOpenaiUrl || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                <input type="password" id="rt-agent-router-openai-key" placeholder="API Key (Optional)" value="${settings.routerOpenaiKey || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                <div style="display: flex; gap: 4px; margin-bottom: 5px;">
-                                    <select id="rt-agent-router-openai-model" style="flex: 1; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                        <option value="">-- Select Model --</option>
-                                    </select>
-                                    <button id="rt-agent-router-openai-refresh" style="background: #333; border: 1px solid #444; color: #ddd; border-radius: 3px; padding: 0 8px; cursor: pointer;" title="Refresh Models"><i class="fa-solid fa-arrows-rotate"></i></button>
-                                </div>
-                                <input type="text" id="rt-agent-router-openai-model-manual" placeholder="Or type model name manually" value="${settings.routerOpenaiModel || ''}" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                            </div>
-
-                            <div style="margin-bottom: 5px; opacity: 0.8; font-size: 0.846em;">Generation Preset:</div>
-                            <select id="rt-agent-router-preset" style="width: 100%; margin-bottom: 5px; background: #222; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px;">
-                                <option value="">-- Use Current Settings --</option>
-                            </select>
-                        </div>
-                    </details>
 
                     
 
@@ -4888,29 +4844,7 @@ function createPanel() {
         // Prefix is auto-derived from chat id — sync settings + agent footer readouts
         syncRouterPrefixDisplays(settings.routerCampaignPrefix || '');
 
-        const sourceSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-source'));
-        const profGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-profile-group'));
-        const profSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-profile'));
-        const ollGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-group'));
-        const ollUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-url'));
-        const ollMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-model'));
-        const ollRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-ollama-refresh'));
-        const oaiGrp = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-group'));
-        const oaiUrl = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-url'));
-        const oaiKey = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-key'));
-        const oaiMod = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model'));
-        const oaiRef = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-openai-refresh'));
-        const oaiMan = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-openai-model-manual'));
-        const preSel = /** @type {HTMLSelectElement} */ (agentPanel.querySelector('#rt-agent-router-preset'));
-        const maxTok = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-tokens'));
-        if (maxTok) {
-            maxTok.addEventListener('input', (e) => {
-                const s = getSettings();
-                s.routerMaxTokens = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 0;
 
-                saveSettings();
-            });
-        }
         const maxTur = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-max-turns'));
         if (maxTur) {
             maxTur.addEventListener('input', (e) => {
@@ -5216,148 +5150,7 @@ function createPanel() {
             if (isDetached()) applyDetachedState();
         }
 
-        const updateRouterPanels = () => {
-            const src = sourceSel.value;
-            $(profGrp).stop(true, true)[src === 'profile' ? 'slideDown' : 'slideUp'](200);
-            $(ollGrp).stop(true, true)[src === 'ollama' ? 'slideDown' : 'slideUp'](200);
-            $(oaiGrp).stop(true, true)[src === 'openai' ? 'slideDown' : 'slideUp'](200);
-        };
 
-        if (sourceSel) {
-            sourceSel.addEventListener('change', (e) => {
-                const s = getSettings();
-                s.routerConnectionSource = (/** @type {HTMLSelectElement} */ (e.target)).value;
-                saveSettings();
-                updateRouterPanels();
-            });
-        }
-
-        if (profSel) {
-            const ctx = SillyTavern.getContext();
-            if (ctx.ConnectionManagerRequestService?.handleDropdown) {
-                    /** @type {any} */ (ctx.ConnectionManagerRequestService).handleDropdown(profSel);
-                profSel.value = settings.routerConnectionProfileId || "";
-            } else {
-                getConnectionProfiles().then(profiles => {
-                    profSel.innerHTML = '<option value="">-- No Profile Selected --</option>';
-                    profiles.forEach(p => {
-                        const opt = document.createElement('option');
-                        opt.value = p; opt.textContent = p;
-                        profSel.appendChild(opt);
-                    });
-                    profSel.value = settings.routerConnectionProfileId || "";
-                });
-            }
-            profSel.addEventListener('change', () => {
-                getSettings().routerConnectionProfileId = profSel.value;
-                saveSettings();
-            });
-        }
-
-        if (ollUrl) {
-            ollUrl.addEventListener('input', () => {
-                getSettings().routerOllamaUrl = ollUrl.value;
-                saveSettings();
-            });
-        }
-        if (ollMod) {
-            ollMod.addEventListener('change', () => {
-                getSettings().routerOllamaModel = ollMod.value;
-                saveSettings();
-            });
-            ollRef.addEventListener('click', async () => {
-                if (!ollUrl.value) return toastr['info']("Enter Ollama URL first.");
-                try {
-                    toastr['info']("Fetching Ollama models...");
-                    const models = await fetchOllamaModels(ollUrl.value);
-                    ollMod.innerHTML = '<option value="">-- Select Model --</option>';
-                    models.forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m.name; opt.textContent = m.name;
-                        ollMod.appendChild(opt);
-                    });
-                    ollMod.value = getSettings().routerOllamaModel || "";
-                    toastr['success']("Ollama models updated.");
-                } catch (e) {
-                    toastr['error']("Failed to fetch Ollama models.");
-                }
-            });
-        }
-
-        if (oaiUrl) {
-            oaiUrl.addEventListener('input', () => {
-                getSettings().routerOpenaiUrl = oaiUrl.value;
-                saveSettings();
-            });
-        }
-        if (oaiKey) {
-            oaiKey.addEventListener('input', () => {
-                getSettings().routerOpenaiKey = oaiKey.value;
-                saveSettings();
-            });
-        }
-        if (oaiMod) {
-            oaiMod.addEventListener('change', () => {
-                if (oaiMod.value) {
-                    oaiMan.value = '';
-                    getSettings().routerOpenaiModel = oaiMod.value;
-                } else {
-                    getSettings().routerOpenaiModel = oaiMan.value.trim();
-                }
-                saveSettings();
-            });
-            oaiRef.addEventListener('click', async () => {
-                if (!oaiUrl.value) return toastr['info']("Enter Endpoint URL first.");
-                try {
-                    toastr['info']("Fetching models...");
-                    const models = await fetchOpenAIModels(oaiUrl.value, oaiKey.value);
-                    oaiMod.innerHTML = '<option value="">-- Select Model --</option>';
-                    models.forEach(m => {
-                        const id = typeof m === 'string' ? m : (m.id || m.name);
-                        const opt = document.createElement('option');
-                        opt.value = id; opt.textContent = id;
-                        oaiMod.appendChild(opt);
-                    });
-                    oaiMod.value = getSettings().routerOpenaiModel || "";
-                    toastr['success']("Models updated.");
-                } catch (e) {
-                    toastr['warning']("Cannot auto-detect models (CORS). Type manually.");
-                }
-            });
-        }
-        if (oaiMan) {
-            oaiMan.addEventListener('input', () => {
-                if (oaiMan.value.trim()) oaiMod.value = '';
-                getSettings().routerOpenaiModel = oaiMan.value.trim() || oaiMod.value;
-                saveSettings();
-            });
-        }
-
-        if (preSel) {
-            const ctx = SillyTavern.getContext();
-            const pm = ctx.getPresetManager ? ctx.getPresetManager() : null;
-            if (pm && typeof pm.getAllPresets === 'function') {
-                const presets = pm.getAllPresets();
-                preSel.innerHTML = '<option value="">-- Use Current Settings --</option>';
-                presets.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p; opt.textContent = p;
-                    preSel.appendChild(opt);
-                });
-                preSel.value = settings.routerCompletionPresetId || '';
-            }
-            preSel.addEventListener('change', () => {
-                getSettings().routerCompletionPresetId = preSel.value;
-                saveSettings();
-            });
-        }
-
-        if (maxTok) {
-            maxTok.addEventListener('input', () => {
-                getSettings().routerMaxTokens = parseInt(maxTok.value) || 0;
-                saveSettings();
-            });
-        }
     }
 
     // ── Lorebook Agent History Nav (← [LIVE] →) ─────────────────────────

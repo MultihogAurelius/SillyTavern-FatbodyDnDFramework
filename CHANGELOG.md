@@ -2,6 +2,14 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.5.3] - 2026-06-18
+
+### Removed
+- **Redundant Connection Settings**: Removed the "Lorebook Agent Connection" settings drawer from the Lorebook Agent panel to centralize connection management inside the main Settings tab.
+
+### Changed
+- **Keyword Overflow Label**: Renamed the "KW Overflow Cap" input field to "Keyword Overflow Cap" and added an explicit inline visual indicator stating "(0 = no cap)".
+
 ## [3.5.2] - 2026-06-18
 
 ### Changed
