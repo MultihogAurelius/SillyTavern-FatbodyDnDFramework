@@ -4624,10 +4624,73 @@ function createPanel() {
                         return bookName + '::' + parts.join('::');
                     };
 
+                    const getEntryParts = (item) => {
+                        const bookNameLower = (item.book || '').toLowerCase();
+                        const isEventsBook = bookNameLower.includes('events') || bookNameLower.includes('event');
+                        
+                        if (isEventsBook) {
+                            // Check for "[10:40 AM, Day 2] The Uprising" or similar patterns containing Day/D and numbers
+                            const dayRegex = /\[([^\]]*(?:Day|D)\s*(\d+)[^\]]*)\](.*)/i;
+                            const match = item.label.match(dayRegex);
+                            if (match) {
+                                const dayStr = `Day ${match[2]}`;
+                                let bracketContent = match[1]
+                                    .replace(new RegExp(`(?:,\\s*)?(?:Day|D)\\s*${match[2]}(?:\\s*,)?`, 'i'), '')
+                                    .trim();
+                                const title = match[3].trim();
+                                const cleanLabel = bracketContent ? `[${bracketContent}] ${title}` : title;
+                                return [dayStr, cleanLabel];
+                            }
+                        }
+                        
+                        // Default: split by "::"
+                        return item.label.split('::').map(p => p.trim()).filter(Boolean);
+                    };
+
+                    const compareNodeKeys = (a, b, bookName) => {
+                        const bookNameLower = (bookName || '').toLowerCase();
+                        const isEventsBook = bookNameLower.includes('events') || bookNameLower.includes('event');
+                        if (isEventsBook) {
+                            // Check if keys start with "Day X"
+                            const aDayMatch = a.match(/^Day\s+(\d+)/i);
+                            const bDayMatch = b.match(/^Day\s+(\d+)/i);
+                            if (aDayMatch && bDayMatch) {
+                                return parseInt(aDayMatch[1], 10) - parseInt(bDayMatch[1], 10);
+                            }
+                            if (aDayMatch) return -1;
+                            if (bDayMatch) return 1;
+
+                            // Check if keys start with a time bracket like "[10:40 AM]"
+                            const timeRegex = /^\[(\d{1,2}):(\d{2})\s*(AM|PM)?\]/i;
+                            const aTimeMatch = a.match(timeRegex);
+                            const bTimeMatch = b.match(timeRegex);
+                            if (aTimeMatch && bTimeMatch) {
+                                let aH = parseInt(aTimeMatch[1], 10);
+                                let aM = parseInt(aTimeMatch[2], 10);
+                                if (aTimeMatch[3]) {
+                                    const mer = aTimeMatch[3].toUpperCase();
+                                    if (mer === 'AM' && aH === 12) aH = 0;
+                                    if (mer === 'PM' && aH !== 12) aH += 12;
+                                }
+                                let bH = parseInt(bTimeMatch[1], 10);
+                                let bM = parseInt(bTimeMatch[2], 10);
+                                if (bTimeMatch[3]) {
+                                    const mer = bTimeMatch[3].toUpperCase();
+                                    if (mer === 'AM' && bH === 12) bH = 0;
+                                    if (mer === 'PM' && bH !== 12) bH += 12;
+                                }
+                                return (aH * 60 + aM) - (bH * 60 + bM);
+                            }
+                        }
+                        
+                        // Fallback to alphabetical sort
+                        return a.localeCompare(b);
+                    };
+
                     // Build the hierarchy tree for this lorebook
                     const rootNode = new TreeNode('');
                     for (const item of items) {
-                        const parts = item.label.split('::').map(p => p.trim()).filter(Boolean);
+                        const parts = getEntryParts(item);
                         if (parts.length === 0) continue;
                         
                         let current = rootNode;
@@ -4774,7 +4837,7 @@ function createPanel() {
                         }
                         if (hasChildren) {
                             entryEl.appendChild(childrenContainer);
-                            const sortedKeys = Array.from(node.children.keys()).sort((a, b) => a.localeCompare(b));
+                            const sortedKeys = Array.from(node.children.keys()).sort((a, b) => compareNodeKeys(a, b, bookName));
                             for (const key of sortedKeys) {
                                 renderNode(node.children.get(key), childrenContainer);
                             }
@@ -4784,7 +4847,7 @@ function createPanel() {
                     };
 
                     // Render tree children under folderBody
-                    const sortedRootKeys = Array.from(rootNode.children.keys()).sort((a, b) => a.localeCompare(b));
+                    const sortedRootKeys = Array.from(rootNode.children.keys()).sort((a, b) => compareNodeKeys(a, b, bookName));
                     for (const key of sortedRootKeys) {
                         renderNode(rootNode.children.get(key), folderBody);
                     }
