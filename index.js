@@ -4737,18 +4737,27 @@ function createPanel() {
                         }
 
                         // Status dot
+                        const bookNameLower = (bookName || '').toLowerCase();
+                        const isEventsBook = bookNameLower.includes('events') || bookNameLower.includes('event');
+                        const isDayNode = isEventsBook && /^Day\s+\d+$/i.test(node.name);
+
                         let statusDotHtml = '';
                         if (node.item) {
                             const statusColor = node.item.is_active ? 'var(--rt-accent)' : 'rgba(255,255,255,0.18)';
                             statusDotHtml = `<div style="width:5px; height:5px; border-radius:50%; background:${statusColor}; flex-shrink:0;" title="${node.item.is_active ? 'Active (visible to agent)' : 'Inactive'}"></div>`;
-                        } else {
+                        } else if (!isDayNode) {
                             statusDotHtml = `<div style="width:5px; height:5px; border-radius:50%; border:1px dashed rgba(255,255,255,0.25); box-sizing:border-box; flex-shrink:0;" title="Virtual parent placeholder (entry not created yet)"></div>`;
                         }
 
                         // Label style
-                        const labelStyle = node.item
-                            ? 'flex:1; font-size:10px; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'
-                            : 'flex:1; font-size:10px; color:var(--rt-text-muted); font-style:italic; opacity:0.6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+                        let labelStyle = '';
+                        if (node.item) {
+                            labelStyle = 'flex:1; font-size:10px; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+                        } else if (isDayNode) {
+                            labelStyle = 'flex:1; font-size:10px; color:var(--rt-text); font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+                        } else {
+                            labelStyle = 'flex:1; font-size:10px; color:var(--rt-text-muted); font-style:italic; opacity:0.6; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+                        }
 
                         // Tokens and action buttons
                         let tokensHtml = '';
@@ -4756,7 +4765,6 @@ function createPanel() {
                         let editHtml = '';
                         let deleteHtml = '';
 
-                        const bookNameLower = (bookName || '').toLowerCase();
                         const isWorldBook = bookNameLower.endsWith('_world') || bookNameLower === 'world';
 
                         if (node.item) {
