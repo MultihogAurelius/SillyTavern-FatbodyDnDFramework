@@ -2043,8 +2043,25 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
                 chunks.push(currentChunk);
             }
         } else {
-            const N = overrideLookback !== null ? overrideLookback : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
-            const recentChat = chat.slice(-N);
+            const sinceLastUser = settings.lookbackSinceLastUser !== false; // default true
+            let startIdx;
+            if (sinceLastUser) {
+                // Walk backward to find the most recent user message, then include it
+                // and everything after it — this captures full turns even when tool calls
+                // produce multiple intermediate messages between user and final response.
+                startIdx = chat.length - 1;
+                while (startIdx > 0 && !chat[startIdx].is_user) {
+                    startIdx--;
+                }
+                // If no user message was found (all-AI chat) fall back to last 2
+                if (startIdx === 0 && !chat[0]?.is_user) {
+                    startIdx = Math.max(0, chat.length - 2);
+                }
+            } else {
+                const N = overrideLookback !== null ? overrideLookback : (settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2);
+                startIdx = Math.max(0, chat.length - N);
+            }
+            const recentChat = chat.slice(startIdx);
             const chatLogLines = recentChat.map(m => {
                 const name = m.is_user ? 'Player' : (m.name || 'Narrator');
                 const content = cleanToolCallMessage(m.mes || m['content'] || '');
@@ -8275,7 +8292,24 @@ function buildSysprompt(rawText) {
         });
 
         // Advanced Options
+        const sinceLastUserChk = $('#rpg_tracker_lookback_since_last_user');
+        const lookbackNumericRow = $('#rpg_tracker_lookback_numeric_row');
         const lookbackInput = $('#rpg_tracker_lookback_messages');
+
+        const applySinceLastUserUI = (enabled) => {
+            lookbackNumericRow.css({ opacity: enabled ? '0.35' : '1', 'pointer-events': enabled ? 'none' : 'auto' });
+        };
+
+        if (sinceLastUserChk.length) {
+            const isEnabled = settings.lookbackSinceLastUser !== false; // default true
+            sinceLastUserChk.prop('checked', isEnabled);
+            applySinceLastUserUI(isEnabled);
+            sinceLastUserChk.on('change', function () {
+                settings.lookbackSinceLastUser = !!$(this).prop('checked');
+                applySinceLastUserUI(settings.lookbackSinceLastUser);
+                saveSettings();
+            });
+        }
         if (lookbackInput.length) {
             lookbackInput.val(settings.lookbackMessages !== undefined ? settings.lookbackMessages : 2).on('input', function () {
                 settings.lookbackMessages = parseInt(/** @type {string} */($(this).val())) || 2;

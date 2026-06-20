@@ -348,7 +348,14 @@
                     <b>Advanced Options</b>
                     <div class="flex-container flexFlowColumn gap-1">
                         <label>Message Lookback</label>
-                        <input id="rpg_tracker_lookback_messages" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="2" />
+                        <label class="checkbox_label" title="When enabled, the State Tracker always reads from the last user message through to the latest AI response — capturing all tool calls and multi-part replies in a single turn. This is the recommended setting.">
+                            <input id="rpg_tracker_lookback_since_last_user" type="checkbox" checked />
+                            Since last user message <span style="opacity:0.55; font-size:0.88em;">(recommended)</span>
+                        </label>
+                        <div id="rpg_tracker_lookback_numeric_row" style="transition: opacity 0.2s; opacity: 0.35; pointer-events: none;">
+                            <label style="margin-top: 4px;">Fixed message count</label>
+                            <input id="rpg_tracker_lookback_messages" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="2" title="Number of recent messages to include when 'Since last user message' is disabled." />
+                        </div>
                         <label>History Context (States)</label>
                         <input id="rpg_tracker_history_count" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="1" />
                         <label>Full Audit Max Tokens</label>
