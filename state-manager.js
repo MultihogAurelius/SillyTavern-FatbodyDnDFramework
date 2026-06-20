@@ -203,6 +203,9 @@ You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These
         routerPaused: false,
         routerRunEvery: 1,
         routerIncludeHidden: false,
+        routerLookbackSinceLastRun: true,   // default: capture all messages since the last agent run
+        routerLookbackSinceLastUser: false,  // alternative: capture since last user message
+        routerLastRunChatLength: 0,          // watermark: chat.length when the agent last ran
         routerUndockHintShown: false,
         routerPromptForPrefix: false,
         routerModules: JSON.parse(JSON.stringify(DEFAULT_MODULES)),
@@ -660,6 +663,7 @@ export function saveChatState(chatId) {
         routerLog:    JSON.parse(JSON.stringify(s.routerLog || [])),
         routerCampaignPrefix: s.routerCampaignPrefix || '',
         routerLookback: s.routerLookback || 4,
+        routerLastRunChatLength: s.routerLastRunChatLength ?? 0,
         routerDirectPrompt: s.routerDirectPrompt || '',
         routerDirectLookback: s.routerDirectLookback || 10,
         routerDefaultPosition: s.routerDefaultPosition ?? 4,
@@ -752,6 +756,7 @@ export function saveProfile(name) {
         routerLog:    JSON.parse(JSON.stringify(s.routerLog || [])),
         routerCampaignPrefix: s.routerCampaignPrefix || '',
         routerLookback: s.routerLookback || 4,
+        routerLastRunChatLength: s.routerLastRunChatLength ?? 0,
         routerDirectPrompt: s.routerDirectPrompt || '',
         routerDefaultPosition: s.routerDefaultPosition ?? 4,
         routerDefaultDepth: s.routerDefaultDepth ?? 4,

@@ -799,6 +799,9 @@ export function resetRouterTick(clearKeywordPool = false) {
         if (s.keywordActivatedKeys?.length) {
             s.keywordActivatedKeys = [];
         }
+        // Reset the "since last run" watermark so the next auto-pass on the new chat
+        // doesn't incorrectly skip content using the old chat's position.
+        s.routerLastRunChatLength = 0;
     }
 }
 

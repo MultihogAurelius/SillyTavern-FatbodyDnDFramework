@@ -278,9 +278,26 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
         if (overrideChatLog) {
             recentChatString = overrideChatLog;
         } else {
-            const sinceLastUser = customLookback === null && settings.routerLookbackSinceLastUser !== false; // default true
+            // Three-way lookback priority (only applies to auto-passes; Direct Prompt always passes customLookback)
+            const sinceLastRun  = customLookback === null && settings.routerLookbackSinceLastRun !== false;
+            const sinceLastUser = customLookback === null && !sinceLastRun && settings.routerLookbackSinceLastUser === true;
             let startIdx;
-            if (sinceLastUser) {
+            if (sinceLastRun) {
+                const lastLen = settings.routerLastRunChatLength || 0;
+                if (lastLen > 0 && lastLen < chat.length) {
+                    // Slice from where we left off — the agent sees exactly the messages it hasn't processed yet
+                    startIdx = lastLen;
+                } else {
+                    // First run ever (or watermark invalid) — fall back to last user message
+                    startIdx = chat.length - 1;
+                    while (startIdx > 0 && !(/** @type {any} */ (chat[startIdx])).is_user) {
+                        startIdx--;
+                    }
+                    if (startIdx === 0 && !(/** @type {any} */ (chat[0]))?.is_user) {
+                        startIdx = Math.max(0, chat.length - 4);
+                    }
+                }
+            } else if (sinceLastUser) {
                 // Walk backward to find the most recent user message, then include it
                 // and everything after — captures the full turn including tool call messages.
                 startIdx = chat.length - 1;
@@ -301,6 +318,7 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
                 return `${name}: ${content.replace(/<[^>]+>/g, '')}`;
             }).join('\n\n');
         }
+
 
 
         // Extract Current Context (Time & Location)
@@ -1140,6 +1158,14 @@ ${sharedContext}`;
         const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
         const finishMsg = basicSummaryText ? `Finished in ${totalTime}s -- ${basicSummaryText}` : `Finished in ${totalTime}s`;
         broadcastStep('finish', finishMsg, { time: totalTime, turns });
+
+        // Update the "since last run" watermark — only for auto (non-manual, non-cleanup) passes.
+        // Aborted/errored passes never reach here (they go to catch), so the watermark is safe.
+        if (!isManual && manualPrompt !== '__CLEANUP__') {
+            settings.routerLastRunChatLength = ctx.chat.length;
+            const { saveSettingsDebounced } = SillyTavern.getContext();
+            if (saveSettingsDebounced) saveSettingsDebounced();
+        }
 
         // Non-blocking bloat hint and auto-cleanup check
         {

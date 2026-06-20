@@ -455,14 +455,22 @@
                                     </label>
                                     
                                     <label>Context Lookback</label>
-                                    <label class="checkbox_label" title="When enabled, the Lorebook Agent always reads from the last user message through to the latest AI response — capturing all tool calls and multi-part replies in a single turn. This is the recommended setting.">
-                                        <input id="rpg_tracker_router_lookback_since_last_user" type="checkbox" checked />
-                                        Since last user message <span style="opacity:0.55; font-size:0.88em;">(recommended)</span>
+                                    <label class="checkbox_label" title="The agent reads every message since the last time it successfully ran — capturing all turns skipped due to 'Run Every N' throttling. Best when runEvery &gt; 1.">
+                                        <input id="rpg_tracker_router_lookback_since_last_run" type="radio" name="router_lookback_mode" value="since_last_run" />
+                                        Since last run <span style="opacity:0.55; font-size:0.88em;">(recommended)</span>
+                                    </label>
+                                    <label class="checkbox_label" title="The agent reads from the most recent user message through to the latest AI response — one turn only.">
+                                        <input id="rpg_tracker_router_lookback_since_last_user" type="radio" name="router_lookback_mode" value="since_last_user" />
+                                        Since last user message
                                     </label>
                                     <div id="rpg_tracker_router_lookback_numeric_row" style="transition: opacity 0.2s; opacity: 0.35; pointer-events: none;">
-                                        <label style="margin-top: 4px;">Fixed message count</label>
-                                        <input id="rpg_tracker_router_lookback" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" min="1" max="100" title="Last N chat messages (user and assistant) when 'Since last user message' is disabled." />
+                                        <label class="checkbox_label" title="Read a fixed number of recent messages.">
+                                            <input id="rpg_tracker_router_lookback_fixed" type="radio" name="router_lookback_mode" value="fixed" />
+                                            Fixed message count
+                                        </label>
+                                        <input id="rpg_tracker_router_lookback" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" min="1" max="100" title="Last N chat messages (user and assistant) when 'Fixed message count' is selected." />
                                     </div>
+
 
                                     <label>Run Every N Messages</label>
                                     <input id="rpg_tracker_router_run_every" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" min="1" max="50" />
