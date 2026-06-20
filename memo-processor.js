@@ -805,6 +805,47 @@ export function cleanToolCallMessage(text) {
     return text;
 }
 
+/**
+ * Cleans a message content string, stripping out tool calls, details, thinking/reasoning blocks,
+ * extra metadata, JSON keys, and HTML/XML tags to keep the prompt context clean.
+ * @param {any} msg The SillyTavern message object
+ * @returns {string} The cleaned message text
+ */
+export function cleanMessageContent(msg) {
+    if (!msg) return '';
+    let mes = (msg.mes || msg.content || '').trim();
+    if (!mes) return '';
+
+    // Strip tool call & thinking UI (XML-tag-like blocks and their contents)
+    mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
+    mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
+    mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
+    mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
+    mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
+    mes = mes.replace(/<think\b[^>]*>([\s\S]*?)<\/think>/gi, '');
+
+    // Strip JSON-like reasoning/thought keys and their values
+    mes = mes.replace(/"reasoning":\s*"(?:[^"\\]|\\.)*"/gi, '');
+    mes = mes.replace(/"thought":\s*"(?:[^"\\]|\\.)*"/gi, '');
+    mes = mes.replace(/"thinking":\s*"(?:[^"\\]|\\.)*"/gi, '');
+
+    // If ST stored reasoning/thought in extra and it bled into mes, strip it
+    const extraReasoning = msg.extra?.reasoning;
+    if (extraReasoning && typeof extraReasoning === 'string' && mes.includes(extraReasoning)) {
+        mes = mes.replace(extraReasoning, '');
+    }
+    const extraThought = msg.extra?.thought;
+    if (extraThought && typeof extraThought === 'string' && mes.includes(extraThought)) {
+        mes = mes.replace(extraThought, '');
+    }
+
+    // Strip any remaining HTML/XML tags
+    mes = mes.replace(/<[^>]+>/g, '');
+
+    return mes.trim();
+}
+
+
 // ── User action extraction ────────────────────────────────────────────────────
 
 /**

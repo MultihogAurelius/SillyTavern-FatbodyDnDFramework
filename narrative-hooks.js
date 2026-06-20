@@ -13,7 +13,7 @@
  */
 
 import { getSettings } from './state-manager.js';
-import { parseQuestsFromMemo, extractCurrentTimeStr } from './memo-processor.js';
+import { parseQuestsFromMemo, extractCurrentTimeStr, cleanMessageContent } from './memo-processor.js';
 import { runRouterPass, saveSceneToLorebook, scanAssistantOutputForKeywords, parseInWorldMinutes, runWorldProgressionPass } from './router.js';
 import { logTransaction } from './debug-viewer.js';
 
@@ -732,27 +732,11 @@ export function getNarrativeBlocks(chat, limit = -1, includeHidden = false) {
         if (msg.is_system) continue;
         if (!includeHidden && /** @type {any} */ (msg).is_hidden) continue;
 
-        let mes = (msg.mes || '').trim();
-        if (!mes) continue;
-        if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
         if (msg.extra?.['summary'] || msg.extra?.['is_summary'] || msg.extra?.['summary_data']) continue;
 
-        // Strip tool call & thinking UI (XML-tag variants)
-        mes = mes.replace(/<details\b[^>]*>([\s\S]*?)<\/details>/gi, '');
-        mes = mes.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, '');
-        mes = mes.replace(/<thought\b[^>]*>([\s\S]*?)<\/thought>/gi, '');
-        mes = mes.replace(/<thinking\b[^>]*>([\s\S]*?)<\/thinking>/gi, '');
-        mes = mes.replace(/<reasoning\b[^>]*>([\s\S]*?)<\/reasoning>/gi, '');
-        // <think> tags used by DeepSeek, Qwen, etc.
-        mes = mes.replace(/<think\b[^>]*>([\s\S]*?)<\/think>/gi, '');
-
-        // If ST stored reasoning in extra.reasoning and it bled into mes, strip it
-        const extraReasoning = /** @type {any} */ (msg).extra?.reasoning;
-        if (extraReasoning && typeof extraReasoning === 'string' && mes.includes(extraReasoning)) {
-            mes = mes.replace(extraReasoning, '');
-        }
-
-        mes = mes.trim();
+        const mes = cleanMessageContent(msg);
+        if (!mes) continue;
+        if (mes.startsWith('[Summary') || mes.startsWith('(Summary') || mes.includes('Summary of past events:')) continue;
 
         if (mes) { narrativeBlocks.unshift(mes); foundCount++; }
     }

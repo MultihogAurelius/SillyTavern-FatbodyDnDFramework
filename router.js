@@ -1,7 +1,7 @@
 import { getSettings, getEffectiveRouterCampaignPrefix } from './state-manager.js';
 import { sendStateRequest, sendAgentTurn } from './llm-client.js';
 import { getRequestHeaders } from '../../../../script.js';
-import { extractCurrentTimeStr } from './memo-processor.js';
+import { extractCurrentTimeStr, cleanMessageContent } from './memo-processor.js';
 
 let _routerRunning = false;
 let _routerNormalRunCount = 0; // tracks completed normal (non-cleanup) passes for auto-cleanup interval
@@ -314,8 +314,7 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
             }
             recentChatString = chat.slice(startIdx).map(m => {
                 const name = (/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator');
-                const content = (/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '';
-                return `${name}: ${content.replace(/<[^>]+>/g, '')}`;
+                return `${name}: ${cleanMessageContent(m)}`;
             }).join('\n\n');
         }
 
@@ -1985,7 +1984,7 @@ export async function saveSceneToLorebook(hint = "") {
         
         const { chat } = ctx;
         const filteredChat = (chat || []).filter(m => !m.is_system && m.mes && m.mes.trim());
-        const recentChat = filteredChat.slice(-5).map(m => `${(/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator')}: ${((/** @type {any} */ (m)).mes || (/** @type {any} */ (m)).content || '').replace(/<[^>]+>/g, '')}`).join('\n\n');
+        const recentChat = filteredChat.slice(-5).map(m => `${(/** @type {any} */ (m)).is_user ? 'Player' : ((/** @type {any} */ (m)).name || 'Narrator')}: ${cleanMessageContent(m)}`).join('\n\n');
 
         const systemPrompt = `You are the Scene Archiver. Based on the recent narrative, generate a Lorebook entry for this scene.
 Output a JSON object:
