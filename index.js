@@ -3583,8 +3583,13 @@ function createPanel() {
                             <input type="checkbox" id="rt-agent-router-native-kw" ${settings.routerNativeKeywordActivation ? 'checked' : ''}>
                         </label>
 
+                        <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; opacity: 0.8; font-size: 0.846em;" title="When enabled, the Lorebook Agent always reads from the last user message through to the latest AI response — capturing all tool calls and multi-part replies in a single turn.">
+                            Since last user message
+                            <input type="checkbox" id="rt-agent-router-lookback-since-last-user" ${settings.routerLookbackSinceLastUser !== false ? 'checked' : ''}>
+                        </label>
+
                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 6px; flex: 1;" title="Main lookback: last N chat messages (user and assistant, in order) included in the agent context during automatic passes.">
+                            <div id="rt-agent-router-lookback-container" style="display: flex; align-items: center; gap: 6px; flex: 1; transition: opacity 0.2s; ${settings.routerLookbackSinceLastUser !== false ? 'opacity: 0.35; pointer-events: none;' : ''}" title="Main lookback: last N chat messages (user and assistant, in order) included in the agent context during automatic passes.">
                                 <span style="font-size: 0.769em; opacity: 0.7;">Lookback (user/assistant):</span>
                                 <input type="text" inputmode="numeric" pattern="[0-9]*" id="rt-agent-router-lookback" value="${settings.routerLookback || 4}" min="1" max="100" style="width: 40px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 3px; text-align: center; font-size: 0.769em; padding: 1px;">
                                 <span style="font-size: 0.769em; opacity: 0.5;">msgs</span>
@@ -5500,6 +5505,37 @@ function createPanel() {
                 const s = getSettings();
                 s.routerLookback = parseInt((/** @type {HTMLInputElement} */ (e.target)).value) || 4;
                 $('#rpg_tracker_router_lookback').val(s.routerLookback);
+                saveSettings();
+            });
+        }
+
+        // ── Since last user message checkbox ──
+        const sinceLastUserChk = /** @type {HTMLInputElement} */ (agentPanel.querySelector('#rt-agent-router-lookback-since-last-user'));
+        const lookbackContainer = /** @type {HTMLElement} */ (agentPanel.querySelector('#rt-agent-router-lookback-container'));
+        if (sinceLastUserChk) {
+            sinceLastUserChk.addEventListener('change', () => {
+                const s = getSettings();
+                s.routerLookbackSinceLastUser = sinceLastUserChk.checked;
+                
+                // Update settings drawer elements if present
+                const drawerChk = $('#rpg_tracker_router_lookback_since_last_user');
+                if (drawerChk.length) {
+                    drawerChk.prop('checked', s.routerLookbackSinceLastUser);
+                }
+                const drawerRow = $('#rpg_tracker_router_lookback_numeric_row');
+                if (drawerRow.length) {
+                    drawerRow.css({
+                        opacity: s.routerLookbackSinceLastUser ? '0.35' : '1',
+                        'pointer-events': s.routerLookbackSinceLastUser ? 'none' : 'auto'
+                    });
+                }
+
+                // Update current panel's lookback container opacity & clickability
+                if (lookbackContainer) {
+                    lookbackContainer.style.opacity = s.routerLookbackSinceLastUser ? '0.35' : '1';
+                    lookbackContainer.style.pointerEvents = s.routerLookbackSinceLastUser ? 'none' : 'auto';
+                }
+
                 saveSettings();
             });
         }
@@ -10152,6 +10188,20 @@ RULES:
             routerSinceLastUserChk.on('change', function () {
                 settings.routerLookbackSinceLastUser = !!$(this).prop('checked');
                 applyRouterSinceLastUserUI(settings.routerLookbackSinceLastUser);
+
+                // Also update the agent panel checkbox and lookback container if present
+                const panelChk = $('#rt-agent-router-lookback-since-last-user');
+                if (panelChk.length) {
+                    panelChk.prop('checked', settings.routerLookbackSinceLastUser);
+                }
+                const panelContainer = $('#rt-agent-router-lookback-container');
+                if (panelContainer.length) {
+                    panelContainer.css({
+                        opacity: settings.routerLookbackSinceLastUser ? '0.35' : '1',
+                        'pointer-events': settings.routerLookbackSinceLastUser ? 'none' : 'auto'
+                    });
+                }
+
                 saveSettings();
             });
         }
