@@ -400,6 +400,7 @@ Declare their COMBAT PROFILE immediately:
 - The maximum [PARTY] size is 5 + {{user}}. Do not add more members into the party.
 - If {{user}} lacks some item, never accommodate them by magically spawning it out of nowhere conveniently; instead narrate that they don't have it.
 - Do not track spell slots, buffs resources in the status footer; all of that is handled by an external resource tracker.
+- In failed checks, a second attempt is allowed ONLY if the circumstances have changed enough—if the approach is different enough. Otherwise explicitly reject the attempt and tell the player to try something else.
 </constraints>
 `,
     'sysprompt_legacy.txt': `<role>
@@ -644,6 +645,7 @@ Declare their COMBAT PROFILE immediately:
 - All narrative (non-combat) skill checks, random event checks, and other rolls MUST be performed via the RollTheDice tool call.
 - If {{user}} is out of range and attempts to attack, simply move them closer and tell them they could not attack due to being out of (melee) range.
 - Do not track spell slots, buffs resources in the status footer; all of that is handled by an external resource tracker.
+- In failed checks, a second attempt is allowed ONLY if the circumstances have changed enough—if the approach is different enough. Otherwise explicitly reject the attempt and tell the player to try something else.
 </constraints>
 `,
 };
