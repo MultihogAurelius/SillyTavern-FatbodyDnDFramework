@@ -2,6 +2,25 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.7.9] - 2026-06-21
+
+### Added
+- **Inventory 2.0 Upgrade**:
+  - **[E] Equipped-Item Tagging**: Added support for marking active items as equipped using `[E]` immediately following their rarity tag (e.g., `Gear: Dagger [Common] [E]`). Worn/held items are highlighted in the UI, while untagged items are treated as carried but not worn.
+  - **Centralized System Prompts Inventory block**: Created a dedicated `<inventory>` prompt section across all narrator prompts (`sysprompt.txt`, `sysprompt_legacy.txt`, and `constants.js`), housing slot rules, equipment validity, and equipping mechanics.
+  - **Equipment Incompatibility & Status Debuffs**: Replaced rigid slot list limitations with a dynamic compatibility rule. The narrator prevents physically impossible equipment, while awkward or incompatible combinations (e.g. wrong class/lack of proficiency/low Strength) are allowed with customized mechanical status debuffs that are explicitly tied to the equipped item and automatically track its removal.
+  - **Prompt Clean-up**: Stripped all leaks/references to the external "State Tracker" or "RPG Tracker" from the narrator system prompts. The state tracker's default inventory prompt now focuses solely on recording the `[E]` tag.
+- **Interactive Prompt Upgrade Dialog**: Added an upgrade reset prompt popup and settings checkbox ("Auto-Update Prompts on Upgrade") that cleanly prompts users to reset their custom prompt sections to new factory defaults on framework upgrades.
+- **RNG Lookback Modes**: Added a "Since Last User Message" default lookback mode for the State Tracker and a "Since Last Run" / "Since Last User Message" mode for the Lorebook Agent.
+- **AC instructions**: Embedded Armor Class (AC) calculation details directly in the default `CHARACTER` stock prompt.
+- **Second-Attempt Constraint**: Added a second-attempt constraint for failed checks to the narrator system prompts (only allowed if approach/circumstances have changed enough).
+- **Thinking / Reasoning Filtering**: Automatically strip thinking and reasoning tags (including JSON blocks) from outgoing LLM chat history.
+
+### Fixed
+- **UI Parsing Safe Guards**: Added support in both `renderer.js` and `portraits.js` to parse lines in state blocks (like `[PARTY]` and `[ABILITIES]`) correctly even if they contain leading dash or bullet prefixes.
+- **Dialog Branding**: Renamed the RPG Tracker update dialog header to "✨ Multihog D&D Framework Update" to align with the product branding.
+- **State Tracker Prompt Auto-Reset**: Fixed a bug where the state tracker core prompt did not reset during upgrades.
+
 ## [3.6.4] - 2026-06-18
 
 ### Changed
