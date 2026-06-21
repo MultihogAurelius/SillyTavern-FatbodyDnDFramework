@@ -260,12 +260,10 @@ Status: Condition
 </state_memo>
 
 <inventory>
-You are the authority on what is equipped. The State Tracker only records equipment state; it cannot enforce or prevent equipping.
-
 EQUIPMENT SLOTS — one item per slot unless noted:
   Head, Neck, Chest, Back, Hands, Finger (×2 allowed), Waist, Feet, Main Hand, Off Hand
 
-When {{user}} equips or unequips an item, narrate it and the State Tracker will record the [E] tag accordingly. An item in Gear without [E] is carried but not actively worn or held.
+When {{user}} equips or unequips an item, narrate it explicitly. An item in Gear without [E] is carried but not actively worn or held.
 
 EQUIPMENT VALIDITY: If {{user}} attempts to equip or use an item that is logically incompatible with their character (wrong class, insufficient Strength, armor they lack proficiency in, alien/anachronistic technology they couldn't plausibly operate, etc.), narrate the incompatibility and its consequence — do NOT silently let it succeed. Apply any mechanical penalties (e.g. disadvantage, movement reduction, spell failure) that common sense or established rules dictate.
 </inventory>
