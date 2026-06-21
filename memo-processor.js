@@ -22,19 +22,33 @@ import { DEFAULT_STOCK_PROMPTS } from './constants.js';
  * @returns {number}
  */
 function computeFrustrationLocal(quest, currentTime) {
-    if (!quest.deadline_time || !quest.accepted_time || quest.deadline_time.toLowerCase() === 'none') return -1;
-    const coeff = (quest.frustration_coefficient != null) ? quest.frustration_coefficient : 1.0;
-    const acceptedMins  = parseInWorldTime(quest.accepted_time);
-    const deadlineMins  = parseInWorldTime(quest.deadline_time);
-    const currentMins   = parseInWorldTime(currentTime);
-    if (!acceptedMins || !deadlineMins || !currentMins) return 0;
-    const total = deadlineMins - acceptedMins;
-    if (total <= 0) return 0;
-    const ratio = (currentMins - acceptedMins) / total;
-    if (ratio <= 1) {
-        return ratio - 1; // pre-deadline: -1 → 0
+    if (quest.status !== 'active' && quest.status !== 'past deadline') return 0;
+    const accepted = parseInWorldTime(quest.accepted_time);
+    const current  = parseInWorldTime(currentTime);
+    if (!accepted || !current) return 0;
+
+    const elapsed = current - accepted;
+    if (elapsed <= 0) return -1; // Just accepted — NPC is optimistic
+
+    const coeff = Math.max(0.1, quest.frustration_coefficient ?? 1.0);
+
+    if (!quest.deadline_time || String(quest.deadline_time).toLowerCase() === 'none') {
+        // No deadline: NPC remains neutral regardless of time elapsed
+        return 0;
+    }
+
+    const deadline = parseInWorldTime(quest.deadline_time);
+    const window   = deadline - accepted;
+    if (window <= 0) return 1;
+
+    const ratio = elapsed / window;
+    
+    if (ratio <= 1.0) {
+        // Before or at deadline: -1 (Very Pleased) to 0 (Neutral)
+        return Math.pow(ratio, 1 / coeff) - 1;
     } else {
-        return (ratio - 1) * coeff; // post-deadline: 0 → positive
+        // After deadline: 0 (Neutral) scaling upwards
+        return (ratio - 1) * coeff;
     }
 }
 

@@ -32,7 +32,7 @@ export function getQuestToolName() {
  * @returns {number} Mood value from -1 (pleased) upward (unbounded)
  */
 export function computeFrustration(quest, currentTime) {
-    if (quest.status !== 'active') return 0;
+    if (quest.status !== 'active' && quest.status !== 'past deadline') return 0;
     const accepted = parseInWorldTime(quest.accepted_time);
     const current  = parseInWorldTime(currentTime);
     if (!accepted || !current) return 0;
