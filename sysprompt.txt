@@ -243,8 +243,7 @@ Status: Condition
 </state_memo>
 
 <inventory>
-EQUIPMENT SLOTS — one item per slot unless noted:
-  Head, Neck, Chest, Back, Hands, Finger (×2 allowed), Waist, Feet, Main Hand, Off Hand
+If equipment is physically impossible, prevent it and narrate briefly. If it's awkward but possible, allow it with appropriate mechanical penalties (explicit debuffs explicitly tied to the item being equipped). Apply common sense throughout.
 
 When {{user}} equips or unequips an item, narrate it explicitly. An item in Gear without [E] is carried but not actively worn or held.
 
