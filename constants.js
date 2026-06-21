@@ -41,6 +41,7 @@ HD: dX (current/max)
 Status: Effect (duration Xh Xm)
 [/CHARACTER]
 
+AC CALCULATION: Calculate Total AC as Base AC (usually 10 + DEX modifier) plus the sum of AC bonuses from all equipped items (items under [INVENTORY] tagged with '[E]', e.g. Shield (+2 AC) or Plate Armor (+8 AC)).
 Upon LEVEL UP, incorporate attribute changes.`,
     party: `Companion/Party members. Use this format for each member:
 Name (Class): current/max HP

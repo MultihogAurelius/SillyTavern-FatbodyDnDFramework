@@ -7667,7 +7667,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.7.3'; // Fallback
+            let currentVersion = '3.7.6'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);
