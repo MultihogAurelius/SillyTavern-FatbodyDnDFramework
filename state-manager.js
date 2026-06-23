@@ -88,7 +88,7 @@ export function getSettings() {
         npcMajorTokens: 125,
         npcMinorTokens: 100,
         npcRelationshipBars: false,
-        experimentalNpcImport: false,
+        experimentalNpcImport: true,
         barColors: {},
         modulePageSizes: {},
         customTheme: null,

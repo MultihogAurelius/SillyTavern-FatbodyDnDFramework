@@ -3018,22 +3018,22 @@
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 .rt-charpicker-add-btn.direct {
+    background: rgba(255, 60, 60, 0.08);
+    border-color: rgba(255, 60, 60, 0.25);
+    color: #ff5555;
+}
+.rt-charpicker-add-btn.direct:hover {
+    background: rgba(255, 60, 60, 0.15);
+    border-color: rgba(255, 60, 60, 0.4);
+}
+.rt-charpicker-add-btn.ai-adapt {
     background: rgba(0, 255, 170, 0.08);
     border-color: rgba(0, 255, 170, 0.25);
     color: var(--rt-accent, #00ffaa);
 }
-.rt-charpicker-add-btn.direct:hover {
+.rt-charpicker-add-btn.ai-adapt:hover {
     background: rgba(0, 255, 170, 0.15);
     border-color: rgba(0, 255, 170, 0.4);
-}
-.rt-charpicker-add-btn.ai-adapt {
-    background: rgba(212, 169, 64, 0.08);
-    border-color: rgba(212, 169, 64, 0.25);
-    color: #d4a940;
-}
-.rt-charpicker-add-btn.ai-adapt:hover {
-    background: rgba(212, 169, 64, 0.15);
-    border-color: rgba(212, 169, 64, 0.4);
 }
 .rt-charpicker-load-more {
     text-align: center;

@@ -4937,7 +4937,7 @@ function createPanel() {
                                             <span style="font-size:11px;color:rgba(255,255,255,0.5);">${curS.experimentalNpcImport ? 'Enabled' : 'Disabled'}</span>
                                         </label>
                                     </div>
-                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Shows the "Add NPC from Character Card" button. <b>Recommended: Disabled</b> (organic NPC creation prevents context bloat).</div>
+                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Shows the "Add NPC from Character Card" button. This allows importing character cards into campaigns with AI review to fit them into the story. However, organic NPC creation is recommended.</div>
                                 </div>`;
 
                                 let newMajor = curS.npcMajorTokens ?? 125;
@@ -5806,15 +5806,21 @@ function createPanel() {
                 }
             } catch (_) {}
 
-            const systemPrompt = `You are an NPC Adaptation Agent. Given a character card from a different source and the current RPG campaign context, adapt the character to fit naturally into the ongoing story.
+            const systemPrompt = `${s.routerSystemPromptTemplate || ''}
+
+---
+
+You are an NPC Adaptation Agent. Given a character card from a different source and the current RPG campaign context, adapt the character to fit naturally into the ongoing story.
+
+<npc_instructions>
+${s.routerModules?.npc?.instruction || ''}
+</npc_instructions>
 
 Rules:
 - If the character is from a different era/genre (e.g., modern character in a medieval fantasy), translate their skills, equipment, backstory, and background to fit the current world setting.
 - Preserve the character's core personality, motivations, and distinguishing traits.
-- Write a concise NPC lorebook entry (4-8 sentences covering appearance, personality, role in the world, and any notable equipment/abilities adapted to the setting).
-- End the entry with these two lines:
-  Friendship/Rapport: 0/100
-  Affection/Interest: 0/100
+- Write a concise NPC lorebook entry following the exact <npc_instructions> provided above.
+- Make sure to format the entry EXACTLY according to the NPC instructions, using the exact section names and structure required.
 - Output ONLY the adapted NPC entry content. No preamble, no explanation, no tags.`;
 
             const userPrompt = contextParts.join('\n\n---\n\n');
@@ -5980,7 +5986,7 @@ Rules:
 
                     const directBtn = document.createElement('button');
                     directBtn.className = 'rt-charpicker-add-btn direct';
-                    directBtn.textContent = '+ Add NPC';
+                    directBtn.textContent = '+ Add as is (not recommended)';
                     directBtn.addEventListener('click', async () => {
                         directBtn.disabled = true;
                         directBtn.textContent = '⏳ Adding...';
@@ -5995,7 +6001,7 @@ Rules:
                             toastr['error'](`Failed: ${String(err.message || err).substring(0, 100)}`, 'NPC Import');
                         } finally {
                             directBtn.disabled = false;
-                            directBtn.textContent = '+ Add NPC';
+                            directBtn.textContent = '+ Add as is (not recommended)';
                         }
                     });
 
@@ -6052,8 +6058,8 @@ Rules:
                         }
                     });
 
-                    btnsDiv.appendChild(directBtn);
                     btnsDiv.appendChild(aiBtn);
+                    btnsDiv.appendChild(directBtn);
 
                     item.appendChild(avatarDiv);
                     item.appendChild(infoDiv);
