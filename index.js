@@ -5645,10 +5645,12 @@ function createPanel() {
             if (adaptedContent) {
                 content = adaptedContent;
                 // Parse the [[NPC: Name | Description | Keywords]] format if AI provided it
-                const match = content.match(/^\[\[NPC:\s*(.*?)\s*\|\s*([\s\S]*?)\s*\|\s*(.*?)\]\]$/i);
+                const match = content.match(/^\[\[NPC:\s*(.*?)\s*\|\s*([\s\S]*)\s*\|\s*(.*?)\]\]$/i);
                 if (match) {
                     name = match[1].trim();
                     content = match[2].trim();
+                    // Clean up any stray | separators the AI might have used instead of newlines
+                    content = content.replace(/\s*\|\s*(?=Appearance:|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
                     const extractedKeys = match[3].split(',').map(k => k.trim()).filter(Boolean);
                     if (extractedKeys.length > 0) {
                         keys = extractedKeys;
@@ -5844,7 +5846,7 @@ Rules:
 - Your output MUST be strictly formatted as a lorebook entry tag. It MUST look EXACTLY like this:
   [[NPC: Name | Description | keywords]]
 - Replace "Name" with the character's name.
-- Replace "Description" with the full formatted description section.
+- Replace "Description" with the full formatted description section. DO NOT use the "|" character inside the Description; separate the internal sections (Appearance, Personality, etc.) using newlines.
 - Replace "keywords" with a comma-separated list of keywords including their name.
 - Output ONLY this single [[NPC: ...]] string. No preamble, no explanation, no other tags.`;
 
