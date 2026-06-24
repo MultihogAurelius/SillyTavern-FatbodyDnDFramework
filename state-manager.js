@@ -24,7 +24,7 @@ export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
     let instruction = `Named characters the party interacts with. Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed.
 
 <CORE_FORMAT>
-IMPORTANT: Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
+IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
 
 [CORE]
 Appearance: Key visual identifiers only — race, build, most distinctive feature, weapon/armor if relevant.
@@ -642,6 +642,14 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
             s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
         }
         s.settingsVersion = '3.14.0';
+    }
+
+    // Ensure entry starts directly with [CORE] and add relationship editing (v3.15.0)
+    if (!s.settingsVersion || s.settingsVersion < '3.15.0') {
+        if (s.routerModules?.npc) {
+            s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
+        }
+        s.settingsVersion = '3.15.0';
     }
 
 

@@ -5005,22 +5005,32 @@ function createPanel() {
                         // Helper: parse NPC content into structured sections for the detail popup
                         // Handles both newline-separated AND single-line content (sections on same line)
                         const parseNpcSections = (content) => {
-                            const sections = {};
+                            const sections = { core: {}, dynamic: [] };
                             if (!content) return sections;
 
-                            // Strip [CORE] and [/CORE] tags before parsing
-                            const cleanContent = content.replace(/\[\/?CORE\]/gi, '');
+                            // 1. Extract [CORE] ... [/CORE] block
+                            let coreContent = '';
+                            let dynamicContent = content;
 
-                            // Pre-split: inject newlines before known section markers so they become separate lines
-                            // Use negative lookbehind so standalone "Behaviors" doesn't match inside "Habits/Behaviors"
+                            const coreMatch = content.match(/\[CORE\]([\s\S]*?)\[\/CORE\]/i);
+                            if (coreMatch) {
+                                coreContent = coreMatch[1];
+                                // Remove the [CORE] block from dynamic content
+                                dynamicContent = content.replace(/\[CORE\][\s\S]*?\[\/CORE\]/gi, '');
+                            } else {
+                                // Fallback: if no [CORE] tags, treat the whole content as potentially containing core sections
+                                coreContent = content;
+                                dynamicContent = '';
+                            }
+
+                            // 2. Parse core sections
                             const sectionMarkers = /(?=(?:Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:)/gi;
-                            const normalized = cleanContent.replace(sectionMarkers, '\n');
-
-                            const lines = normalized.split('\n');
+                            const normalizedCore = coreContent.replace(sectionMarkers, '\n');
+                            const coreLines = normalizedCore.split('\n');
                             let currentSection = 'General';
                             const sectionPattern = /^(Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:/i;
 
-                            for (const line of lines) {
+                            for (const line of coreLines) {
                                 const trimmed = line.trim();
                                 if (!trimmed || /^\[ID:/i.test(trimmed) || /^Friendship\/Rapport:/i.test(trimmed) || /^Affection\/Interest:/i.test(trimmed)) continue;
                                 const match = trimmed.match(sectionPattern);
@@ -5028,14 +5038,28 @@ function createPanel() {
                                     currentSection = match[1].replace(/\s*\{\{user\}\}/, '').replace(/\s+with$/i, '').trim();
                                     const afterColon = trimmed.substring(match[0].length).trim();
                                     if (afterColon) {
-                                        if (!sections[currentSection]) sections[currentSection] = [];
-                                        sections[currentSection].push(afterColon);
+                                        if (!sections.core[currentSection]) sections.core[currentSection] = [];
+                                        sections.core[currentSection].push(afterColon);
                                     }
                                 } else {
-                                    if (!sections[currentSection]) sections[currentSection] = [];
-                                    sections[currentSection].push(trimmed);
+                                    if (!sections.core[currentSection]) sections.core[currentSection] = [];
+                                    sections.core[currentSection].push(trimmed);
                                 }
                             }
+
+                            // 3. Parse dynamic updates (anything outside [CORE], split by lines, ignoring empty or metadata lines)
+                            const dynamicLines = dynamicContent.split('\n');
+                            for (const line of dynamicLines) {
+                                const trimmed = line.trim();
+                                if (!trimmed || /^\[ID:/i.test(trimmed) || /^Friendship\/Rapport:/i.test(trimmed) || /^Affection\/Interest:/i.test(trimmed)) continue;
+
+                                // Ignore lines that contain ONLY a timestamp and no other text (e.g. "[05:47 PM, Day 1]")
+                                const timestampOnlyRegex = /^\[[^\]]+\]\s*$/;
+                                if (timestampOnlyRegex.test(trimmed)) continue;
+
+                                sections.dynamic.push(trimmed);
+                            }
+
                             return sections;
                         };
 
@@ -5057,44 +5081,72 @@ function createPanel() {
 
                             // Build sections HTML
                             let sectionsHtml = '';
-                            for (const [name, lines] of Object.entries(sections)) {
-                                const icon = sectionIcons[name] || '📋';
-                                const sectionColor = name === 'Appearance' ? '#d4a940' :
-                                                     name === 'Personality' ? '#8b5cf6' :
-                                                     name === 'Brief Background' ? '#3b82f6' :
-                                                     name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
-                                                     name === 'Relationship' ? '#f472b6' : 'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
-                                sectionsHtml += `<div style="margin-bottom:18px;">
-                                    <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
-                                        <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
-                                    </div>
-                                    <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
-                                        ${lines.map(l => escapeHtml(l)).join('<br>')}
-                                    </div>
-                                </div>`;
+
+                            // Render Core Identity
+                            const coreEntries = Object.entries(sections.core);
+                            if (coreEntries.length > 0) {
+                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
+                                for (const [name, lines] of coreEntries) {
+                                    const icon = sectionIcons[name] || '📋';
+                                    const sectionColor = name === 'Appearance' ? '#d4a940' :
+                                                         name === 'Personality' ? '#8b5cf6' :
+                                                         name === 'Brief Background' ? '#3b82f6' :
+                                                         name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
+                                                         name === 'Relationship' ? '#f472b6' : 'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
+                                    sectionsHtml += `<div style="margin-bottom:18px;">
+                                        <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
+                                            <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
+                                        </div>
+                                        <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
+                                            ${lines.map(l => escapeHtml(l)).join('<br>')}
+                                        </div>
+                                    </div>`;
+                                }
                             }
 
-                            // Friendship/Affection bars for popup (large version)
-                            const makeBigBar = (val, label, colorPos, colorNeg, icon) => {
+                            // Render Dynamic Updates / Campaign History
+                            if (sections.dynamic.length > 0) {
+                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:24px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📖 Campaign History & Dynamic Lore</div>`;
+                                sectionsHtml += `<div style="font-size:14px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);padding:4px 0 4px 10px;">`;
+                                sectionsHtml += sections.dynamic.map(line => {
+                                    // Style timestamps uniquely if they match [Day X, HH:MM] or [HH:MM PM, Day X]
+                                    const timestampRegex = /^(\[.+?\])\s*(.*)/;
+                                    const match = line.match(timestampRegex);
+                                    if (match) {
+                                        return `<div style="margin-bottom:8px;"><span style="color:#d4a940;font-weight:bold;font-family:monospace;font-size:12px;background:rgba(212,169,64,0.1);padding:2px 6px;border-radius:4px;margin-right:6px;">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span></div>`;
+                                    }
+                                    return `<div style="margin-bottom:8px;">${escapeHtml(line)}</div>`;
+                                }).join('');
+                                sectionsHtml += `</div>`;
+                            }
+
+                            // Friendship/Affection bars for popup (large version, with editable sliders)
+                            const makeBigBar = (val, label, colorPos, colorNeg, icon, type) => {
                                 const clamped = Math.max(-100, Math.min(100, val));
                                 const pct = Math.abs(clamped) / 2;
                                 const isPos = clamped >= 0;
                                 const bgColor = isPos ? colorPos : colorNeg;
                                 const valColor = clamped === 0 ? 'var(--SmartThemeEmColor, inherit)' : bgColor;
-                                return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-                                    <span style="font-size:20px;">${icon}</span>
-                                    <span style="font-size:13px;width:80px;color:var(--SmartThemeBodyColor, inherit);opacity:0.65;font-weight:500;">${label}</span>
-                                    <div style="flex:1;height:12px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.15));border-radius:6px;position:relative;overflow:hidden;">
-                                        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.25));"></div>
-                                        <div style="position:absolute;top:0;bottom:0;border-radius:6px;background:${bgColor};${isPos ? `left:50%;width:${pct}%;` : `right:50%;width:${pct}%;`}transition:width 0.3s ease;"></div>
+                                return `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;">
+                                    <div style="display:flex;align-items:center;gap:12px;">
+                                        <span style="font-size:20px;">${icon}</span>
+                                        <span style="font-size:13px;width:80px;color:var(--SmartThemeBodyColor, inherit);opacity:0.65;font-weight:500;">${label}</span>
+                                        <div style="flex:1;height:12px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.15));border-radius:6px;position:relative;overflow:hidden;">
+                                            <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.25));"></div>
+                                            <div id="rt-npc-detail-${type}-fill" style="position:absolute;top:0;bottom:0;border-radius:6px;background:${bgColor};${isPos ? `left:50%;width:${pct}%;` : `right:50%;width:${pct}%;`}transition:width 0.3s ease;"></div>
+                                        </div>
+                                        <span id="rt-npc-detail-${type}-text" style="font-size:15px;font-weight:bold;width:40px;text-align:right;color:${valColor};font-family:monospace;">${clamped > 0 ? '+' : ''}${clamped}</span>
                                     </div>
-                                    <span style="font-size:15px;font-weight:bold;width:40px;text-align:right;color:${valColor};font-family:monospace;">${clamped > 0 ? '+' : ''}${clamped}</span>
+                                    <div style="display:flex;align-items:center;gap:10px;padding-left:32px;">
+                                        <input type="range" id="rt-npc-detail-${type}-slider" min="-100" max="100" value="${clamped}" step="5"
+                                            style="flex:1;accent-color:${bgColor};height:4px;background:rgba(255,255,255,0.1);border-radius:2px;cursor:pointer;outline:none;">
+                                    </div>
                                 </div>`;
                             };
 
                             const barsHtml = `
-                                ${makeBigBar(rel.friendship, 'Friendship', '#4ade80', '#ef4444', '🤝')}
-                                ${makeBigBar(rel.affection, 'Affection', '#f472b6', '#a855f7', '💗')}
+                                ${makeBigBar(rel.friendship, 'Friendship', '#4ade80', '#ef4444', '🤝', 'friendship')}
+                                ${makeBigBar(rel.affection, 'Affection', '#f472b6', '#a855f7', '💗', 'affection')}
                             `;
 
                             // Full-size portrait (512px stored, display at native res)
@@ -5122,6 +5174,58 @@ function createPanel() {
                             ctx.callGenericPopup(popupHtml, ctx.POPUP_TYPE?.TEXT ?? 1, '', {
                                 okButton: 'Close', cancelButton: false, wide: true, large: true,
                             });
+
+                            // Attach input change listeners to the sliders
+                            if (s.npcRelationshipBars) {
+                                setTimeout(() => {
+                                    ['friendship', 'affection'].forEach(type => {
+                                        const slider = document.getElementById(`rt-npc-detail-${type}-slider`);
+                                        if (!slider) return;
+                                        slider.addEventListener('input', (e) => {
+                                            const newVal = parseInt(e.target.value, 10);
+                                            // 1. Update text and fill
+                                            const textEl = document.getElementById(`rt-npc-detail-${type}-text`);
+                                            const fillEl = document.getElementById(`rt-npc-detail-${type}-fill`);
+                                            if (textEl) {
+                                                textEl.textContent = (newVal > 0 ? '+' : '') + newVal;
+                                            }
+                                            if (fillEl) {
+                                                const pct = Math.abs(newVal) / 2;
+                                                fillEl.style.width = `${pct}%`;
+                                                let bgColor = '';
+                                                if (newVal >= 0) {
+                                                    fillEl.style.left = '50%';
+                                                    fillEl.style.right = 'auto';
+                                                    bgColor = type === 'friendship' ? '#4ade80' : '#f472b6';
+                                                } else {
+                                                    fillEl.style.left = 'auto';
+                                                    fillEl.style.right = '50%';
+                                                    bgColor = type === 'friendship' ? '#ef4444' : '#a855f7';
+                                                }
+                                                fillEl.style.background = bgColor;
+                                                slider.style.accentColor = bgColor;
+                                                if (textEl) {
+                                                    textEl.style.color = newVal === 0 ? 'var(--SmartThemeEmColor, inherit)' : bgColor;
+                                                }
+                                            }
+
+                                            // 2. Save settings
+                                            const settings = getSettings();
+                                            if (!settings.npcRelationshipValues) settings.npcRelationshipValues = {};
+                                            if (!settings.npcRelationshipValues[item.id]) {
+                                                settings.npcRelationshipValues[item.id] = { friendship: 0, affection: 0 };
+                                            }
+                                            settings.npcRelationshipValues[item.id][type] = newVal;
+                                            saveSettings();
+                                        });
+
+                                        slider.addEventListener('change', () => {
+                                            // Trigger full manifest refresh on mouse release to clean up the card bars in grid
+                                            if (typeof refreshManifest === 'function') refreshManifest();
+                                        });
+                                    });
+                                }, 0);
+                            }
                         };
 
                         for (const item of items) {
@@ -8676,7 +8780,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.14.0'; // Fallback
+            let currentVersion = '3.15.0'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);

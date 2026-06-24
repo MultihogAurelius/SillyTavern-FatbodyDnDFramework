@@ -2,6 +2,16 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.15.0] - 2026-06-24
+
+### Added
+- **Interactive NPC Relationship Editor**: Added sliders to the NPC detail popup (View NPC card) enabling direct, manual adjustments to the Friendship and Affection levels from -100 to +100.
+- **Visual Separation of Core Identity and Dynamic History**: Split the parsed NPC description inside the details popup into distinct "Core Identity (Immutable)" and "Campaign History & Dynamic Lore" sections.
+- **Styled Timestamps**: Formatted timestamped entries inside the Campaign History section with high-contrast, inline badges.
+
+### Changed
+- **Strict CORE Block Guidelines**: Instructed the NPC AI model to start its output directly with the `[CORE]` block and avoid prepending timestamps or dates before the tag.
+
 ## [3.14.0] - 2026-06-24
 
 ### Changed
