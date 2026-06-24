@@ -23,6 +23,7 @@ export const MODULE_NAME = 'rpg_tracker';
 export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
     let instruction = `Named characters the party interacts with. Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed.
 
+<CORE_FORMAT>
 IMPORTANT: Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
 
 [CORE]
@@ -33,6 +34,7 @@ Habits/Behaviors: One or two defining behaviors or combat tendencies.
 [/CORE]
 
 After the [/CORE] block, append timestamped narrative updates as usual ([Day X, HH:MM] ...).
+</CORE_FORMAT>
 
 ## APPEARANCE UPDATES
 If the NPC's physical appearance changes significantly (major injury, permanent outfit change, etc.), output:
@@ -47,9 +49,12 @@ Output only the delta — do NOT write or track the relationship total. The curr
 
     instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.
 
-## CORE LENGTH TARGETS
+<CORE LENGTH TARGETS>
 Major NPCs (recurring, plot-important): target AT LEAST ${majorWords} words per each section of [CORE].
-Minor NPCs (shopkeepers, guards, one-off encounters): target AT LEAST ${minorWords} words per each section of [CORE].`;
+Minor NPCs (shopkeepers, guards, one-off encounters): target AT LEAST ${minorWords} words per each section of [CORE].
+
+Expand/extrapolate thematically if you can't otherwise meet the specified length targets.
+</CORE LENGTH TARGETS>`;
     return instruction;
 }
 
@@ -629,6 +634,14 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
             s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
         }
         s.settingsVersion = '3.13.0';
+    }
+
+    // Wrap CORE_FORMAT and CORE LENGTH TARGETS in XML tags (v3.14.0)
+    if (!s.settingsVersion || s.settingsVersion < '3.14.0') {
+        if (s.routerModules?.npc) {
+            s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
+        }
+        s.settingsVersion = '3.14.0';
     }
 
 

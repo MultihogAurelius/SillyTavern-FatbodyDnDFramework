@@ -2,6 +2,13 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.14.0] - 2026-06-24
+
+### Changed
+- **NPC Lore Identity Prompts**:
+  - Rebuilt the NPC generation prompt limits: moved from hard token budgets to section-specific word budget targets.
+  - Wrapped `CORE_FORMAT` contract details and `CORE LENGTH TARGETS` settings inside XML tags within the built-in system prompt to guide the LLM's adherence to template layouts and length limits.
+
 ## [3.11.4] - 2026-06-24
 
 ### Added
