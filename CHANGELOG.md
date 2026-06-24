@@ -2,6 +2,12 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.11.4] - 2026-06-24
+
+### Added
+- **Apply Sysprompt Button**:
+  - Restored the **Apply Sysprompt** button under the Narrator Configuration block in the General & Visuals menu.
+
 ## [3.11.3] - 2026-06-24
 
 ### Changed
@@ -40,6 +46,12 @@ NPCs V2.
 **Add NPC from Character Card (Experimental feature, disabled by default)**: A simple converter that allows inserting any character card you have on your SillyTavern folder into an on-going campaign, with an option to use AI to better fit it into the story. It's disabled by default because letting the Lorebook Agent create genuine NPCs is recommended over this, but is there in case you *really* want to see a card you like in the Multihog framework.
 
 **AI Portrait Generation**: High-quality AI portrait generation is now seamlessly integrated! Instantly generate visual representations of your NPCs and characters to bring your campaign to life.
+
+## [3.8.11] - 2026-06-24
+
+### Added
+- **Apply Sysprompt Button**:
+  - Restored the **Apply Sysprompt** button under the Narrator Configuration block in the General & Visuals menu.
 
 ## [3.8.10] - 2026-06-24
 
