@@ -7680,7 +7680,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.8.3'; // Fallback
+            let currentVersion = '3.8.4'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);
@@ -9293,7 +9293,7 @@ RULES:
             toastr['success']('Stock modules, order, and prompts reset to factory defaults.', 'RPG Tracker');
         });
         // ── Apply Sysprompt ──
-        $('#rpg_tracker_btn_update_sysprompt').on('click', async function () {
+        $('#rpg_tracker_btn_update_sysprompt, #rpg_tracker_btn_update_sysprompt_general').on('click', async function () {
             const fileName = getSettings().diceFunctionTool ? 'sysprompt.txt' : 'sysprompt_legacy.txt';
             let content;
             try {

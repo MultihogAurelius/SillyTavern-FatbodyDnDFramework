@@ -2,6 +2,13 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.8.4] - 2026-06-24
+
+### Changed
+- **Sysprompt Button Relocations**:
+  - Relocated the **Reset All & Apply** button out of the "Sysprompt Editor & Reset" drawer (SUB-DRAWER 5) and into "General & Visuals" (SUB-DRAWER 1), side-by-side with a duplicate **Apply Sysprompt** button below the Narrator Configuration system prompt builder block.
+  - Renamed the SUB-DRAWER 5 section header to "Apply Sysprompt" to match its updated content.
+
 ## [3.8.3] - 2026-06-24
 
 ### Changed

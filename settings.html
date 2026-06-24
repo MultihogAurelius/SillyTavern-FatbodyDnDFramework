@@ -195,6 +195,19 @@
 
                         </div>
 
+                        <div class="flex-container gap-1" style="margin-top: 6px;">
+                            <button id="rpg_tracker_btn_update_sysprompt_general" class="menu_button interactable"
+                                style="flex: 1; background: rgba(0, 200, 140, 0.18); border-color: #00c88c;"
+                                title="Fetches and writes the system prompt to your Quick Prompt Main box according to the current RNG mode settings (Normal vs. Legacy).">
+                                <i class="fa-solid fa-arrow-up-from-bracket"></i> Apply Sysprompt
+                            </button>
+                            <button id="rpg_tracker_btn_reset_and_apply_sysprompt" class="menu_button interactable"
+                                style="flex: 1; background: rgba(80, 140, 255, 0.18); border-color: #5588ff;"
+                                title="Resets ALL prompts (Core, Stock Modules, Block Order) and writes the current system prompt template to Quick Prompt Main box.">
+                                <i class="fa-solid fa-rotate"></i> Reset All &amp; Apply
+                            </button>
+                        </div>
+
                         <label class="checkbox_label">
                             <input id="rpg_tracker_legacy_dice" type="checkbox" />
                             <span>Legacy Dice Logic (Vanilla)</span>
@@ -1002,16 +1015,11 @@
                         </button>
 
                         <hr>
-                        <div style="font-weight: bold; font-size: 0.85em; opacity: 0.8; margin-bottom: 4px;">Apply &amp; Reset</div>
+                        <div style="font-weight: bold; font-size: 0.85em; opacity: 0.8; margin-bottom: 4px;">Apply Sysprompt</div>
                         <button id="rpg_tracker_btn_update_sysprompt" class="menu_button interactable"
                             style="width: 100%; background: rgba(0, 200, 140, 0.18); border-color: #00c88c;"
                             title="Fetches and writes the system prompt to your Quick Prompt Main box according to the current RNG mode settings (Normal vs. Legacy).">
                             <i class="fa-solid fa-arrow-up-from-bracket"></i> Apply Sysprompt
-                        </button>
-                        <button id="rpg_tracker_btn_reset_and_apply_sysprompt" class="menu_button interactable"
-                            style="width: 100%; margin-top: 4px; background: rgba(80, 140, 255, 0.18); border-color: #5588ff;"
-                            title="Resets ALL prompts (Core, Stock Modules, Block Order) and writes the current system prompt template to Quick Prompt Main box.">
-                            <i class="fa-solid fa-rotate"></i> Reset All &amp; Apply
                         </button>
                     </div>
                 </div>
