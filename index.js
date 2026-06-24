@@ -5022,13 +5022,13 @@ function createPanel() {
                         const npcGrid = document.createElement('div');
                         npcGrid.className = 'rt-npc-card-grid';
 
-                        // Helper: parse relationship values from NPC content
-                        const parseRelationship = (content) => {
-                            const friendMatch = content.match(/Friendship\/Rapport:\s*(-?\d+)\s*\/\s*100/i);
-                            const affectMatch = content.match(/Affection\/Interest:\s*(-?\d+)\s*\/\s*100/i);
+                        // Helper: parse relationship values — read from code-owned settings, not entry text
+                        const parseRelationship = (entryId) => {
+                            const s = getSettings();
+                            const rel = (s.npcRelationshipValues || {})[entryId];
                             return {
-                                friendship: friendMatch ? parseInt(friendMatch[1], 10) : 0,
-                                affection: affectMatch ? parseInt(affectMatch[1], 10) : 0,
+                                friendship: rel?.friendship ?? 0,
+                                affection:  rel?.affection  ?? 0,
                             };
                         };
 
@@ -5057,8 +5057,8 @@ function createPanel() {
                         // Helper: get brief synopsis for the card (pulls from Appearance section or first text)
                         const getNpcDescription = (content) => {
                             if (!content) return '';
-                            // Strip [LORE] and [/LORE] tags before parsing
-                            const cleanContent = content.replace(/\[\/?LORE\]/gi, '');
+                            // Strip [CORE] and [/CORE] tags before parsing
+                            const cleanContent = content.replace(/\[\/?CORE\]/gi, '');
                             // Try to extract Appearance section content first
                             const appMatch = cleanContent.match(/Appearance:\s*(.+?)(?=\s*(?:Personality|Brief Background|Habits|Behaviors|Relationship with|Friendship\/Rapport|Affection\/Interest):|$)/is);
                             if (appMatch && appMatch[1].trim()) {
@@ -5076,8 +5076,8 @@ function createPanel() {
                             const sections = {};
                             if (!content) return sections;
 
-                            // Strip [LORE] and [/LORE] tags before parsing
-                            const cleanContent = content.replace(/\[\/?LORE\]/gi, '');
+                            // Strip [CORE] and [/CORE] tags before parsing
+                            const cleanContent = content.replace(/\[\/?CORE\]/gi, '');
 
                             // Pre-split: inject newlines before known section markers so they become separate lines
                             // Use negative lookbehind so standalone "Behaviors" doesn't match inside "Habits/Behaviors"
@@ -5193,7 +5193,7 @@ function createPanel() {
                         };
 
                         for (const item of items) {
-                            const rel = parseRelationship(item.content || '');
+                            const rel = parseRelationship(item.id);
                             const desc = getNpcDescription(item.content);
                             const normLabel = item.label.replace(/\s*\(.*?\)/g, '').trim();
                             const portraitSrc = s.customPortraits?.[normLabel] || '';
@@ -5347,6 +5347,11 @@ function createPanel() {
                                     if (ok) {
                                         _dirtyEntries.delete(item.id);
                                         _openEntries.delete(item.id);
+                                        // Clean up code-owned relationship values for this NPC
+                                        const delSettings = getSettings();
+                                        if (delSettings.npcRelationshipValues) {
+                                            delete delSettings.npcRelationshipValues[item.id];
+                                        }
                                         await refreshManifest();
                                         toastr['success'](`Deleted "${item.label}"`, 'NPCs');
                                     }
@@ -5711,39 +5716,38 @@ function createPanel() {
                 }
             } else {
                 // Direct add: use name, description, personality (NOT scenario/first_mes)
-                const parts = ['[LORE]'];
+                const parts = ['[CORE]'];
                 if (charCard.description) parts.push(charCard.description.substring(0, 1500));
                 if (charCard.personality) parts.push(`Personality: ${charCard.personality.substring(0, 500)}`);
-                parts.push('[/LORE]');
-                if (s.npcRelationshipBars) {
-                    parts.push('Friendship/Rapport: 0/100');
-                    parts.push('Affection/Interest: 0/100');
-                }
+                parts.push('[/CORE]');
                 content = parts.join('\n');
             }
 
             // Ensure relationship fields are present even in adapted content (only if bars enabled)
             if (s.npcRelationshipBars && adaptedContent && !/Friendship\/Rapport:/i.test(content)) {
-                content += '\nFriendship/Rapport: 0/100\nAffection/Interest: 0/100';
+                // Legacy: adapted content from old prompt may still include bars text — strip it
+                content = content.replace(/\s*Friendship\/Rapport:[^\n]*/gi, '')
+                                 .replace(/\s*Affection\/Interest:[^\n]*/gi, '');
             }
 
-            // Ensure the content has a [LORE] wrap around the persistent sections
-            if (!/\[LORE\]/i.test(content)) {
+            // Ensure the content has a [CORE] wrap around the persistent sections
+            if (!/\[CORE\]/i.test(content)) {
                 const lines = content.split('\n');
-                const loreLines = [];
+                const coreLines = [];
                 const relLines = [];
                 for (const line of lines) {
                     const trimmed = line.trim();
                     if (/^Friendship\/Rapport:/i.test(trimmed) || /^Affection\/Interest:/i.test(trimmed)) {
-                        relLines.push(trimmed);
-                    } else if (trimmed || loreLines.length > 0) {
-                        loreLines.push(line);
+                        // Drop legacy text-based bar lines — values are now code-owned
+                        continue;
+                    } else if (trimmed || coreLines.length > 0) {
+                        coreLines.push(line);
                     }
                 }
-                while (loreLines.length > 0 && !loreLines[loreLines.length - 1].trim()) {
-                    loreLines.pop();
+                while (coreLines.length > 0 && !coreLines[coreLines.length - 1].trim()) {
+                    coreLines.pop();
                 }
-                content = `[LORE]\n${loreLines.join('\n')}\n[/LORE]` + (relLines.length > 0 ? '\n' + relLines.join('\n') : '');
+                content = `[CORE]\n${coreLines.join('\n')}\n[/CORE]`;
             }
 
             // Load or create the book
@@ -5818,6 +5822,12 @@ function createPanel() {
             const fullId = `${bookName}::${nextUid}`;
             if (!s.activeRouterKeys.includes(fullId)) {
                 s.activeRouterKeys.push(fullId);
+            }
+
+            // Initialise code-owned relationship values for this NPC
+            if (!s.npcRelationshipValues) s.npcRelationshipValues = {};
+            if (!s.npcRelationshipValues[fullId]) {
+                s.npcRelationshipValues[fullId] = { friendship: 0, affection: 0 };
             }
 
             // Embed avatar as portrait
@@ -5919,7 +5929,7 @@ Rules:
 - Your output MUST be strictly formatted as a lorebook entry tag. It MUST look EXACTLY like this:
   [[NPC: Name | Description | keywords]]
 - Replace "Name" with the character's name.
-- Replace "Description" with the full formatted description section. Wrap all the persistent sections (Appearance, Personality, Brief Background, Habits/Behaviors, Relationship with {{user}}) inside a single [LORE] and [/LORE] tag block within the Description. DO NOT use the "|" character inside the Description; separate the internal sections using newlines.
+- Replace "Description" with the full formatted description section. Wrap all the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single [CORE] and [/CORE] tag block within the Description. DO NOT include a Relationship field. DO NOT use the "|" character inside the Description; separate the internal sections using newlines.
 - Replace "keywords" with a comma-separated list of keywords including their name.
 - Output ONLY this single [[NPC: ...]] string. No preamble, no explanation, no other tags.`;
 
@@ -8730,7 +8740,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.8.1'; // Fallback
+            let currentVersion = '3.11.1'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);

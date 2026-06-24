@@ -253,6 +253,7 @@ The active context contains recent "World Progression" reports detailing backgro
 END OF EACH OUTPUT (required):
 *(Status: [HP]) | (XP: [current]/[next level]) | (Location: [Main, Sub, Sub-sub, etc])*
 *Level [X] | [HH:MM AM/PM], Day [X]*
+- IMPORTANT: The status footer MUST display ONLY {{user}}'s current HP, XP, level, and location. Never include status, HP, or names of party members/NPCs here.
 </end_of_output_footer>
 
 <party_join_leave>

@@ -16,26 +16,48 @@ export const MODULE_NAME = 'rpg_tracker';
 
 /**
  * Builds the NPC instruction string based on current NPC settings.
- * @param {boolean} includeRelationships
  * @param {number} majorTokens
  * @param {number} minorTokens
  * @returns {string}
  */
-export function buildNpcInstruction(includeRelationships = false, majorTokens = 125, minorTokens = 100) {
-    let instruction = 'Named characters the party interacts with. Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed.\n\nIMPORTANT: Wrap the persistent lore sections (Appearance, Personality, Brief Background, Habits/Behaviors, Relationship with {{user}}) inside a single `[LORE]` and `[/LORE]` tag block. The Description field inside the [[ ]] tags must contain this block.\n\n[LORE]\nAppearance: Key visual identifiers only — race, build, most distinctive feature, weapon/armor if relevant.\nPersonality: Core temperament and primary motivation in a few words.\nBrief Background: Role in the world, why they matter to the story.\nHabits/Behaviors: One or two defining behaviors or combat tendencies.\nRelationship with {{user}}: Current standing and attitude.\n[/LORE]';
-    
-    if (includeRelationships) {
-        instruction += '\nFriendship/Rapport: 0/100\nAffection/Interest: 0/100\n\nThe Friendship and Affection values CAN be negative (e.g. -45/100) representing hostility or disgust. Range: -100 to 100. Start new NPCs at 0/100 for both. Update as interactions warrant.';
-    }
+export function buildNpcInstruction(majorTokens = 125, minorTokens = 100) {
+    let instruction = 'Named characters the party interacts with. Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed.\
+\
+\
+IMPORTANT: Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single `[CORE]` and `[/CORE]` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.\
+\
+\
+[CORE]\
+Appearance: Key visual identifiers only — race, build, most distinctive feature, weapon/armor if relevant.\
+Personality: Core temperament and primary motivation in a few words.\
+Brief Background: Role in the world, why they matter to the story.\
+Habits/Behaviors: One or two defining behaviors or combat tendencies.\
+[/CORE]\
+\
+\
+After the [/CORE] block, append timestamped narrative updates as usual ([Day X, HH:MM] ...).\
+\
+\
+## APPEARANCE UPDATES\
+If the NPC\'s physical appearance changes significantly (major injury, permanent outfit change, etc.), output:\
+  [[UPDATE_APPEARANCE: Book::UID | New appearance text]]\
+This surgically replaces only the Appearance field inside [CORE]. Do NOT write appearance changes as event/update entries.\
+\
+\
+## RELATIONSHIP DELTAS\
+If the NPC\'s relationship with the player meaningfully changes based on what happened, output:\
+  [[REL: Book::UID | Friendship | +N]] or [[REL: Book::UID | Friendship | -N]]\
+  [[REL: Book::UID | Affection | +N]] or [[REL: Book::UID | Affection | -N]]\
+Output only the delta — do NOT write or track the relationship total. The current total is intentionally hidden from you so your judgment stays anchored to the quality of the interaction, not the existing pool. A constraint warning will appear in the entry only if a value has reached its hard limit (100 or -100); in that case, do not award further increments in the capped direction. Use your judgment on magnitude (typical range: ±5 to ±25 per turn).';
 
-    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.\n\n[TOKEN LIMITS]\nMajor NPCs (recurring, plot-important): no more than ${majorTokens} tokens.\nMinor NPCs (shopkeepers, guards, one-off encounters): no more than ${minorTokens} tokens — use only Appearance and Personality for minor NPCs (also wrapped in [LORE]...[/LORE]), skip other sections.`;
+    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.\n\n[TOKEN LIMITS]\nMajor NPCs (recurring, plot-important): no more than ${majorTokens} tokens.\nMinor NPCs (shopkeepers, guards, one-off encounters): no more than ${minorTokens} tokens — use only Appearance and Personality for minor NPCs (also wrapped in [CORE]...[/CORE]), skip other sections.`;
     return instruction;
 }
 
 
 // ── Default module definitions (single source of truth for reset logic) ─────────
 export const DEFAULT_MODULES = {
-    npc:   { enabled: true, tag: 'NPC',   format: 'Name | Description | Keywords',                    instruction: buildNpcInstruction(false) },
+    npc:   { enabled: true, tag: 'NPC',   format: 'Name | Description | Keywords',                    instruction: buildNpcInstruction() },
     loc:   { enabled: true, tag: 'LOC',   format: 'Name | Description | Keywords',                    instruction: 'Named places. The Name MUST be the full hierarchical path using " :: " as the separator (e.g. "Khelt :: Rust-Lantern District :: Marrow-Deep Mines Office"). Include each ancestor name as a keyword (e.g. "Khelt, Rust-Lantern District, mines").' },
     fac:   { enabled: true, tag: 'FAC',   format: 'Name | Status | Description | Keywords',           instruction: 'Named factions, guilds, organisations. **Status**: short current-state line (standing with the party, active conflicts, what changed recently). **Description**: longer narrative (history, ideology, schemes, notable members). **Keywords**: comma-separated terms for discovery.' },
     quest: { enabled: true, tag: 'QUEST', format: 'Name | Location | Description | Keywords',         instruction: 'ONLY record a quest if the tag [QUEST ACCEPTED] is outputted in the narrative. A quest being mentioned or offered is NOT enough.' },
@@ -88,6 +110,7 @@ export function getSettings() {
         npcMajorTokens: 125,
         npcMinorTokens: 100,
         npcRelationshipBars: false,
+        npcRelationshipValues: {},
         experimentalNpcImport: true,
         barColors: {},
         modulePageSizes: {},
@@ -559,9 +582,23 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         if (s.npcRelationshipBars === undefined) s.npcRelationshipBars = false;
         // Rebuild instruction from current settings
         if (s.routerModules?.npc) {
-            s.routerModules.npc.instruction = buildNpcInstruction(s.npcRelationshipBars, s.npcMajorTokens, s.npcMinorTokens);
+            s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorTokens, s.npcMinorTokens);
         }
         s.settingsVersion = '3.10.0';
+    }
+
+    // Migrate NPC system to [CORE] tag, code-owned relationship bars, and delta-based updates (v3.11.0)
+    if (!s.settingsVersion || s.settingsVersion < '3.11.0') {
+        // Initialize relationship value store
+        if (!s.npcRelationshipValues) s.npcRelationshipValues = {};
+        // Force-rebuild NPC instruction to new format
+        if (s.routerModules?.npc) {
+            s.routerModules.npc.instruction = buildNpcInstruction(
+                s.npcMajorTokens ?? 125,
+                s.npcMinorTokens ?? 100
+            );
+        }
+        s.settingsVersion = '3.11.0';
     }
 
 

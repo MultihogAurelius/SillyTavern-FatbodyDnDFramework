@@ -2,6 +2,12 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.11.1] - 2026-06-24
+
+### Fixed
+- **System Prompts Footer**:
+  - Restructured `<end_of_output_footer>` to explicitly instruct the narrator to output ONLY {{user}}'s current HP, XP, level, and location, preventing the display of other party members' stats.
+
 ## [3.11.0] - 2026-06-24
 
 ### Added
