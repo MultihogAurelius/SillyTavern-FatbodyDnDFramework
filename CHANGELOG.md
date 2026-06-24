@@ -2,6 +2,13 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.8.5] - 2026-06-24
+
+### Removed
+- **Experimental Features**:
+  - Completely stripped the **Experimental Features** sub-drawer from settings.html.
+  - Removed all corresponding Javascript logic, default options, and UI bindings for **Half Review Mode** and **Full Review Mode**.
+
 ## [3.8.4] - 2026-06-24
 
 ### Changed

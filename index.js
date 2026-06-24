@@ -1954,73 +1954,10 @@ async function runStateModelPass(narrativeOutput, isFullContext = false, overrid
 
         const modulesText = buildModulesInstructionText(settings);
         let systemPrompt = settings.systemPromptTemplate.replace('{{modulesText}}', modulesText);
-        const useHalfReview = !isFullContext && !!settings.experimentalHalfReviewMode;
-        const useFullReview = !isFullContext && !!settings.experimentalFullReviewMode;
         if (isFullContext) {
             systemPrompt = systemPrompt
                 .replace(/Only output sections that actually changed/gi, 'Perform a full audit of the narrative history and output the COMPLETE state for all enabled modules')
                 .replace(/Omit unchanged sections entirely/gi, 'Do NOT omit any section; output a complete, verified state memo');
-        } else if (useFullReview) {
-            // AGGRESSIVE Full Review Mode: completely rewrite the system prompt to force total state output
-            const enabledModuleTags = [];
-            const moduleMap = { character: 'CHARACTER', party: 'PARTY', combat: 'COMBAT', inventory: 'INVENTORY', abilities: 'ABILITIES', spells: 'SPELLS', time: 'TIME', xp: 'XP', quests: 'QUESTS' };
-            for (const [key, tag] of Object.entries(moduleMap)) {
-                if (settings.modules?.[key] !== false) enabledModuleTags.push(`[${tag}]`);
-            }
-            (settings.customFields || []).forEach(f => { if (f.enabled) enabledModuleTags.push(`[${f.tag.toUpperCase()}]`); });
-            const tagList = enabledModuleTags.join(', ');
-
-            systemPrompt = `You are the State Extractor Model operating in MANDATORY FULL REVIEW MODE.
-Your task is to output the COMPLETE, VERIFIED state for EVERY SINGLE enabled module. This is NOT optional.
-
-<modules>
-${modulesText}
-</modules>
-
-<absolute_rules>
-CRITICAL DIRECTIVE — FULL STATE RECONSTRUCTION:
-1. You MUST review and output EVERY SINGLE section: ${tagList}
-2. FAILURE TO OUTPUT ANY SECTION IS A CRITICAL ERROR. You have FAILED your task if even ONE section is missing.
-3. Do NOT use NO_CHANGES_DETECTED. That response is FORBIDDEN in Full Review Mode.
-4. Go through each section ONE BY ONE. For each section, verify every field, every sub-field, every value against the narrative.
-5. Output the COMPLETE contents of each section — not just changes, but the ENTIRE state.
-6. Include ALL custom fields. Custom fields are EQUALLY important as stock fields.
-7. Use strict [TAG]...[/TAG] structure. ALWAYS include the closing tag.
-8. BLOCK PERSISTENCE: For list-based sections ([PARTY], [INVENTORY], [ABILITIES], [SPELLS], [COMBAT]), output the ENTIRE section with ALL items.
-9. No preamble, no explanation, no commentary. Output ONLY the state memo sections.
-</absolute_rules>
-
-<list_formatting>
-For sections with multiple items ([ABILITIES], [INVENTORY], [SPELLS], [PARTY]):
-1. Use a bulleted list with \`-\`.
-2. Format: \`- Name (Resource/Max, Effect Description)\`.
-3. If no resource tracker is needed, use: \`- Name (Effect Description)\`.
-4. The parentheses MUST contain the resource count FIRST, followed by a comma, then the description.
-</list_formatting>
-
-<buff_debuff_logic>
-Duration Tracking: Record all durations explicitly. Use turns for combat (e.g., for 3 turns) and H:M for narrative time (e.g., 1h 30m).
-Restoration Anchors: When a buff or debuff modifies a base statistic (AC, Attributes, etc.), record the base value directly in the respective field—e.g., 'AC 18 (base 13)'.
-Status Formatting: Output the buff/debuff in the Status line with its absolute mathematical effect in parentheses. Example: 'Shield (+5 AC, 1 turn)'.
-STATUS LABELING: In [CHARACTER], [PARTY], and [COMBAT] blocks, prefix positive status effects (buffs) with \`(+)\` and negative status effects (debuffs) with \`(-)\`.
-</buff_debuff_logic>
-
-<custom_formatting>
-You may be asked to use Markers: ((PLS)), ((B)), ((XB)), ((BDG)), ((HGT)). These are for graphical rendering options; use them if instructed but only if instructed in a specific [MODULE].
-</custom_formatting>`;
-            if (settings.debugMode) console.log('[RPG Tracker] AGGRESSIVE Full Review Mode active — system prompt completely rewritten for mandatory full state output.');
-        } else if (useHalfReview) {
-            // Half Review Mode: regex-based tweaks to request complete state output (medium intensity)
-            systemPrompt = systemPrompt
-                .replace(/Determine which sections changed\. Only output sections that actually changed\./gi,
-                    'Review every section against the narrative. Output ALL sections with their current verified state.')
-                .replace(/Omit unchanged sections entirely\. Do NOT output a section if its contents did not change\./gi,
-                    'Output EVERY section, even if unchanged. Verify each field is accurate and up-to-date.')
-                .replace(/If there are absolutely NO CHANGES to any section, you MUST output exactly: `NO_CHANGES_DETECTED`/gi,
-                    'Always output the complete state memo. Never output NO_CHANGES_DETECTED in half review mode.')
-                .replace(/Output ONLY the changed sections \(or NO_CHANGES_DETECTED\)\. No preamble, no explanation, no commentary\./gi,
-                    'Output the COMPLETE state memo for all enabled modules. No preamble, no explanation, no commentary.');
-            if (settings.debugMode) console.log('[RPG Tracker] Half Review Mode active — system prompt tweaked for complete state output.');
         }
 
 
@@ -7680,7 +7617,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.8.4'; // Fallback
+            let currentVersion = '3.8.5'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);
@@ -8660,37 +8597,7 @@ function buildSysprompt(rawText) {
             });
         }
 
-        // ── Experimental Features ──
 
-        $('#rpg_tracker_experimental_half_review').prop('checked', !!settings.experimentalHalfReviewMode).on('change', function () {
-            settings.experimentalHalfReviewMode = !!$(this).prop('checked');
-            if (settings.experimentalHalfReviewMode && settings.experimentalFullReviewMode) {
-                settings.experimentalFullReviewMode = false;
-                $('#rpg_tracker_experimental_full_review').prop('checked', false);
-            }
-            saveSettings();
-            toastr['info'](
-                settings.experimentalHalfReviewMode
-                    ? 'Half Review Mode enabled. The State Tracker will output ALL sections using regex-adjusted prompts.'
-                    : 'Half Review Mode disabled. The State Tracker will only output changed sections.',
-                'Experimental Features'
-            );
-        });
-
-        $('#rpg_tracker_experimental_full_review').prop('checked', !!settings.experimentalFullReviewMode).on('change', function () {
-            settings.experimentalFullReviewMode = !!$(this).prop('checked');
-            if (settings.experimentalFullReviewMode && settings.experimentalHalfReviewMode) {
-                settings.experimentalHalfReviewMode = false;
-                $('#rpg_tracker_experimental_half_review').prop('checked', false);
-            }
-            saveSettings();
-            toastr['info'](
-                settings.experimentalFullReviewMode
-                    ? 'FULL Review Mode enabled. The State Tracker will AGGRESSIVELY force complete state output for every section including custom fields.'
-                    : 'Full Review Mode disabled. The State Tracker will only output changed sections.',
-                'Experimental Features'
-            );
-        });
 
         // ── Lorebook Context UI ──
         async function refreshLorebookList() {
