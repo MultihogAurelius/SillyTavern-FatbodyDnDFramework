@@ -4924,9 +4924,15 @@ function createPanel() {
                                     updS.npcMinorTokens = newMinor;
                                     updS.npcRelationshipBars = newRel;
 
+                                    // Update the main settings panel inputs if present
+                                    $('#rpg_tracker_npc_major_tokens').val(newMajor);
+                                    $('#rpg_tracker_npc_minor_tokens').val(newMinor);
+                                    $('#rpg_tracker_npc_rel_bars').prop('checked', newRel);
+                                    $('#rpg_tracker_npc_card_import').prop('checked', newImport);
+
                                     // Rebuild the NPC instruction from settings
                                     if (updS.routerModules?.npc) {
-                                        updS.routerModules.npc.instruction = buildNpcInstruction(newRel, newMajor, newMinor);
+                                        updS.routerModules.npc.instruction = buildNpcInstruction(newMajor, newMinor);
                                     }
 
                                     SillyTavern.getContext().saveSettingsDebounced?.();
@@ -8711,6 +8717,10 @@ function buildSysprompt(rawText) {
                         if ($suffixPromptEl.length) {
                             $suffixPromptEl.val(sTempTracker.userPromptSuffix);
                         }
+                        $('#rpg_tracker_npc_major_tokens').val(sTempTracker.npcMajorTokens ?? 125);
+                        $('#rpg_tracker_npc_minor_tokens').val(sTempTracker.npcMinorTokens ?? 100);
+                        $('#rpg_tracker_npc_rel_bars').prop('checked', !!sTempTracker.npcRelationshipBars);
+                        $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
                         if (typeof refreshOrderList === 'function') refreshOrderList();
 
                         // 3. Lorebook Agent
@@ -8893,6 +8903,10 @@ function buildSysprompt(rawText) {
                                     if ($suffixPromptEl.length) {
                                         $suffixPromptEl.val(sTempTracker.userPromptSuffix);
                                     }
+                                    $('#rpg_tracker_npc_major_tokens').val(sTempTracker.npcMajorTokens ?? 125);
+                                    $('#rpg_tracker_npc_minor_tokens').val(sTempTracker.npcMinorTokens ?? 100);
+                                    $('#rpg_tracker_npc_rel_bars').prop('checked', !!sTempTracker.npcRelationshipBars);
+                                    $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
                                     if (typeof refreshOrderList === 'function') refreshOrderList();
                                     resetCount++;
                                     console.log('[RPG Tracker] State tracker prompts reset to defaults.');
@@ -11434,6 +11448,32 @@ RULES:
         $('#rpg_tracker_router_max_keyword_overflow').val(settings.routerMaxKeywordOverflow ?? 0).on('input', function () {
             settings.routerMaxKeywordOverflow = parseInt(String($(this).val() || '')) || 0;
             $('#rt-agent-router-kw-overflow-cap').val(settings.routerMaxKeywordOverflow);
+            saveSettings();
+        });
+
+        // NPC Settings Bindings
+        $('#rpg_tracker_npc_major_tokens').val(settings.npcMajorTokens ?? 125).on('input', function () {
+            const val = parseInt(String($(this).val() || '')) || 125;
+            settings.npcMajorTokens = Math.max(50, Math.min(1000, val));
+            if (settings.routerModules?.npc) {
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorTokens, settings.npcMinorTokens);
+            }
+            saveSettings();
+        });
+        $('#rpg_tracker_npc_minor_tokens').val(settings.npcMinorTokens ?? 100).on('input', function () {
+            const val = parseInt(String($(this).val() || '')) || 100;
+            settings.npcMinorTokens = Math.max(30, Math.min(500, val));
+            if (settings.routerModules?.npc) {
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorTokens, settings.npcMinorTokens);
+            }
+            saveSettings();
+        });
+        $('#rpg_tracker_npc_rel_bars').prop('checked', !!settings.npcRelationshipBars).on('change', function () {
+            settings.npcRelationshipBars = $(this).prop('checked');
+            saveSettings();
+        });
+        $('#rpg_tracker_npc_card_import').prop('checked', !!settings.experimentalNpcImport).on('change', function () {
+            settings.experimentalNpcImport = $(this).prop('checked');
             saveSettings();
         });
 

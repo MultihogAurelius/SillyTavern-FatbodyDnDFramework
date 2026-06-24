@@ -500,6 +500,35 @@
                             </div>
                         </div>
 
+                        <!-- NPC Settings -->
+                        <div class="inline-drawer">
+                            <div class="inline-drawer-toggle inline-drawer-header">
+                                <i class="fa-solid fa-user-gear" style="opacity: 0.7; margin-right: 5px;"></i><b>NPC Settings</b>
+                                <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
+                            </div>
+                            <div class="inline-drawer-content">
+                                <div class="flex-container flexFlowColumn gap-1">
+                                    <label style="font-size: 11px; opacity: 0.7;">Major NPC Token Limit</label>
+                                    <input id="rpg_tracker_npc_major_tokens" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="125" title="Recurring, plot-important NPCs. Default: 125" />
+                                    
+                                    <label style="font-size: 11px; opacity: 0.7;">Minor NPC Token Limit</label>
+                                    <input id="rpg_tracker_npc_minor_tokens" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="100" title="Shopkeepers, guards, one-off encounters. Default: 100" />
+                                    
+                                    <label class="checkbox_label">
+                                        <input id="rpg_tracker_npc_rel_bars" type="checkbox" />
+                                        <span>Relationship Bars</span>
+                                        <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Shows Friendship/Affection tracking bars on NPC cards and popups. Also adds relationship fields to the AI instruction."></i>
+                                    </label>
+
+                                    <label class="checkbox_label">
+                                        <input id="rpg_tracker_npc_card_import" type="checkbox" />
+                                        <span>Character Card Converter</span>
+                                        <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Shows the 'Add NPC from Character Card' button. This allows importing character cards into campaigns with AI review."></i>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Active Lore Injection Settings -->
                         <div class="inline-drawer">
                             <div class="inline-drawer-toggle inline-drawer-header">
