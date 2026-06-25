@@ -538,7 +538,7 @@ For each flagged entry:
                     : agentInstructionPrompt + `
 
 ## ACTIONS
-You do NOT have access to native function calling. Output exactly ONE action per turn in plain text:
+You do NOT have access to native function calling. Output exactly ONE action per turn in plain text (do NOT use markdown bold/italic formatting on the 'Action:' or 'Thought:' labels, write them as plain text):
   Action: toolname({"arg": "value"})
 
 Available actions:
@@ -1068,7 +1068,7 @@ Use grep_lore / inspect_book / read_entry to look up existing data before record
 When research is complete, output commit once to write all changes, then stop.
 
 ## ACTIONS
-Output exactly ONE action per turn in this format:
+Output exactly ONE action per turn in this format (do NOT use markdown bold/italic formatting on the 'Action:' or 'Thought:' labels, write them as plain text):
   Action: toolname({"arg": "value"})
 
 Available actions:

@@ -2,6 +2,11 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.16.7] - 2026-06-25
+
+### Changed
+- **Plain Text Action Prompts**: Instructed text-mode agent prompts (both for main research agent and cleanup agent) not to wrap `Action:` or `Thought:` labels in markdown bold/italic tags, reinforcing clean formatting from the model side as well.
+
 ## [3.16.6] - 2026-06-25
 
 ### Changed
