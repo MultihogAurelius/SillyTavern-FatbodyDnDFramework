@@ -817,12 +817,6 @@ export async function processRelationshipTags() {
         let msgHasMatch = false;
         
         const newMes = msg.mes.replace(REL_RE, (matchStr, name, field, delta, offset, fullString) => {
-            // Ignore if already inside an HTML comment
-            const before = fullString.substring(0, offset);
-            if (before.lastIndexOf('<!--') > before.lastIndexOf('-->')) {
-                return matchStr; // Return unchanged
-            }
-
             // Clean the extracted values to be completely indestructible against LLM formatting quirks
             const cleanName = name.replace(/[\u200B\uFEFF]/g, '').trim();
             const cleanField = field.replace(/[^a-z]/gi, '').toLowerCase();
@@ -836,8 +830,19 @@ export async function processRelationshipTags() {
                     delta: parsedDelta 
                 });
                 msgHasMatch = true;
-                // Wrap in standard HTML comments so it is natively hidden by the Markdown parser
-                return `<!-- ${matchStr} -->`;
+                
+                // Mark as processed to prevent infinite loops on rescans
+                const processedStr = matchStr.replace(/\[REL:/i, '[PROCESSED_REL:');
+                
+                // If it is ALREADY inside an HTML comment (e.g. generated inside <!--TRACKER:), 
+                // do NOT wrap it again to prevent illegal nested comments.
+                const before = fullString.substring(0, offset);
+                if (before.lastIndexOf('<!--') > before.lastIndexOf('-->')) {
+                    return processedStr; 
+                }
+
+                // If it's visible text, wrap it in standard HTML comments so ST hides it natively
+                return `<!-- ${processedStr} -->`;
             }
 
             return matchStr; // If it was malformed beyond repair, don't touch it
@@ -875,9 +880,10 @@ export async function processRelationshipTags() {
         for (const el of lastMesEls) {
             if (el.innerHTML.includes('[REL:')) {
                 el.innerHTML = el.innerHTML.replace(REL_RE, (matchStr, name, field, delta, offset, fullString) => {
+                    const processedStr = matchStr.replace(/\[REL:/i, '[PROCESSED_REL:');
                     const before = fullString.substring(0, offset);
-                    if (before.lastIndexOf('<!--') > before.lastIndexOf('-->')) return matchStr;
-                    return `<!--TRACKER: ${matchStr}-->`;
+                    if (before.lastIndexOf('<!--') > before.lastIndexOf('-->')) return processedStr;
+                    return `<!-- ${processedStr} -->`;
                 });
             }
         }
