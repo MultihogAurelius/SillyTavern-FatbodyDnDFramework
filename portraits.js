@@ -1,4 +1,4 @@
-import { getSettings } from './state-manager.js';
+import { getSettings, getEffectiveRouterCampaignPrefix } from './state-manager.js';
 import { saveSettings } from './index.js';
 import { sendStateRequest } from './llm-client.js';
 import { parseMemoBlocks } from './renderer.js';
@@ -965,26 +965,39 @@ export function getEnemyEntities() {
  * @param {string} name
  * @param {function} refresh - callback to refresh the UI on success
  */
-export function triggerBackgroundPortraitGeneration(name, refresh) {
-    if (hasPortrait(name)) return;
-    if (activeGenerations.has(name)) return;
+export function triggerBackgroundPortraitGeneration(name, refresh, npcContent = null) {
+    const alreadyHas = hasPortrait(name);
+    const alreadyGenerating = activeGenerations.has(name);
+    console.log(`[RPG Tracker] triggerBackgroundPortraitGeneration for "${name}". alreadyHasPortrait:`, alreadyHas, `alreadyGenerating:`, alreadyGenerating);
+    if (alreadyHas) return;
+    if (alreadyGenerating) return;
 
     activeGenerations.add(name);
     toastr['info'](`Auto-generating portrait for ${name} in background...`, 'RPG Tracker');
 
     (async () => {
         try {
-            const prompt = await generatePortraitPrompt(name);
+            console.log(`[RPG Tracker] Generating prompt for "${name}" (NPC content provided: ${!!npcContent})`);
+            const prompt = npcContent
+                ? await generateNpcPortraitPrompt(name, npcContent)
+                : await generatePortraitPrompt(name);
+            console.log(`[RPG Tracker] Generated prompt for "${name}":`, prompt);
             if (!prompt) {
                 console.warn(`[RPG Tracker] Could not generate prompt for ${name} - no context found.`);
                 activeGenerations.delete(name);
                 return;
             }
+            console.log(`[RPG Tracker] Calling generatePortraitDirect for "${name}"...`);
             const dataUrl = await generatePortraitDirect(prompt, name);
+            console.log(`[RPG Tracker] Successfully received portrait dataUrl for "${name}". Scaling...`);
             const scaled = await scaleImageTo512Square(dataUrl);
+            console.log(`[RPG Tracker] Applying portrait data for "${name}"...`);
             applyPortraitData(name, scaled);
             toastr['success'](`Portrait auto-generated and applied for ${name}!`, 'RPG Tracker');
-            if (typeof refresh === 'function') refresh();
+            if (typeof refresh === 'function') {
+                console.log(`[RPG Tracker] Triggering UI refresh callback...`);
+                refresh();
+            }
         } catch (err) {
             console.error(`[RPG Tracker] Background portrait generation failed for ${name}:`, err);
             const errMsg = String(err.message || err);
@@ -1000,6 +1013,7 @@ export function triggerBackgroundPortraitGeneration(name, refresh) {
             }
         } finally {
             activeGenerations.delete(name);
+            console.log(`[RPG Tracker] Removed "${name}" from activeGenerations. Remaining:`, Array.from(activeGenerations));
         }
     })();
 }
@@ -1013,6 +1027,7 @@ let isFirstCheck = true;
  * Called when switching chats or starting a new session.
  */
 export function resetAutoGenerationTracking() {
+    console.log('[RPG Tracker] resetAutoGenerationTracking called. Clearing knownEntities and resetting isFirstCheck to true.');
     knownEntities.clear();
     isFirstCheck = true;
 }
@@ -1022,12 +1037,14 @@ export function resetAutoGenerationTracking() {
  * Used when the user explicitly enables auto-generation options in the settings panel.
  * @param {function} refresh - callback to refresh the UI
  */
-export function forceCheckAutoGenerations(refresh) {
+export async function forceCheckAutoGenerations(refresh) {
     const s = getSettings();
+    console.log('[RPG Tracker] forceCheckAutoGenerations called. Settings enablePortraits:', s.enablePortraits);
     if (s.enablePortraits === false) return;
 
     if (s.portraitAutoGenerateParty) {
         const party = getPartyMembers();
+        console.log('[RPG Tracker] forceCheckAutoGenerations: checking party:', party);
         for (const name of party) {
             knownEntities.add(name.toUpperCase());
             triggerBackgroundPortraitGeneration(name, refresh);
@@ -1036,9 +1053,43 @@ export function forceCheckAutoGenerations(refresh) {
 
     if (s.portraitAutoGenerateEnemies) {
         const enemies = getEnemyEntities();
+        console.log('[RPG Tracker] forceCheckAutoGenerations: checking enemies:', enemies);
         for (const name of enemies) {
             knownEntities.add(name.toUpperCase());
             triggerBackgroundPortraitGeneration(name, refresh);
+        }
+    }
+
+    if (s.portraitAutoGenerateNpcs) {
+        const ctx = SillyTavern.getContext();
+        console.log('[RPG Tracker] forceCheckAutoGenerations: checking NPCs. chatId:', ctx.chatId);
+        if (ctx.chatId) {
+            const prefix = getEffectiveRouterCampaignPrefix(ctx.chatId);
+            const bookName = prefix ? `${prefix}_NPCs` : 'NPCs';
+            console.log('[RPG Tracker] forceCheckAutoGenerations: bookName:', bookName);
+            try {
+                if (typeof ctx.updateWorldInfoList === 'function') {
+                    console.log('[RPG Tracker] forceCheckAutoGenerations: updating world info list...');
+                    await ctx.updateWorldInfoList();
+                }
+                const book = await ctx.loadWorldInfo(bookName);
+                if (book && book.entries) {
+                    const entries = Object.values(book.entries);
+                    console.log('[RPG Tracker] forceCheckAutoGenerations: loaded book entries count:', entries.length);
+                    for (const entry of entries) {
+                        const name = (entry.comment || '').trim();
+                        if (name) {
+                            console.log('[RPG Tracker] forceCheckAutoGenerations: forcing NPC:', name);
+                            knownEntities.add(name.toUpperCase());
+                            triggerBackgroundPortraitGeneration(name, refresh, entry.content || '');
+                        }
+                    }
+                } else {
+                    console.log('[RPG Tracker] forceCheckAutoGenerations: book not found or empty:', bookName);
+                }
+            } catch (e) {
+                console.error('[RPG Tracker] forceCheckAutoGenerations NPC check error:', e);
+            }
         }
     }
 }
@@ -1047,15 +1098,49 @@ export function forceCheckAutoGenerations(refresh) {
  * Checks if auto-generation is enabled and triggers it ONLY for newly added entities (not in knownEntities).
  * @param {function} refresh - callback to refresh the UI when done
  */
-export function checkAndTriggerAutoGenerations(refresh) {
+export async function checkAndTriggerAutoGenerations(refresh) {
     const s = getSettings();
-    if (s.enablePortraits === false) return;
+    console.log('[RPG Tracker] checkAndTriggerAutoGenerations invoked. enablePortraits:', s.enablePortraits, 'isFirstCheck:', isFirstCheck);
+    if (s.enablePortraits === false) {
+        console.log('[RPG Tracker] checkAndTriggerAutoGenerations: enablePortraits is false. Exiting.');
+        return;
+    }
 
     const currentParty = getPartyMembers();
     const currentEnemies = getEnemyEntities();
+    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: currentParty:', currentParty, 'currentEnemies:', currentEnemies);
+
+    // Fetch NPCs from lorebook if option enabled
+    let npcEntries = [];
+    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: portraitAutoGenerateNpcs settings:', s.portraitAutoGenerateNpcs);
+    if (s.portraitAutoGenerateNpcs) {
+        const ctx = SillyTavern.getContext();
+        console.log('[RPG Tracker] checkAndTriggerAutoGenerations: ctx.chatId:', ctx.chatId);
+        if (ctx.chatId) {
+            const prefix = getEffectiveRouterCampaignPrefix(ctx.chatId);
+            const bookName = prefix ? `${prefix}_NPCs` : 'NPCs';
+            console.log('[RPG Tracker] checkAndTriggerAutoGenerations: resolving bookName:', bookName);
+            try {
+                if (typeof ctx.updateWorldInfoList === 'function') {
+                    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: calling ctx.updateWorldInfoList() to clear cache...');
+                    await ctx.updateWorldInfoList();
+                }
+                const book = await ctx.loadWorldInfo(bookName);
+                if (book && book.entries) {
+                    npcEntries = Object.values(book.entries).filter(e => (e.comment || '').trim());
+                    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: loaded npcEntries count:', npcEntries.length, npcEntries.map(e => e.comment));
+                } else {
+                    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: no book or entries found for', bookName);
+                }
+            } catch (e) {
+                console.error('[RPG Tracker] checkAndTriggerAutoGenerations NPC fetch error:', e);
+            }
+        }
+    }
 
     // On initial startup/F5, record all existing entities as already known without generating anything
     if (isFirstCheck) {
+        console.log('[RPG Tracker] checkAndTriggerAutoGenerations: isFirstCheck is true. Registering existing entities to knownEntities Set without generating.');
         isFirstCheck = false;
         for (const name of currentParty) {
             knownEntities.add(name.toUpperCase());
@@ -1063,20 +1148,27 @@ export function checkAndTriggerAutoGenerations(refresh) {
         for (const name of currentEnemies) {
             knownEntities.add(name.toUpperCase());
         }
+        for (const entry of npcEntries) {
+            knownEntities.add(entry.comment.trim().toUpperCase());
+        }
+        console.log('[RPG Tracker] checkAndTriggerAutoGenerations: knownEntities after first check:', Array.from(knownEntities));
         return;
     }
+
+    console.log('[RPG Tracker] checkAndTriggerAutoGenerations: Checking for new entities against known list:', Array.from(knownEntities));
 
     if (s.portraitAutoGenerateParty) {
         for (const name of currentParty) {
             const key = name.toUpperCase();
             if (!knownEntities.has(key)) {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: New party member detected:', name);
                 knownEntities.add(key);
                 triggerBackgroundPortraitGeneration(name, refresh);
+            } else {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: Party member already known:', name);
             }
         }
     } else {
-        // Even if auto-generate is disabled, keep track of current members so that
-        // if enabled later, they aren't incorrectly flagged as "newly added"
         for (const name of currentParty) {
             knownEntities.add(name.toUpperCase());
         }
@@ -1086,13 +1178,32 @@ export function checkAndTriggerAutoGenerations(refresh) {
         for (const name of currentEnemies) {
             const key = name.toUpperCase();
             if (!knownEntities.has(key)) {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: New enemy detected:', name);
                 knownEntities.add(key);
                 triggerBackgroundPortraitGeneration(name, refresh);
+            } else {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: Enemy already known:', name);
             }
         }
     } else {
         for (const name of currentEnemies) {
             knownEntities.add(name.toUpperCase());
+        }
+    }
+
+    if (s.portraitAutoGenerateNpcs) {
+        for (const entry of npcEntries) {
+            const name = entry.comment.trim();
+            if (!hasPortrait(name)) {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: NPC has no portrait, triggering generation:', name);
+                triggerBackgroundPortraitGeneration(name, refresh, entry.content || '');
+            } else {
+                console.log('[RPG Tracker] checkAndTriggerAutoGenerations: NPC already has portrait, skipping:', name);
+            }
+        }
+    } else {
+        for (const entry of npcEntries) {
+            knownEntities.add(entry.comment.trim().toUpperCase());
         }
     }
 }

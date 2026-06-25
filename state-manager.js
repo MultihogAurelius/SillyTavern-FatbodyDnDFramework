@@ -27,10 +27,10 @@ export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
 IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
 
 [CORE]
-Appearance: Key visual identifiers only — race, build, most distinctive feature, weapon/armor if relevant.
-Personality: Core temperament and primary motivation in a few words.
+Appearance: Visual identifiers — race, build, distinctive features, weapon/armor if relevant.
+Personality: Core temperament and primary motivation.
 Brief Background: Role in the world, why they matter to the story.
-Habits/Behaviors: One or two defining behaviors or combat tendencies.
+Habits/Behaviors: Defining behaviors or combat tendencies.
 [/CORE]
 
 After the [/CORE] block, append timestamped narrative updates as usual ([Day X, HH:MM] ...).
@@ -89,7 +89,7 @@ export function getSettings() {
         agentConsoleOpen: true,
         agentModulesOpen: true,
         agentWorldOpen: false,
-        debugMode: true,
+        debugMode: false,
         connectionSource: "default",
         connectionProfileId: "",
         completionPresetId: "",
@@ -105,6 +105,7 @@ export function getSettings() {
         portraitSkipPromptDialog: false,
         portraitAutoGenerateParty: false,
         portraitAutoGenerateEnemies: false,
+        portraitAutoGenerateNpcs: false,
         pollinationsApiKey: "",
         pollinationsModel: "zimage",
         inventoryWorthMode: "hover",   // 'hover' = worth shown as tooltip only | 'display' = coin badge shown inline
@@ -670,6 +671,14 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         s.settingsVersion = '3.16.13';
     }
 
+    // Add default settings for Auto-Generate NPC portraits (v3.16.14)
+    if (!s.settingsVersion || s.settingsVersion < '3.16.14') {
+        if (s.portraitAutoGenerateNpcs === undefined) {
+            s.portraitAutoGenerateNpcs = false;
+        }
+        s.settingsVersion = '3.16.14';
+    }
+
 
     // ── MIGRATION: Update system prompts with keywords instructions (v3.2.3+) ──────
     if (s.routerSystemPromptTemplate && !s.routerSystemPromptTemplate.includes('IMPORTANT FOR KEYWORDS')) {
@@ -899,6 +908,7 @@ export function saveChatState(chatId) {
         portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
         portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
         portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
+        portraitAutoGenerateNpcs: s.portraitAutoGenerateNpcs ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",
@@ -990,6 +1000,7 @@ export function saveProfile(name) {
         portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
         portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
         portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
+        portraitAutoGenerateNpcs: s.portraitAutoGenerateNpcs ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",

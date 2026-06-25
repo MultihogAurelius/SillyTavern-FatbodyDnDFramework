@@ -52,6 +52,7 @@ Attr: STR X (mod), DEX X (mod), CON X (mod), INT X (mod), WIS X (mod), CHA X (mo
 Saves: Fort +X | Ref +X | Will +X
 Skills: Skill1 +X, Skill2 +X
 Traits: Trait1 (effect), Trait2 (effect)
+Abilities: Ability1 (effect), Ability2 (effect)
 Spells: Cantrips: Spell1, Spell2
 Spells: Level N (avail/max): Spell1, Spell2
 HD: dX (current/max)
@@ -72,6 +73,7 @@ Attr: STR 12 (+1), DEX 16 (+3), CON 14 (+2), INT 10 (+0), WIS 14 (+2), CHA 12 (+
 Saves: Fort +3 | Ref +5 | Will +2
 Skills: Athletics +3, Perception +5
 Traits: Natural Explorer (ignore difficult terrain)
+Abilities: Archer's Focus (1/1, +2 attack)
 Spells: Cantrips: Mage Hand
 Spells: Level 1 (2/2): Hunter's Mark, Goodberry
 HD: d10 (5/5)
@@ -82,6 +84,7 @@ COMBAT ROUND X
 Name: current/max HP
 Att/def: Weapon (+X / damage) | Armor (AC: Z)
 Saves: Fort +X, Ref +X, Will +X
+Abilities: Ability1 (effect), Ability2 (effect)
 Other: Trait1 (description), Trait2 (description)
 Status: Effect (duration)
 

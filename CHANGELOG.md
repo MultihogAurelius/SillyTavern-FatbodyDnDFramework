@@ -2,6 +2,17 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.16.15] - 2026-06-25
+
+### Fixed
+- **NPC Card Cancel Button Edit Reset**: Fixed a bug where clicking Cancel on the inline NPC card editor didn't reset the internal view mode, causing it to reopen directly in Edit Mode instead of Read Mode on subsequent card clicks.
+- **Category Action Button Order Alignment**: Aligned the order of action buttons for all non-NPC directory items (e.g. Locations, Factions, etc.) to match the unified **Edit, Cleanup, Delete** sequence, ensuring consistent UI presentation across all campaign record views.
+
+## [3.16.14] - 2026-06-25
+
+### Added
+- **Always Auto-Generate NPCs (Lorebook)**: Introduced a new settings toggle to automatically generate portraits in the background for new or updated NPCs created by the Lorebook Agent, aligning the behavior with existing auto-generation options for Party and Enemies.
+
 ## [3.16.13] - 2026-06-25
 
 ### Changed

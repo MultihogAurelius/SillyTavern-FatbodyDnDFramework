@@ -72,6 +72,15 @@ globalThis._rpgRefreshAgentManifest = async () => { if (typeof refreshAgentManif
 /** Refreshes the NPC card grid; assigned in createPanel so module-level code can call it. */
 let refreshNpcManifest = async () => { };
 
+// Combined refresh: updates both the tracker panel and the Lorebook Terminal NPC grid.
+// Used as the refresh callback for NPC-aware auto-generation.
+const refreshAll = () => {
+    refreshRenderedView();
+    if (typeof refreshNpcManifest === 'function') {
+        void refreshNpcManifest().catch(() => {});
+    }
+};
+
 let updateAgentWorldStatusRef = null;
 let updateWorldProgressionLastFiredDisplayRef = null;
 
@@ -843,6 +852,7 @@ function loadChatState(chatId) {
     s.portraitSkipPromptDialog = saved.portraitSkipPromptDialog ?? false;
     s.portraitAutoGenerateParty = saved.portraitAutoGenerateParty ?? false;
     s.portraitAutoGenerateEnemies = saved.portraitAutoGenerateEnemies ?? false;
+    s.portraitAutoGenerateNpcs = saved.portraitAutoGenerateNpcs ?? false;
     s.portraitConnectionSource = saved.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = saved.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = saved.portraitCompletionPresetId || "";
@@ -888,6 +898,7 @@ function loadChatState(chatId) {
     $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
     $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
     $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
+    $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!s.portraitAutoGenerateNpcs);
     $('#rpg_tracker_show_total_value').prop('checked', s.showTotalInventoryValue !== false);
     $('#rpg_tracker_inventory_worth_mode').val(s.inventoryWorthMode || 'hover');
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
@@ -2392,6 +2403,7 @@ function loadProfile(name) {
     s.portraitSkipPromptDialog = p.portraitSkipPromptDialog ?? false;
     s.portraitAutoGenerateParty = p.portraitAutoGenerateParty ?? false;
     s.portraitAutoGenerateEnemies = p.portraitAutoGenerateEnemies ?? false;
+    s.portraitAutoGenerateNpcs = p.portraitAutoGenerateNpcs ?? false;
     s.portraitConnectionSource = p.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = p.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = p.portraitCompletionPresetId || "";
@@ -2434,6 +2446,7 @@ function loadProfile(name) {
     $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
     $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
     $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
+    $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!s.portraitAutoGenerateNpcs);
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
     $('#rpg_portrait_connection_profile').val(s.portraitConnectionProfileId || '');
     $('#rpg_portrait_completion_preset').val(s.portraitCompletionPresetId || '');
@@ -3263,7 +3276,7 @@ function refreshRenderedView() {
     });
 
     if (_historyViewIndex === -1) {
-        checkAndTriggerAutoGenerations(refreshRenderedView);
+        checkAndTriggerAutoGenerations(refreshAll);
     }
 }
 
@@ -4535,7 +4548,11 @@ function createPanel() {
 
             const contentRead = document.createElement('div');
             contentRead.style.cssText = 'font-size:10px; opacity:0.88; color:var(--rt-text); line-height:1.45; white-space:pre-wrap; word-break:break-word; overflow-y:auto;';
-            const _stripCoreTagsForDisplay = (s) => (s || '').replace(/\[\/?CORE\]/gi, '').trim();
+            const _stripCoreTagsForDisplay = (s) => {
+                if (!s) return '';
+                const stripped = s.replace(/\[CORE\][\s\S]*?\[\/CORE\]/gi, '').trim();
+                return stripped || '(No campaign history recorded yet)';
+            };
             contentRead.textContent = _stripCoreTagsForDisplay(item.content);
 
             const cleanBtn = entryHdr.querySelector('.rt-agent-entry-clean');
@@ -4737,14 +4754,14 @@ function createPanel() {
                 contentArea.value = item.content || '';
                 syncReadFromItem();
                 
+                readPane.style.display = 'flex';
+                editPane.style.display = 'none';
+                
                 if (!entryHdr.parentElement) {
                     body.style.display = 'none';
                     _openEntries.delete(item.id);
                     const card = body.previousElementSibling;
                     if (card && card.classList.contains('rt-npc-card')) card.classList.remove('open');
-                } else {
-                    readPane.style.display = 'flex';
-                    editPane.style.display = 'none';
                 }
             });
 
@@ -4822,7 +4839,7 @@ function createPanel() {
                             <span class="rt-mf-icon" style="font-size:9px; opacity:0.5; width:10px; flex-shrink:0; font-family:monospace;">${isOpen ? '▼' : '▶'}</span>
                             <span style="font-weight:bold; font-size:11px; flex:1; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(displayName)}</span>
                             <span style="font-size:9px; opacity:0.45; color:var(--rt-text-muted); flex-shrink:0;">${activeCount}/${items.length} (${totalTokens}t)</span>
-                            ${isNpcBook ? '<button class="rt-npc-settings-btn" title="NPC Settings" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.5;padding:2px 4px;color:var(--rt-text-muted);flex-shrink:0;" onclick="event.stopPropagation()">⚙️</button>' : ''}
+                            ${isNpcBook ? '<button class="rt-npc-settings-btn" title="NPC Settings" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:0.5;padding:0;margin:0;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:var(--rt-text-muted);flex-shrink:0;line-height:1;" onclick="event.stopPropagation()">⚙️</button>' : ''}
                         `;
 
                     const folderBody = document.createElement('div');
@@ -5119,7 +5136,7 @@ function createPanel() {
                                     <div class="rt-npc-desc">${escapeHtml(desc)}</div>
                                     <span class="rt-npc-status-badge ${item.is_active ? 'active' : 'inactive'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
                                     <div class="rt-npc-actions">
-                                        <button class="rt-npc-action-btn rt-npc-view" data-id="${item.id}" title="View NPC card"><i class="fa-solid fa-address-card"></i></button>
+                                        <button class="rt-npc-action-btn rt-npc-view" data-id="${item.id}" title="View NPC card"><i class="fa-solid fa-address-card"></i> Full NPC Card</button>
                                         <button class="rt-npc-action-btn rt-npc-edit" data-id="${item.id}" title="Edit entry"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="rt-npc-action-btn rt-npc-clean" data-id="${item.id}" title="Cleanup entry"><i class="fa-solid fa-broom"></i></button>
                                         <button class="rt-npc-action-btn rt-npc-delete" data-id="${item.id}" title="Delete entry"><i class="fa-solid fa-trash"></i></button>
@@ -5479,8 +5496,8 @@ await refreshManifest();
                             ${statusDotHtml}
                             <span class="rt-agent-entry-label-span" style="${labelStyle}">${escapeHtml(node.name)}${isDirty ? ' <span style="color:#ffa500; font-size:8px;" title="Unsaved edits">●</span>' : ''}</span>
                             ${tokensHtml}
-                            ${cleanHtml}
                             ${editHtml}
+                            ${cleanHtml}
                             ${deleteHtml}
                         `;
 
@@ -6931,8 +6948,12 @@ Rules:
     const logClear = agentPanel.querySelector('#rt-agent-router-log-clear');
 
     document.addEventListener('rt_lore_agent_step', (e) => {
-        if (!terminal) return;
         const step = (/** @type {CustomEvent} */ (e)).detail;
+        console.log('[RPG Tracker] rt_lore_agent_step event received. Type:', step?.type, 'Content:', step?.content, 'Terminal exists:', !!terminal);
+        if (!terminal) {
+            console.warn('[RPG Tracker] rt_lore_agent_step event ignored because terminal element is null/missing.');
+            return;
+        }
 
         if (step.type === 'start') {
             _routerSteps = [];
@@ -6948,8 +6969,13 @@ Rules:
         // Refresh Campaign Records after the pass fully completes — at this point
         // all applyAction writes and saveWorldInfo cache-busts are guaranteed done.
         if (step.type === 'finish' || step.type === 'error') {
+            console.log(`[RPG Tracker] Lorebook Agent step "${step.type}" matched. Refreshing manifest...`);
             refreshManifest();
             updateAgentStatusIndicator(false);
+            if (step.type === 'finish') {
+                console.log('[RPG Tracker] Lorebook Agent pass finished. Invoking checkAndTriggerAutoGenerations...');
+                checkAndTriggerAutoGenerations(refreshAll);
+            }
         }
     });
 
@@ -7689,13 +7715,13 @@ function updateStatusIndicator(state) {
 const RENDER_HINTS = {
     CHARACTER: {
         label: 'Entity Rows — HP Bars (Characters)',
-        description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Combat (BAB), Gear, Attr, Saves, Skills, Traits, HD, Status.',
-        example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nCombat: BAB: +2 | Ranged: +3 | Melee: +5\nGear: Volcanic Mace (+1 / 2d6+3), AC: 13 (Furs)\nAttr: STR 16 (+3), DEX 12 (+1), CON 16 (+3), INT 8 (-1), WIS 16 (+3), CHA 6 (-2)\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
+        description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Combat (BAB), Gear, Attr, Saves, Skills, Traits, Abilities, HD, Status.',
+        example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nCombat: BAB: +2 | Ranged: +3 | Melee: +5\nGear: Volcanic Mace (+1 / 2d6+3), AC: 13 (Furs)\nAttr: STR 16 (+3), DEX 12 (+1), CON 16 (+3), INT 8 (-1), WIS 16 (+3), CHA 6 (-2)\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Darkvision (60 ft)\nAbilities: Second Wind (1/1), Action Surge (1/1)\nHD: d10 (2/2)\nStatus: Healthy'
     },
     COMBAT: {
         label: 'Entity Rows — HP Bars (Enemies)',
-        description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
-        example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
+        description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Abilities, Status.',
+        example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nAbilities: Nimble Escape (disengage as bonus action)\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
     },
     SPELLS: {
         label: 'Spell Pips — Slot Tracker',
@@ -9054,7 +9080,7 @@ function buildSysprompt(rawText) {
             settings.portraitAutoGenerateParty = !!$(this).prop('checked');
             saveSettings();
             if (settings.portraitAutoGenerateParty) {
-                forceCheckAutoGenerations(refreshRenderedView);
+                forceCheckAutoGenerations(refreshAll);
             }
         });
 
@@ -9062,7 +9088,15 @@ function buildSysprompt(rawText) {
             settings.portraitAutoGenerateEnemies = !!$(this).prop('checked');
             saveSettings();
             if (settings.portraitAutoGenerateEnemies) {
-                forceCheckAutoGenerations(refreshRenderedView);
+                forceCheckAutoGenerations(refreshAll);
+            }
+        });
+
+        $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!settings.portraitAutoGenerateNpcs).on('change', function () {
+            settings.portraitAutoGenerateNpcs = !!$(this).prop('checked');
+            saveSettings();
+            if (settings.portraitAutoGenerateNpcs) {
+                forceCheckAutoGenerations(refreshAll);
             }
         });
 
