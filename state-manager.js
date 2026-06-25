@@ -45,7 +45,7 @@ This surgically replaces only the Appearance field inside [CORE]. Do NOT write a
 If the NPC's relationship with the player meaningfully changes based on what happened, output:
   [[REL: Book::UID | Friendship | +N]] or [[REL: Book::UID | Friendship | -N]]
   [[REL: Book::UID | Affection | +N]] or [[REL: Book::UID | Affection | -N]]
-Output only the delta — do NOT write or track the relationship total. The current total is intentionally hidden from you so your judgment stays anchored to the quality of the interaction, not the existing pool. A constraint warning will appear in the entry only if a value has reached its hard limit (100 or -100); in that case, do not award further increments in the capped direction. Use your judgment on magnitude (typical range: ±5 to ±25 per turn).`;
+Output only the delta — do NOT write or track the relationship total. The current total is intentionally hidden from you so your judgment stays anchored to the quality of the interaction, not the existing pool. Base your judgment on the personality of the NPC in question (e.g., from their [CORE] block), inferring what they would realistically appreciate, tolerate, or resent given their temperament, values, and traits. A constraint warning will appear in the entry only if a value has reached its hard limit (100 or -100); in that case, do not award further increments in the capped direction. Use your judgment on magnitude (typical range: ±5 to ±25 per turn).`;
 
     instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.
 

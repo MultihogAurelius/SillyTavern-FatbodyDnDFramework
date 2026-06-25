@@ -815,7 +815,7 @@ ${modularPrompt}
 If an NPC's relationship with the player changes meaningfully based on events, output:
   [[REL: Book::UID | Friendship | +15]]   (use the exact UID from the active memory block)
   [[REL: Book::UID | Affection | -10]]
-Output only the delta — do NOT rewrite bar values in the entry text.
+Output only the delta — do NOT rewrite bar values in the entry text. Base your judgment on the NPC's personality, values, and temperament as described in their entry, inferring how they would realistically react.
 
 ## NPC APPEARANCE UPDATES
 If an NPC's physical appearance changes significantly (major injury, permanent outfit change, etc.), output:
@@ -990,7 +990,7 @@ Thought: I see a new NPC named Barnaby in Khelt's Rust-Lantern District. I will 
                                 },
                                 rel: {
                                     type: 'array',
-                                    description: 'Apply relationship delta(s) to NPC(s). Do NOT include the current total — output only the signed integer delta.',
+                                    description: 'Apply relationship delta(s) to NPC(s). Base relationship changes on the NPC\'s personality, values, and temperament as described in their entry, inferring what they would realistically appreciate or resent. Do NOT include the current total — output only the signed integer delta.',
                                     items: {
                                         type: 'object',
                                         properties: {
