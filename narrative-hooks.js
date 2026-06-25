@@ -809,14 +809,23 @@ export async function processRelationshipTags() {
     const matches = [];
     let match;
     
+    // Ensure the message has an extra metadata dictionary for tracking processed tags
+    lastMsg.extra = lastMsg.extra || {};
+    lastMsg.extra.rpgProcessedTags = lastMsg.extra.rpgProcessedTags || [];
+
     while ((match = REL_RE.exec(lastMsg.mes)) !== null) {
+        const matchStr = match[0];
+        
+        // Skip if this exact tag string has already been processed for this message
+        if (lastMsg.extra.rpgProcessedTags.includes(matchStr)) continue;
+
         const cleanName = match[1].replace(/[\u200B\uFEFF]/g, '').trim();
         const cleanField = match[2].replace(/[^a-z]/gi, '').toLowerCase();
         const cleanDeltaStr = match[3].replace(/[^\d+-]/g, '');
         const parsedDelta = parseInt(cleanDeltaStr, 10);
 
         if ((cleanField === 'friendship' || cleanField === 'affection') && !isNaN(parsedDelta)) {
-            matches.push({ name: cleanName, field: cleanField, delta: parsedDelta });
+            matches.push({ name: cleanName, field: cleanField, delta: parsedDelta, rawStr: matchStr });
         }
     }
 
@@ -876,6 +885,8 @@ export async function processRelationshipTags() {
             // @ts-ignore
             toastr.info(`${icon} ${m.name}: ${sign}${m.delta} ${label}`, 'Relationship', { timeOut: 3500, positionClass: 'toast-bottom-right' });
 
+            // Mark this specific tag string as processed in the message metadata
+            lastMsg.extra.rpgProcessedTags.push(m.rawStr);
             anyChanged = true;
         } catch (e) {
             console.error('[RPG Tracker] Error updating relationship for', m.name, e);
@@ -885,8 +896,7 @@ export async function processRelationshipTags() {
     }
 
     if (anyChanged) {
-        // Prevent infinite allocations on manual edits/swipes by renaming the processed tag
-        lastMsg.mes = lastMsg.mes.replace(/\[REL:/gi, '[PROCESSED_REL:');
+        // Persist the message metadata so it survives reloads
         if (typeof ctx.saveChatDebounced === 'function') ctx.saveChatDebounced();
 
         ctx.saveSettingsDebounced?.();
