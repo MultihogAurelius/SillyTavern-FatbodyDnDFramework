@@ -801,8 +801,8 @@ export async function processRelationshipTags() {
     if (!ctx.chat || ctx.chat.length === 0) return;
     const chat = ctx.chat;
 
-    // Standard regex matches [REL: Name | field | delta]
-    const REL_RE = /\[REL:\s*([^|\]]+)\|\s*(friendship|affection)\s*\|\s*([+-]?\s*\d+)\s*\]/gi;
+    // Indestructible regex: Matches [REL: A | B | C] regardless of spacing, case, or invisible chars
+    const REL_RE = /\[REL:\s*([^|]+)\|\s*([^|]+)\|\s*([^\]]+)\]/gi;
     
     const matches = [];
     let lastMsg = null;
@@ -812,7 +812,7 @@ export async function processRelationshipTags() {
     for (let i = chat.length - 1; i >= Math.max(0, chat.length - 3); i--) {
         const msg = chat[i];
         if (!msg || !msg.mes) continue;
-        if (!msg.mes.includes('[REL:')) continue;
+        if (!/\[REL:/i.test(msg.mes)) continue;
 
         let msgHasMatch = false;
         
@@ -823,15 +823,24 @@ export async function processRelationshipTags() {
                 return matchStr; // Return unchanged
             }
 
-            matches.push({ 
-                name: name.trim(), 
-                field: field.toLowerCase(), 
-                delta: parseInt(delta.replace(/\s+/g, ''), 10) 
-            });
-            msgHasMatch = true;
+            // Clean the extracted values to be completely indestructible against LLM formatting quirks
+            const cleanName = name.replace(/[\u200B\uFEFF]/g, '').trim();
+            const cleanField = field.replace(/[^a-z]/gi, '').toLowerCase();
+            const cleanDeltaStr = delta.replace(/[^\d+-]/g, '');
+            const parsedDelta = parseInt(cleanDeltaStr, 10);
 
-            // Wrap in <!--TRACKER: to integrate with the user's regex preset
-            return `<!--TRACKER: ${matchStr}-->`;
+            if ((cleanField === 'friendship' || cleanField === 'affection') && !isNaN(parsedDelta)) {
+                matches.push({ 
+                    name: cleanName, 
+                    field: cleanField, 
+                    delta: parsedDelta 
+                });
+                msgHasMatch = true;
+                // Wrap in <!--TRACKER: to integrate with the user's regex preset
+                return `<!--TRACKER: ${matchStr}-->`;
+            }
+
+            return matchStr; // If it was malformed beyond repair, don't touch it
         });
 
         if (msgHasMatch) {
