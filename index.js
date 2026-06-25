@@ -11470,6 +11470,9 @@ RULES:
         $('#rpg_tracker_npc_card_import').prop('checked', !!settings.experimentalNpcImport).on('change', function () {
             settings.experimentalNpcImport = $(this).prop('checked');
             saveSettings();
+            if (typeof refreshNpcManifest === 'function') {
+                refreshNpcManifest();
+            }
         });
 
         // New Entry Settings Bindings

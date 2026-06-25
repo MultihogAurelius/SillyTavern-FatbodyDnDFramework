@@ -2,6 +2,11 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
+## [3.16.9] - 2026-06-25
+
+### Fixed
+- **Character Card Converter Toggle**: Added missing tree render refresh triggers on toggle checkbox state change, ensuring that toggling the setting immediately hides or shows the "Add NPC from Character Card" action button.
+
 ## [3.16.8] - 2026-06-25
 
 ### Removed
