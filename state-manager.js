@@ -21,7 +21,7 @@ export const MODULE_NAME = 'rpg_tracker';
  * @returns {string}
  */
 export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
-    let instruction = `Named characters the party interacts with. Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed. Always use the exact macro string \`{{user}}\` when referring to the player; do NOT write the plain word "user" or "player".
+    let instruction = `Significant named characters the party interacts with (do NOT record every random enemy or nameless bartender, only characters who are somehow significant). Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed. Always use the exact macro string \`{{user}}\` when referring to the player; do NOT write the plain word "user" or "player".
 
 <CORE_FORMAT>
 IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
@@ -658,8 +658,8 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         s.settingsVersion = '3.16.0';
     }
 
-    // Reinforce NPC and Event prompts regarding combat granularity and logs (v3.16.12)
-    if (!s.settingsVersion || s.settingsVersion < '3.16.12') {
+    // Reinforce NPC and Event prompts regarding combat granularity and logs (v3.16.13)
+    if (!s.settingsVersion || s.settingsVersion < '3.16.13') {
         if (s.routerModules?.npc) {
             s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
         }
@@ -667,7 +667,7 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
             s.routerModules.event.instruction = DEFAULT_MODULES.event.instruction;
         }
         s.routerSystemPromptTemplate = defaults.routerSystemPromptTemplate;
-        s.settingsVersion = '3.16.12';
+        s.settingsVersion = '3.16.13';
     }
 
 
