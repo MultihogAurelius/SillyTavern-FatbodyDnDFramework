@@ -862,6 +862,12 @@ export async function processRelationshipTags() {
         if (!settings.npcRelationshipLog[resolved.id]) settings.npcRelationshipLog[resolved.id] = [];
         settings.npcRelationshipLog[resolved.id].unshift({ timestamp: Date.now(), field: m.field, delta: m.delta, newValue: settings.npcRelationshipValues[resolved.id][m.field], source: 'ai' });
         
+        const sign = m.delta > 0 ? '+' : '';
+        const icon = m.field === 'friendship' ? '🤝' : '💗';
+        const label = m.field === 'friendship' ? 'Friendship' : 'Affection';
+        // @ts-ignore
+        toastr.info(`${icon} ${m.name}: ${sign}${m.delta} ${label}`, 'Relationship', { timeOut: 3500, positionClass: 'toast-bottom-right' });
+
         anyChanged = true;
     }
 
