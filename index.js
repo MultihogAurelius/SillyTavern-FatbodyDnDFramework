@@ -5154,7 +5154,15 @@ function createPanel() {
                                 ? `<img src="${escapeHtml(portraitSrc)}" style="width:100%;height:auto;aspect-ratio:1;object-fit:cover;border-radius:12px;border:2px solid rgba(212,169,64,0.3);box-shadow:0 4px 20px rgba(0,0,0,0.4);" alt="${escapeHtml(item.label)}">`
                                 : `<div style="width:100%;aspect-ratio:1;border-radius:12px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));border:2px solid rgba(212,169,64,0.2);display:flex;align-items:center;justify-content:center;font-size:64px;opacity:0.25;color:var(--SmartThemeBodyColor, inherit);">👤</div>`;
 
-                            const popupHtml = `<div style="width:100%;box-sizing:border-box;padding:24px;text-align:left;max-height:80vh;overflow-y:auto;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);">
+                            const popupHtml = `
+                            <style>
+                                #dialogue_popup, .popup {
+                                    background: var(--SmartThemeBodyColorBg, var(--SmartThemeBgColor, #1c1c1e)) !important;
+                                    opacity: 1 !important;
+                                    backdrop-filter: none !important;
+                                }
+                            </style>
+                            <div style="width:100%;box-sizing:border-box;padding:24px;text-align:left;max-height:80vh;overflow-y:auto;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);">
                                 <div style="display:flex;gap:24px;margin-bottom:20px;align-items:flex-start;flex-wrap:wrap;">
                                     <div style="flex-shrink:0;width:280px;">
                                         ${portraitEl}
