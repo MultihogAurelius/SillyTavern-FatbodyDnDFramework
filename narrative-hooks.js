@@ -394,7 +394,14 @@ async function buildNpcRelationsBlock(settings) {
         return `[NPC_RELATIONS]\nNo established relationships yet.\n[/NPC_RELATIONS]\n\n`;
     }
     
-    return `[NPC_RELATIONS]\n${lines.join('\n')}\n[/NPC_RELATIONS]\n\n`;
+    const header = [
+        `These are the current relationship standings between the protagonist and present NPCs.`,
+        `Friendship ranges from -100 (sworn enemy) to +100 (lifelong brother/sister). Affection ranges from -100 (revulsion) to +100 (deeply in love).`,
+        `Let these values organically influence how each NPC speaks, acts, and reacts toward the protagonist. Higher values mean warmer body language, more trust, inside jokes, and willingness to help. Lower values mean hostility, suspicion, cold formality, or outright antagonism.`,
+        `When a meaningful social interaction occurs that would shift an NPC's feelings, emit a tag at the end of your response: [REL: NpcName | friendship | +/-N] or [REL: NpcName | affection | +/-N] where N is typically 1-5 for minor moments and 5-15 for major events.`,
+    ].join('\n');
+
+    return `[NPC_RELATIONS]\n${header}\n\n${lines.join('\n')}\n[/NPC_RELATIONS]\n\n`;
 }
 
 export function installInterceptor() {
@@ -901,8 +908,55 @@ export async function processRelationshipTags() {
 
         ctx.saveSettingsDebounced?.();
         if (typeof globalThis._rpgRenderRouterUI === 'function') globalThis._rpgRenderRouterUI();
-        if (typeof globalThis._rpgRefreshNpcManifest === 'function') globalThis._rpgRefreshNpcManifest();
+        if (typeof globalThis._rpgRefreshAgentManifest === 'function') globalThis._rpgRefreshAgentManifest();
         document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
+    }
+}
+
+/**
+ * Ensures a SillyTavern Regex Script exists to visually hide [REL: ...] tags from the
+ * rendered chat display. The tag remains in the raw message text (editable by pressing
+ * the edit button), so our parser and metadata deduplication continue to work. This
+ * only affects the visual render — it replaces the match with an empty string on
+ * "AI Output" and "Alter Chat Display" so the user never sees the raw tag in the
+ * conversation flow.
+ */
+export function ensureRelTagRegex() {
+    try {
+        const ctx = SillyTavern.getContext();
+        const extSettings = ctx.extensionSettings;
+        if (!extSettings) return;
+
+        // The regex extension stores scripts in extensionSettings.regex
+        if (!extSettings.regex) extSettings.regex = [];
+        const scripts = extSettings.regex;
+
+        const SCRIPT_NAME = 'Hide REL Tags [RPG Tracker]';
+
+        // Don't duplicate if already registered
+        if (scripts.some(s => s.scriptName === SCRIPT_NAME)) return;
+
+        scripts.push({
+            scriptName: SCRIPT_NAME,
+            findRegex: '/\\[REL:\\s*[^\\]]+\\]/g',
+            replaceString: '',
+            trimStrings: [],
+            placement: [
+                1, // AI_OUTPUT
+            ],
+            disabled: false,
+            markdownOnly: false,
+            promptOnly: false,
+            runOnEdit: true,
+            substituteRegex: false,
+            minDepth: null,
+            maxDepth: null,
+        });
+
+        ctx.saveSettingsDebounced?.();
+        console.log('[RPG Tracker] Registered REL tag hiding regex script.');
+    } catch (e) {
+        console.warn('[RPG Tracker] Could not register REL tag regex:', e);
     }
 }
 
