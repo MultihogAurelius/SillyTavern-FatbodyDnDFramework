@@ -827,22 +827,34 @@ export function installInterceptor() {
  */
 export async function processRelationshipTags(msgIndex) {
     const settings = getSettings();
+    console.log('[RPG Tracker] processRelationshipTags called with msgIndex:', msgIndex);
 
     const ctx = SillyTavern.getContext();
-    if (!ctx.chat || ctx.chat.length === 0) return;
+    if (!ctx.chat || ctx.chat.length === 0) {
+        console.log('[RPG Tracker] Aborting: ctx.chat is empty');
+        return;
+    }
     
     // Resolve the target message.
-    // MESSAGE_UPDATED passes the exact index \u2014 use it directly.
-    // GENERATION_ENDED calls with no index; the setTimeout in onGenerationEnded
-    // guarantees ST has committed the AI message by now, so chat.length-1 is safe.
     let lastMsg;
     if (typeof msgIndex === 'number' && msgIndex >= 0 && msgIndex < ctx.chat.length) {
         lastMsg = ctx.chat[msgIndex];
+        console.log('[RPG Tracker] Using provided msgIndex:', msgIndex);
     } else {
         lastMsg = ctx.chat[ctx.chat.length - 1];
+        console.log('[RPG Tracker] Using chat.length - 1:', ctx.chat.length - 1);
     }
-    if (!lastMsg || !lastMsg.mes) return;
-    if (!/\[REL:/i.test(lastMsg.mes)) return;
+    
+    if (!lastMsg || !lastMsg.mes) {
+        console.log('[RPG Tracker] Aborting: lastMsg or lastMsg.mes is empty');
+        return;
+    }
+    if (!/\[REL:/i.test(lastMsg.mes)) {
+        console.log('[RPG Tracker] Aborting: lastMsg.mes does not contain [REL:');
+        return;
+    }
+
+    console.log('[RPG Tracker] [REL:] tag found in message!', lastMsg.mes);
 
     // 2. Extracts data using indestructible regex
     const REL_RE = /\[REL:\s*([^|]+)\|\s*([^|]+)\|\s*([^\]]+)\]/gi;
@@ -866,10 +878,16 @@ export async function processRelationshipTags(msgIndex) {
 
         if ((cleanField === 'friendship' || cleanField === 'affection') && !isNaN(parsedDelta)) {
             matches.push({ name: cleanName, field: cleanField, delta: parsedDelta, rawStr: matchStr });
+            console.log('[RPG Tracker] Parsed match:', { name: cleanName, field: cleanField, delta: parsedDelta });
+        } else {
+            console.log('[RPG Tracker] Failed to parse match:', matchStr, { cleanField, parsedDelta });
         }
     }
 
-    if (matches.length === 0) return;
+    if (matches.length === 0) {
+        console.log('[RPG Tracker] Aborting: matches.length === 0 after parsing');
+        return;
+    }
 
     // Load active entries to resolve NPC IDs
     const activeKeys = [...(settings.activeRouterKeys || []), ...(settings.activeWorldKeys || [])];
