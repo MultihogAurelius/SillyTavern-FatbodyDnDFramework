@@ -841,7 +841,7 @@ export async function processRelationshipTags(msgIndex) {
         lastMsg = ctx.chat[msgIndex];
     } else {
         // Scan from end backwards, skipping user messages, until we find one with [REL:]
-        for (let i = ctx.chat.length - 1; i >= Math.max(0, ctx.chat.length - 5); i--) {
+        for (let i = ctx.chat.length - 1; i >= Math.max(0, ctx.chat.length - 2); i--) {
             const msg = ctx.chat[i];
             if (msg && !msg.is_user && msg.mes && /\[REL:/i.test(msg.mes)) {
                 lastMsg = msg;
