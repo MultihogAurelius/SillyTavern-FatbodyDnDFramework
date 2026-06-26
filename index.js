@@ -8615,6 +8615,7 @@ function refreshOrderList() {
                 if (typeof updateWorldProgressionLastFiredDisplayRef === 'function') {
                     updateWorldProgressionLastFiredDisplayRef();
                 }
+                scheduleAutoApply();
             };
 
             const lbl24h = document.createElement('span');
@@ -8717,6 +8718,12 @@ function buildSysprompt(rawText) {
                     instruction = instruction.replace(/Assign an appropriate difficulty \(Very Easy to Very Hard\) based on the narrative stakes\. /g, '');
                 }
                 return `<quests>\n${instruction.trim()}\n</quests>`;
+            }
+            if (tag === 'end_of_output_footer') {
+                if (s.use24hTime) {
+                    return match.replace(/\[HH:MM AM\/PM\]/g, '[HH:MM] (24-hour clock, NO AM/PM)');
+                }
+                return match;
             }
             return match;
         });

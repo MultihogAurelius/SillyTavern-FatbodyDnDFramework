@@ -212,7 +212,8 @@ export function registerLogQuestTool() {
 
         if (isDeadlines) {
             toolDescription +=
-                ' If the quest is time-sensitive, you MUST calculate and supply deadline_time in the format "HH:MM AM/PM, Day N". ' +
+                ' If the quest is time-sensitive, you MUST calculate and supply deadline_time in the format ' +
+                (s.use24hTime ? '"HH:MM, Day N"' : '"HH:MM AM/PM, Day N"') + '. ' +
                 (isFrustration
                     ? 'The NPC Mood evolves continuously based on frustration_coefficient. ' +
                       'Reserve status "failed" ONLY for quests that are logically impossible to complete or explicitly called off by the NPC.'
@@ -288,7 +289,8 @@ export function registerLogQuestTool() {
             properties.deadline_time = {
                 type: 'string',
                 description:
-                    'The exact in-world timestamp when the quest must be completed (e.g. "06:00 PM, Day 4"). ' +
+                    'The exact in-world timestamp when the quest must be completed (e.g. ' +
+                    (s.use24hTime ? '"18:00, Day 4"' : '"06:00 PM, Day 4"') + '). ' +
                     'If the narrative specifies a duration (e.g., "four days"), you MUST calculate the absolute Day N timestamp based on the current time. ' +
                     'Omit only if the quest has no time pressure whatsoever.'
             };
