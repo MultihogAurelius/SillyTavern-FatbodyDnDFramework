@@ -978,8 +978,9 @@ export function buildModulesInstructionText(settings) {
 
     modulesText += "### CORE MODULES\n";
     for (const [key, prompt] of Object.entries(promptsMap)) {
-        // Never emit the quests_legacy key as its own module — it's a data slot only
+        // Never emit the quests_legacy or time_24h keys as their own modules — they are data slots only
         if (key === 'quests_legacy') continue;
+        if (key === 'time_24h') continue;
 
         if (settings.modules[key]) {
             let p = prompt;
@@ -1005,12 +1006,9 @@ export function buildModulesInstructionText(settings) {
                 }
             }
 
-            // ── Dynamic format adjustments for Time Module ──────────────────
+            // ── Dynamic prompt swap for 24-hour Time Module ─────────────────
             if (key === 'time' && settings.use24hTime) {
-                p = p.replace(/HH:MM AM\/PM/g, 'HH:MM (24-hour format)')
-                     .replace(/10:00 PM/g, '22:00')
-                     .replace(/08:00 AM/g, '08:00')
-                     .replace(/AM\/PM/gi, '24-hour format');
+                p = promptsMap['time_24h'] || DEFAULT_STOCK_PROMPTS.time_24h;
             }
 
             modulesText += `- [${key.toUpperCase()}]: ${p}\n`;

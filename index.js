@@ -8521,6 +8521,12 @@ function refreshOrderList() {
                     displayTag = 'QUESTS (Legacy Mode)';
                 }
 
+                // Redirect TIME to time_24h if 24h mode is active
+                if (tag === 'TIME' && s.use24hTime) {
+                    mod = 'time_24h';
+                    displayTag = 'TIME (24h Format)';
+                }
+
                 if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
                 openPromptEditor(
                     displayTag,
@@ -8549,6 +8555,7 @@ function refreshOrderList() {
             resetBtn.onclick = () => {
                 let mod = tag.toLowerCase();
                 if (tag === 'QUESTS' && s.questLegacyMode) mod = 'quests_legacy';
+                if (tag === 'TIME' && s.use24hTime) mod = 'time_24h';
 
                 if (confirm(`Reset [${tag}] prompt to default? This will lose any custom changes.`)) {
                     if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
