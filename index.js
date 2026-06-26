@@ -3760,8 +3760,10 @@ function createPanel() {
     if (header instanceof HTMLElement) {
         makeDraggable(/** @type {HTMLElement} */(panel), header);
     }
-    setupResizeObserver(/** @type {HTMLElement} */(panel));
     loadPanelGeometry(/** @type {HTMLElement} */(panel));
+    // Start the resize observer AFTER geometry is restored so the initial
+    // ResizeObserver callback doesn't immediately overwrite the restored position.
+    setupResizeObserver(/** @type {HTMLElement} */(panel));
 
     const resizerTR = panel.querySelector('#rt-resizer-tr');
     if (resizerTR instanceof HTMLElement) {
@@ -7757,9 +7759,14 @@ function makeResizableBL(panel, handle) {
 }
 
 function setupResizeObserver(panel) {
-    // Debounced save on resize
+    // Debounced save on resize.
+    // Skip the very first callback — it fires immediately on observe() before
+    // the panel's restored geometry (from loadPanelGeometry) has been painted,
+    // which would cause it to overwrite the saved position with the CSS default.
     let _resizeTimer;
+    let _initialFired = false;
     const ro = new ResizeObserver(() => {
+        if (!_initialFired) { _initialFired = true; return; }
         clearTimeout(_resizeTimer);
         _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
     });
