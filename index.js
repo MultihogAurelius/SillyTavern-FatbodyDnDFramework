@@ -4888,17 +4888,29 @@ function createPanel() {
                                             <span style="font-size:11px;color:rgba(255,255,255,0.5);">${curS.experimentalNpcImport ? 'Enabled' : 'Disabled'}</span>
                                         </label>
                                     </div>
-                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Shows the "Add NPC from Character Card" button. This allows importing character cards into campaigns with AI review to fit them into the story. However, organic NPC creation is recommended.</div>
+                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:12px;">Shows the "Add NPC from Character Card" button. This allows importing character cards into campaigns with AI review to fit them into the story. However, organic NPC creation is recommended.</div>
+
+                                    <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+                                        <label style="font-size:12px;color:rgba(255,255,255,0.7);flex:1;">Ignore Character Limits When Importing Character Cards</label>
+                                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                            <input type="checkbox" id="rt-ignore-npc-limits" ${curS.ignoreNpcImportLimits ? 'checked' : ''}
+                                                style="width:16px;height:16px;accent-color:#d4a940;cursor:pointer;">
+                                            <span style="font-size:11px;color:rgba(255,255,255,0.5);">${curS.ignoreNpcImportLimits ? 'Enabled' : 'Disabled'}</span>
+                                        </label>
+                                    </div>
+                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Omits the &lt;CORE LENGTH TARGETS&gt; section from the NPC prompt.</div>
                                 </div>`;
 
                                 let newMajor = curS.npcMajorWords ?? 25;
                                 let newMinor = curS.npcMinorWords ?? 15;
                                 let newImport = curS.experimentalNpcImport ?? false;
+                                let newIgnoreLimits = curS.ignoreNpcImportLimits ?? false;
 
                                 setTimeout(() => {
                                     const majorEl = document.getElementById('rt-npc-major-words');
                                     const minorEl = document.getElementById('rt-npc-minor-words');
                                     const importEl = document.getElementById('rt-npc-card-import');
+                                    const ignoreEl = document.getElementById('rt-ignore-npc-limits');
 
                                     if (majorEl) majorEl.addEventListener('input', () => newMajor = parseInt(majorEl.value, 10) || 25);
                                     if (minorEl) minorEl.addEventListener('input', () => newMinor = parseInt(minorEl.value, 10) || 15);
@@ -4906,6 +4918,12 @@ function createPanel() {
                                         importEl.addEventListener('change', () => {
                                             newImport = importEl.checked;
                                             if (importEl.nextElementSibling) importEl.nextElementSibling.textContent = newImport ? 'Enabled' : 'Disabled';
+                                        });
+                                    }
+                                    if (ignoreEl) {
+                                        ignoreEl.addEventListener('change', () => {
+                                            newIgnoreLimits = ignoreEl.checked;
+                                            if (ignoreEl.nextElementSibling) ignoreEl.nextElementSibling.textContent = newIgnoreLimits ? 'Enabled' : 'Disabled';
                                         });
                                     }
                                 }, 0);
@@ -4920,6 +4938,7 @@ function createPanel() {
 
                                     const updS = getSettings();
                                     updS.experimentalNpcImport = newImport;
+                                    updS.ignoreNpcImportLimits = newIgnoreLimits;
                                     updS.npcMajorWords = newMajor;
                                     updS.npcMinorWords = newMinor;
 
@@ -4927,10 +4946,11 @@ function createPanel() {
                                     $('#rpg_tracker_npc_major_words').val(newMajor);
                                     $('#rpg_tracker_npc_minor_words').val(newMinor);
                                     $('#rpg_tracker_npc_card_import').prop('checked', newImport);
+                                    $('#rpg_tracker_ignore_npc_limits').prop('checked', newIgnoreLimits);
 
                                     // Rebuild the NPC instruction from settings
                                     if (updS.routerModules?.npc) {
-                                        updS.routerModules.npc.instruction = buildNpcInstruction(newMajor, newMinor);
+                                        updS.routerModules.npc.instruction = buildNpcInstruction(newMajor, newMinor, newIgnoreLimits);
                                     }
 
                                     SillyTavern.getContext().saveSettingsDebounced?.();
@@ -8774,6 +8794,7 @@ function buildSysprompt(rawText) {
                         $('#rpg_tracker_npc_major_words').val(sTempTracker.npcMajorWords ?? 25);
                         $('#rpg_tracker_npc_minor_words').val(sTempTracker.npcMinorWords ?? 15);
                         $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
+                        $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
                         if (typeof refreshOrderList === 'function') refreshOrderList();
 
                         // 3. Lorebook Agent
@@ -8784,7 +8805,7 @@ function buildSysprompt(rawText) {
                         for (const [id, def] of Object.entries(DEFAULT_MODULES)) {
                             if (fresh.routerModules && fresh.routerModules[id]) {
                                 if (id === 'npc') {
-                                    fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords);
+                                    fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords, fresh.ignoreNpcImportLimits);
                                 } else {
                                     fresh.routerModules[id].instruction = def.instruction;
                                 }
@@ -8964,6 +8985,7 @@ function buildSysprompt(rawText) {
                                     $('#rpg_tracker_npc_minor_words').val(sTempTracker.npcMinorWords ?? 15);
            
                                     $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
+                                    $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
                                     if (typeof refreshOrderList === 'function') refreshOrderList();
                                     resetCount++;
                                     console.log('[RPG Tracker] State tracker prompts reset to defaults.');
@@ -8977,7 +8999,7 @@ function buildSysprompt(rawText) {
                                     for (const [id, def] of Object.entries(DEFAULT_MODULES)) {
                                         if (fresh.routerModules && fresh.routerModules[id]) {
                                             if (id === 'npc') {
-                                                fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords);
+                                                fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords, fresh.ignoreNpcImportLimits);
                                             } else {
                                                 fresh.routerModules[id].instruction = def.instruction;
                                             }
@@ -11558,7 +11580,7 @@ RULES:
             const val = parseInt(String($(this).val() || '')) || 25;
             settings.npcMajorWords = Math.max(5, Math.min(100, val));
             if (settings.routerModules?.npc) {
-                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords);
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
             }
             saveSettings();
             if (typeof globalThis._rpgRenderAgentModules === 'function') {
@@ -11569,7 +11591,7 @@ RULES:
             const val = parseInt(String($(this).val() || '')) || 15;
             settings.npcMinorWords = Math.max(5, Math.min(100, val));
             if (settings.routerModules?.npc) {
-                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords);
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
             }
             saveSettings();
             if (typeof globalThis._rpgRenderAgentModules === 'function') {
@@ -11581,6 +11603,16 @@ RULES:
             saveSettings();
             if (typeof refreshNpcManifest === 'function') {
                 refreshNpcManifest();
+            }
+        });
+        $('#rpg_tracker_ignore_npc_limits').prop('checked', !!settings.ignoreNpcImportLimits).on('change', function () {
+            settings.ignoreNpcImportLimits = $(this).prop('checked');
+            if (settings.routerModules?.npc) {
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
+            }
+            saveSettings();
+            if (typeof globalThis._rpgRenderAgentModules === 'function') {
+                globalThis._rpgRenderAgentModules();
             }
         });
 

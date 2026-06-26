@@ -20,7 +20,7 @@ export const MODULE_NAME = 'rpg_tracker';
  * @param {number} minorWords
  * @returns {string}
  */
-export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
+export function buildNpcInstruction(majorWords = 25, minorWords = 15, ignoreLimits = false) {
     let instruction = `Significant named characters the party interacts with (do NOT record every random enemy or nameless bartender, only characters who are somehow significant). Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed. Always use the exact macro string \`{{user}}\` when referring to the player; do NOT write the plain word "user" or "player".
 
 <CORE_FORMAT>
@@ -41,16 +41,18 @@ If the NPC's physical appearance changes significantly (major injury, permanent 
   [[UPDATE_APPEARANCE: Book::UID | New appearance text]]
 This surgically replaces only the Appearance/Species field inside [CORE]. Do NOT write appearance changes as event/update entries.`;
 
-    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.
+    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.`;
 
-<CORE LENGTH TARGETS>
+    if (!ignoreLimits) {
+        instruction += `\n\n<CORE LENGTH TARGETS>
 Major NPCs (recurring, plot-important): target AT LEAST ${majorWords} words per each section of [CORE].
 Minor NPCs (shopkeepers, guards, one-off encounters): target AT LEAST ${minorWords} words per each section of [CORE].
 
 Expand/extrapolate thematically if you can't otherwise meet the specified length targets.
-</CORE LENGTH TARGETS>
+</CORE LENGTH TARGETS>`;
+    }
 
-<COMBAT_GRANULARITY>
+    instruction += `\n\n<COMBAT_GRANULARITY>
 Do NOT record per-round combat updates (e.g., creature HP changes, turn-by-turn action lists, temporary conditions mid-fight). For long combats, limit updates to the initiation of combat (e.g., when they became hostile and attacked {{user}}), a high-level progress update every ~5 rounds (to capture major shifts or stalemates), and the final resolved outcome once it concludes.
 </COMBAT_GRANULARITY>`;
     return instruction;
@@ -109,10 +111,10 @@ export function getSettings() {
         pollinationsApiKey: "",
         pollinationsModel: "zimage",
         inventoryWorthMode: "hover",   // 'hover' = worth shown as tooltip only | 'display' = coin badge shown inline
-        showTotalInventoryValue: true,
         npcMajorWords: 25,
         npcMinorWords: 15,
         experimentalNpcImport: true,
+        ignoreNpcImportLimits: false,
         barColors: {},
         modulePageSizes: {},
         customTheme: null,
