@@ -5043,80 +5043,77 @@ function createPanel() {
                             if (!ctx.callGenericPopup) return;
                             const normLabel = item.label.replace(/\s*\(.*?\)/g, '').trim();
                             const portraitSrc = s.customPortraits?.[normLabel] || '';
-                            const sections = parseNpcSections(item.content);
 
-                            // Build sections HTML
-                            let sectionsHtml = '';
-
-                            // Render Core Identity
-                            const coreEntries = Object.entries(sections.core);
-                            if (coreEntries.length > 0) {
-                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
-                                for (const [name, lines] of coreEntries) {
-                                    const icon = sectionIcons[name] || '📋';
-                                    const sectionColor = name === 'Appearance' ? '#d4a940' :
-                                                         name === 'Personality' ? '#8b5cf6' :
-                                                         name === 'Brief Background' ? '#3b82f6' :
-                                                         name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
-                                                         'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
-                                    sectionsHtml += `<div style="margin-bottom:18px;">
-                                        <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
-                                            <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
-                                        </div>
-                                        <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
-                                            ${lines.map(l => escapeHtml(l)).join('<br>')}
-                                        </div>
-                                    </div>`;
-                                }
-                            }
-
-                            // Render Dynamic Updates / Campaign History
-                            if (sections.dynamic.length > 0) {
-                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:24px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📖 Campaign History & Dynamic Lore</div>`;
-                                sectionsHtml += `<div style="font-size:14px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);padding:4px 0 4px 10px;">`;
-                                sectionsHtml += sections.dynamic.map(line => {
-                                    // Style timestamps uniquely if they match [Day X, HH:MM] or [HH:MM PM, Day X]
-                                    const timestampRegex = /^(\[.+?\])\s*(.*)/;
-                                    const match = line.match(timestampRegex);
-                                    if (match) {
-                                        return `<div style="margin-bottom:8px;"><span style="color:#d4a940;font-weight:bold;font-family:monospace;font-size:12px;background:rgba(212,169,64,0.1);padding:2px 6px;border-radius:4px;margin-right:6px;">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span></div>`;
+                            // Helper: build formatted sections HTML from raw content string
+                            const renderSectionsHtml = (rawContent) => {
+                                const parsed = parseNpcSections(rawContent);
+                                let html = '';
+                                const coreEntries = Object.entries(parsed.core);
+                                if (coreEntries.length > 0) {
+                                    html += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
+                                    for (const [name, lines] of coreEntries) {
+                                        const icon = sectionIcons[name] || '📋';
+                                        const sectionColor = name === 'Appearance' ? '#d4a940' :
+                                                             name === 'Personality' ? '#8b5cf6' :
+                                                             name === 'Brief Background' ? '#3b82f6' :
+                                                             name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
+                                                             'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
+                                        html += `<div style="margin-bottom:18px;">
+                                            <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
+                                                <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
+                                            </div>
+                                            <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
+                                                ${lines.map(l => escapeHtml(l)).join('<br>')}
+                                            </div>
+                                        </div>`;
                                     }
-                                    return `<div style="margin-bottom:8px;">${escapeHtml(line)}</div>`;
-                                }).join('');
-                                sectionsHtml += `</div>`;
-                            }
+                                }
+                                if (parsed.dynamic.length > 0) {
+                                    html += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:24px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📖 Campaign History &amp; Dynamic Lore</div>`;
+                                    html += `<div style="font-size:14px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);padding:4px 0 4px 10px;">`;
+                                    html += parsed.dynamic.map(line => {
+                                        const match = line.match(/^(\[.+?\])\s*(.*)/);
+                                        if (match) {
+                                            return `<div style="margin-bottom:8px;"><span style="color:#d4a940;font-weight:bold;font-family:monospace;font-size:12px;background:rgba(212,169,64,0.1);padding:2px 6px;border-radius:4px;margin-right:6px;">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span></div>`;
+                                        }
+                                        return `<div style="margin-bottom:8px;">${escapeHtml(line)}</div>`;
+                                    }).join('');
+                                    html += `</div>`;
+                                }
+                                return html;
+                            };
 
-                            // Full-size portrait (512px stored, display at native res)
+                            // Full-size portrait
                             const portraitEl = portraitSrc
                                 ? `<img src="${escapeHtml(portraitSrc)}" style="width:100%;height:auto;aspect-ratio:1;object-fit:cover;border-radius:12px;border:2px solid rgba(212,169,64,0.3);box-shadow:0 4px 20px rgba(0,0,0,0.4);" alt="${escapeHtml(item.label)}">`
                                 : `<div style="width:100%;aspect-ratio:1;border-radius:12px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));border:2px solid rgba(212,169,64,0.2);display:flex;align-items:center;justify-content:center;font-size:64px;opacity:0.25;color:var(--SmartThemeBodyColor, inherit);">👤</div>`;
 
-                            // Build popup DOM so we can wire up live editing inside it
+                            // Build popup DOM
                             const popupDom = document.createElement('div');
                             popupDom.style.cssText = 'width:100%;box-sizing:border-box;padding:24px;text-align:left;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);';
 
                             popupDom.innerHTML = `
                                 <div style="display:flex;gap:24px;margin-bottom:20px;align-items:flex-start;flex-wrap:wrap;">
                                     <div style="flex-shrink:0;width:280px;">${portraitEl}</div>
-                                    <div style="flex:1;min-width:220px;">
-                                        <div style="font-size:24px;font-weight:bold;color:#d4a940;margin-bottom:8px;line-height:1.2;">${escapeHtml(item.label)}</div>
-                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;${item.is_active ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);' : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
+                                    <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px;">
+                                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                                            <div style="font-size:24px;font-weight:bold;color:#d4a940;line-height:1.2;">${escapeHtml(item.label)}</div>
+                                            <button class="rt-npc-popup-edit-btn menu_button" style="flex-shrink:0;font-size:12px;padding:4px 12px;white-space:nowrap;">✏️ Edit Text</button>
+                                        </div>
+                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;align-self:flex-start;${item.is_active ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);' : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
                                     </div>
                                 </div>
                                 <div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;">
                                     <!-- VIEW PANE -->
                                     <div class="rt-npc-popup-view">
-                                        <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-                                            <button class="rt-npc-popup-edit-btn menu_button" style="font-size:12px;padding:5px 14px;">✏️ Edit Text</button>
-                                        </div>
                                         <div class="rt-npc-popup-sections">
-                                            ${sectionsHtml || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`}
+                                            ${renderSectionsHtml(item.content) || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`}
                                         </div>
                                     </div>
                                     <!-- EDIT PANE -->
                                     <div class="rt-npc-popup-edit" style="display:none;flex-direction:column;gap:10px;">
                                         <div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">✏️ Editing Raw Entry Content</div>
-                                        <textarea class="rt-npc-popup-textarea" spellcheck="false" style="width:100%;min-height:420px;box-sizing:border-box;background:var(--SmartThemeBlurTintColor, rgba(0,0,0,0.3));color:var(--SmartThemeBodyColor, inherit);border:1px solid rgba(212,169,64,0.35);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;line-height:1.6;resize:vertical;">${escapeHtml(item.content || '')}</textarea>
+                                        <textarea class="rt-npc-popup-textarea" spellcheck="false" style="width:100%;min-height:420px;box-sizing:border-box;background:var(--SmartThemeBlurTintColor, rgba(0,0,0,0.3));color:var(--SmartThemeBodyColor, inherit);border:1px solid rgba(212,169,64,0.35);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;line-height:1.6;resize:vertical;"></textarea>
                                         <div style="display:flex;gap:8px;justify-content:flex-end;">
                                             <button class="rt-npc-popup-cancel-btn menu_button" style="font-size:12px;padding:5px 14px;">Cancel</button>
                                             <button class="rt-npc-popup-save-btn menu_button" style="font-size:12px;padding:5px 18px;background:rgba(212,169,64,0.2);border-color:rgba(212,169,64,0.5);color:#d4a940;font-weight:bold;">💾 Save</button>
@@ -5128,6 +5125,7 @@ function createPanel() {
                             // Wire up in-popup edit/save/cancel
                             const viewPane = popupDom.querySelector('.rt-npc-popup-view');
                             const editPane = popupDom.querySelector('.rt-npc-popup-edit');
+                            const sectionsDiv = popupDom.querySelector('.rt-npc-popup-sections');
                             const textarea = /** @type {HTMLTextAreaElement} */ (popupDom.querySelector('.rt-npc-popup-textarea'));
                             const editBtn = popupDom.querySelector('.rt-npc-popup-edit-btn');
                             const cancelBtn = popupDom.querySelector('.rt-npc-popup-cancel-btn');
@@ -5165,7 +5163,9 @@ function createPanel() {
                                     await refreshManifest();
                                     // @ts-ignore
                                     toastr.success('Entry saved.', 'Lorebook Agent');
-                                    // Switch back to view pane with updated content
+                                    // Re-render the view pane with the new content
+                                    const newHtml = renderSectionsHtml(item.content);
+                                    sectionsDiv.innerHTML = newHtml || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`;
                                     editPane.style.display = 'none';
                                     viewPane.style.display = 'block';
                                 } else {
@@ -5184,6 +5184,7 @@ function createPanel() {
                             };
                             await ctx.callGenericPopup(popupDom, ctx.POPUP_TYPE?.TEXT ?? 1, '', popupOpts);
                         };
+
 
                         for (const item of items) {
                             const desc = getNpcDescription(item.content);
