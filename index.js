@@ -5038,7 +5038,7 @@ function createPanel() {
                         };
 
                         // Helper: open NPC detail popup
-                        const openNpcDetailPopup = (item) => {
+                        const openNpcDetailPopup = async (item) => {
                             const ctx = SillyTavern.getContext();
                             if (!ctx.callGenericPopup) return;
                             const normLabel = item.label.replace(/\s*\(.*?\)/g, '').trim();
@@ -5106,9 +5106,26 @@ function createPanel() {
                                 </div>
                             </div>`;
 
-                            ctx.callGenericPopup(popupHtml, ctx.POPUP_TYPE?.TEXT ?? 1, '', {
-                                okButton: 'Close', cancelButton: false, wide: true, large: true,
-                            });
+                            const popupOpts = {
+                                okButton: 'Close',
+                                cancelButton: false,
+                                wide: true,
+                                large: true,
+                                customButtons: [
+                                    { text: '✏️ Edit Text', result: 'edit', classes: ['menu_button'] }
+                                ]
+                            };
+                            const result = await ctx.callGenericPopup(popupHtml, ctx.POPUP_TYPE?.TEXT ?? 1, '', popupOpts);
+                            if (result === 'edit') {
+                                const editBtn = document.querySelector(`.rt-npc-edit[data-id="${item.id.replace(/"/g, '\\"') }"]`);
+                                if (editBtn) {
+                                    editBtn.click();
+                                    const cardEl = editBtn.closest('.rt-npc-card');
+                                    if (cardEl) {
+                                        cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                }
+                            }
                         };
 
                         for (const item of items) {
