@@ -4958,7 +4958,7 @@ function createPanel() {
                             // Strip [CORE] and [/CORE] tags before parsing
                             const cleanContent = content.replace(/\[\/?CORE\]/gi, '');
                             // Try to extract Appearance section content first
-                            const appMatch = cleanContent.match(/Appearance:\s*(.+?)(?=\s*(?:Personality|Brief Background|Habits|Behaviors):|$)/is);
+                            const appMatch = cleanContent.match(/(?:Appearance\/Species|Appearance):\s*(.+?)(?=\s*(?:Personality|Brief Background|Habits|Behaviors):|$)/is);
                             if (appMatch && appMatch[1].trim()) {
                                 return appMatch[1].trim().substring(0, 140);
                             }
@@ -4990,11 +4990,11 @@ function createPanel() {
                             }
 
                             // 2. Parse core sections
-                            const sectionMarkers = /(?=(?:Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors)\s*:)/gi;
+                            const sectionMarkers = /(?=(?:Appearance\/Species|Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors)\s*:)/gi;
                             const normalizedCore = coreContent.replace(sectionMarkers, '\n');
                             const coreLines = normalizedCore.split('\n');
                             let currentSection = 'General';
-                            const sectionPattern = /^(Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors)\s*:/i;
+                            const sectionPattern = /^(Appearance\/Species|Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors)\s*:/i;
 
                             for (const line of coreLines) {
                                 const trimmed = line.trim();
@@ -5032,7 +5032,7 @@ function createPanel() {
 
                         // Helper: section icon map
                         const sectionIcons = {
-                            'General': '📋', 'Appearance': '👁️', 'Personality': '🧠',
+                            'General': '📋', 'Appearance/Species': '👁️', 'Appearance': '👁️', 'Personality': '🧠',
                             'Brief Background': '📜', 'Habits/Behaviors': '🔄', 'Habits': '🔄',
                             'Behaviors': '🔄',
                         };
@@ -5053,7 +5053,7 @@ function createPanel() {
                                     html += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
                                     for (const [name, lines] of coreEntries) {
                                         const icon = sectionIcons[name] || '📋';
-                                        const sectionColor = name === 'Appearance' ? '#d4a940' :
+                                        const sectionColor = (name === 'Appearance/Species' || name === 'Appearance') ? '#d4a940' :
                                                              name === 'Personality' ? '#8b5cf6' :
                                                              name === 'Brief Background' ? '#3b82f6' :
                                                              name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
@@ -5692,7 +5692,7 @@ await refreshManifest();
                     name = match[1].trim();
                     content = match[2].trim();
                     // Clean up any stray | separators the AI might have used instead of newlines
-                    content = content.replace(/\s*\|\s*(?=Appearance:|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
+                    content = content.replace(/\s*\|\s*(?=(?:Appearance\/Species|Appearance):|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
                     const extractedKeys = match[3].split(',').map(k => k.trim()).filter(Boolean);
                     if (extractedKeys.length > 0) {
                         keys = extractedKeys;

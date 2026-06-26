@@ -24,10 +24,10 @@ export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
     let instruction = `Significant named characters the party interacts with (do NOT record every random enemy or nameless bartender, only characters who are somehow significant). Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed. Always use the exact macro string \`{{user}}\` when referring to the player; do NOT write the plain word "user" or "player".
 
 <CORE_FORMAT>
-IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
+IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance/Species, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
 
 [CORE]
-Appearance: Visual identifiers — race, build, distinctive features, weapon/armor if relevant.
+Appearance/Species: Visual identifiers — species/race, build, distinctive features, weapon/armor if relevant.
 Personality: Core temperament and primary motivation.
 Brief Background: Role in the world, why they matter to the story.
 Habits/Behaviors: Defining behaviors or combat tendencies.
@@ -39,7 +39,7 @@ After the [/CORE] block, append timestamped narrative updates as usual ([Day X, 
 ## APPEARANCE UPDATES
 If the NPC's physical appearance changes significantly (major injury, permanent outfit change, etc.), output:
   [[UPDATE_APPEARANCE: Book::UID | New appearance text]]
-This surgically replaces only the Appearance field inside [CORE]. Do NOT write appearance changes as event/update entries.`;
+This surgically replaces only the Appearance/Species field inside [CORE]. Do NOT write appearance changes as event/update entries.`;
 
     instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.
 
