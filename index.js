@@ -8590,6 +8590,34 @@ function refreshOrderList() {
 
         item.appendChild(cb);
         item.appendChild(label);
+
+        // TIME-specific: inline 24h clock toggle
+        if (tag === 'TIME' && isStock) {
+            const pill = document.createElement('label');
+            pill.title = 'Toggle between 12-hour (AM/PM) and 24-hour time format for the [TIME] module prompt and all time displays.';
+            pill.style.cssText = 'display:inline-flex; align-items:center; gap:4px; font-size:10px; opacity:0.8; cursor:pointer; user-select:none; margin-right:4px; white-space:nowrap;';
+
+            const cb24h = document.createElement('input');
+            cb24h.type = 'checkbox';
+            cb24h.checked = !!s.use24hTime;
+            cb24h.style.cssText = 'margin:0; cursor:pointer;';
+            cb24h.onchange = () => {
+                getSettings().use24hTime = cb24h.checked;
+                saveSettings();
+                // Refresh any visible timing displays
+                if (typeof updateWorldProgressionLastFiredDisplayRef === 'function') {
+                    updateWorldProgressionLastFiredDisplayRef();
+                }
+            };
+
+            const lbl24h = document.createElement('span');
+            lbl24h.textContent = '24h';
+
+            pill.appendChild(cb24h);
+            pill.appendChild(lbl24h);
+            item.appendChild(pill);
+        }
+
         btnGroup.appendChild(editBtn);
         if (resetBtn) btnGroup.appendChild(resetBtn);
         btnGroup.appendChild(upBtn);
@@ -8814,7 +8842,6 @@ function buildSysprompt(rawText) {
                         $('#rpg_tracker_npc_minor_words').val(sTempTracker.npcMinorWords ?? 15);
                         $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
                         $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
-                        $('#rpg_tracker_use_24h_time').prop('checked', !!sTempTracker.use24hTime);
                         if (typeof refreshOrderList === 'function') refreshOrderList();
 
                         // 3. Lorebook Agent
@@ -9006,7 +9033,6 @@ function buildSysprompt(rawText) {
            
                                     $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
                                     $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
-                                    $('#rpg_tracker_use_24h_time').prop('checked', !!sTempTracker.use24hTime);
                                     if (typeof refreshOrderList === 'function') refreshOrderList();
                                     resetCount++;
                                     console.log('[RPG Tracker] State tracker prompts reset to defaults.');
@@ -11853,12 +11879,7 @@ RULES:
             saveSettings();
             updateWorldProgressionLastFiredDisplay();
         });
-        const $wpUse24hTime = $('#rpg_tracker_use_24h_time');
-        $wpUse24hTime.prop('checked', !!settings.use24hTime).on('change', function () {
-            getSettings().use24hTime = !!$(this).prop('checked');
-            saveSettings();
-            updateWorldProgressionLastFiredDisplay();
-        });
+
         $wpKeepActive.val(settings.worldProgressionKeepActive || 1).on('input', function () {
             getSettings().worldProgressionKeepActive = parseInt(String($(this).val() || '')) || 1;
             saveSettings();
