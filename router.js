@@ -808,7 +808,12 @@ Do NOT log appearance changes as event/update entries. The [CORE] block is the s
 
 Example:
 Thought: I see a new NPC named Barnaby in Khelt's Rust-Lantern District. I will record him and the tavern.
-[[NPC: Barnaby | A retired blacksmith with a scar on his cheek. | Barnaby, blacksmith, ally]]
+[[NPC: Barnaby | [CORE]
+Appearance/Species: A burly human blacksmith with a scar on his cheek.
+Personality: Gruff but reliable.
+Brief Background: Retired from the militia to open his own forge.
+Habits/Behaviors: Wipes his brow with a greasy rag.
+[/CORE] | Barnaby, blacksmith, ally]]
 [[LOC: Khelt :: Rust-Lantern District :: Barnaby's Forge | Barnaby's old workshop, still smelling of soot. | forge, Khelt, Rust-Lantern]]
 [[FAC: Iron Syndicate | Wary of outsiders after the forge raid; still dominant in the industrial quarter. | Founded by ex-mercenaries forty years ago; controls scrap tariffs and smuggling. Lieutenant Marna Voss handles street enforcement. | Iron Syndicate, Khelt, faction, smuggling]]`;
 
