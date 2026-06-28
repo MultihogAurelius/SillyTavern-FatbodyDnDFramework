@@ -6491,6 +6491,7 @@ Rules:
                     { id: 'Merchant',            icon: '🪙' },
                     { id: 'Mysterious Stranger', icon: '🎭' },
                     { id: 'Rival',               icon: '🧙' },
+                    { id: 'Custom',              icon: '✍️' },
                 ];
 
                 let selectedArchetype = '';
@@ -6501,13 +6502,15 @@ Rules:
                 
                 const customLabel = document.createElement('label');
                 customLabel.className = 'rt-npc-form-label';
-                customLabel.textContent = 'Archetype / Role *';
+                customLabel.textContent = 'Custom Archetype / Role *';
+                customLabel.style.display = 'none';
                 
                 const customInput = document.createElement('input');
                 customInput.className = 'rt-npc-form-input';
                 customInput.type = 'text';
-                customInput.placeholder = 'Type a custom role (e.g. Mentor, Bartender) or select a chip above...';
+                customInput.placeholder = 'e.g. Mentor, Bartender, Guildmaster...';
                 customInput.style.marginBottom = '8px';
+                customInput.style.display = 'none';
 
                 for (const { id, icon } of archetypes) {
                     const chip = document.createElement('div');
@@ -6515,7 +6518,18 @@ Rules:
                     chip.innerHTML = `<span class="rt-archetype-chip-icon">${icon}</span> ${id}`;
                     chip.addEventListener('click', () => {
                         selectedArchetype = id;
-                        customInput.value = id;
+                        
+                        if (id === 'Custom') {
+                            customLabel.style.display = 'block';
+                            customInput.style.display = 'block';
+                            customInput.value = '';
+                            customInput.focus();
+                        } else {
+                            customLabel.style.display = 'none';
+                            customInput.style.display = 'none';
+                            customInput.value = id;
+                        }
+                        
                         for (const [cid, cel] of Object.entries(chipMap)) {
                             cel.classList.toggle('selected', cid === selectedArchetype);
                         }
@@ -6526,9 +6540,6 @@ Rules:
                 
                 customInput.addEventListener('input', () => {
                     selectedArchetype = customInput.value.trim();
-                    for (const [cid, cel] of Object.entries(chipMap)) {
-                        cel.classList.toggle('selected', cid.toLowerCase() === selectedArchetype.toLowerCase());
-                    }
                 });
 
                 archetypePanel.appendChild(grid);
