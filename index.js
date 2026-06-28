@@ -5682,6 +5682,22 @@ await refreshManifest();
         // ════════════════════════════════════════════════════════════════════
 
         /**
+         * Robust helper to parse the [[NPC: Name | Description | Keywords]] format anywhere in the text.
+         * @param {string|null} text
+         * @returns {{name: string, description: string, keywords: string[]}|null}
+         */
+        const parseNpcTag = (text) => {
+            if (!text) return null;
+            const match = text.match(/\[\[NPC:\s*([^|]*?)\s*\|\s*([\s\S]*?)\s*\|\s*([^|]*?)\]\]/i);
+            if (!match) return null;
+            return {
+                name: match[1].trim(),
+                description: match[2].trim(),
+                keywords: match[3].split(',').map(k => k.trim()).filter(Boolean)
+            };
+        };
+
+        /**
          * Creates an NPC lorebook entry from a character card.
          * @param {object} charCard - The SillyTavern character card object
          * @param {string} bookName - Target lorebook book name
@@ -5699,18 +5715,17 @@ await refreshManifest();
             // Build NPC entry content
             let content;
             if (adaptedContent) {
-                content = adaptedContent;
-                // Parse the [[NPC: Name | Description | Keywords]] format if AI provided it
-                const match = content.match(/^\[\[NPC:\s*(.*?)\s*\|\s*([\s\S]*)\s*\|\s*(.*?)\]\]$/i);
-                if (match) {
-                    name = match[1].trim();
-                    content = match[2].trim();
+                const parsed = parseNpcTag(adaptedContent);
+                if (parsed) {
+                    name = parsed.name;
+                    content = parsed.description;
                     // Clean up any stray | separators the AI might have used instead of newlines
                     content = content.replace(/\s*\|\s*(?=(?:Appearance\/Species|Appearance):|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
-                    const extractedKeys = match[3].split(',').map(k => k.trim()).filter(Boolean);
-                    if (extractedKeys.length > 0) {
-                        keys = extractedKeys;
+                    if (parsed.keywords.length > 0) {
+                        keys = parsed.keywords;
                     }
+                } else {
+                    content = adaptedContent;
                 }
             } else {
                 // Direct add: use name, description, personality (NOT scenario/first_mes)
@@ -5988,20 +6003,25 @@ Rules:
          * Generates NPC from a freeform name + description using AI.
          * @param {string} name - NPC name (may be empty)
          * @param {string} rawDesc - User's free-text description
+         * @param {string[]} existingNpcNames - List of existing NPC names to forbid
          * @returns {Promise<string|null>} Lorebook [[NPC: ...]] tag string
          */
-        const generateNpcFromFreeform = async (name, rawDesc) => {
+        const generateNpcFromFreeform = async (name, rawDesc, existingNpcNames = []) => {
             const s = getSettings();
             const contextParts = await gatherNpcCampaignContext();
             const label = name ? `Name: ${name}\n` : '';
             contextParts.unshift(`USER'S NPC CONCEPT:\n${label}Description: ${rawDesc}`);
+
+            const forbiddenBlock = existingNpcNames.length > 0
+                ? `\nForbidden Names (Do NOT use these existing NPC/character names under any circumstances):\n${existingNpcNames.map(n => `- ${n}`).join('\n')}\n`
+                : '';
 
             const systemPrompt = `${s.routerSystemPromptTemplate || ''}
 
 ---
 
 You are an NPC Creation Agent. The user has provided a brief concept or description for a new NPC they want to add to the current ongoing campaign.
-
+${forbiddenBlock}
 <npc_instructions>
 ${s.routerModules?.npc?.instruction || ''}
 </npc_instructions>
@@ -6009,6 +6029,7 @@ ${s.routerModules?.npc?.instruction || ''}
 Rules:
 - Use the USER'S NPC CONCEPT as your primary source. Expand it into a full, vivid character.
 - If no name is provided, create a fitting one for the world setting.
+- You MUST NOT use any of the names listed in the Forbidden Names section. If the concept implies a name from this list, modify or create a new unique name.
 - Adapt appearance, background and habits to fit naturally into the current campaign setting/tone inferred from context.
 - Your output MUST be strictly formatted as a lorebook entry tag:
   [[NPC: Name | Description | keywords]]
@@ -6043,21 +6064,26 @@ Rules:
          * @param {string} archetype - e.g. "Arch Nemesis"
          * @param {string} name - optional name hint
          * @param {string} concept - optional extra descriptive prompt
+         * @param {string[]} existingNpcNames - List of existing NPC names to forbid
          * @returns {Promise<string|null>} Lorebook [[NPC: ...]] tag string
          */
-        const generateNpcFromArchetype = async (archetype, name, concept) => {
+        const generateNpcFromArchetype = async (archetype, name, concept, existingNpcNames = []) => {
             const s = getSettings();
             const contextParts = await gatherNpcCampaignContext();
             const nameLine = name ? `Desired Name: ${name}\n` : '';
             const conceptLine = concept ? `Additional concept: ${concept}\n` : '';
             contextParts.unshift(`ARCHETYPE REQUEST:\nArchetype: ${archetype}\n${nameLine}${conceptLine}`);
 
+            const forbiddenBlock = existingNpcNames.length > 0
+                ? `\nForbidden Names (Do NOT use these existing NPC/character names under any circumstances):\n${existingNpcNames.map(n => `- ${n}`).join('\n')}\n`
+                : '';
+
             const systemPrompt = `${s.routerSystemPromptTemplate || ''}
 
 ---
 
 You are an NPC Creation Agent. Create a new NPC for the current ongoing campaign fitting the requested archetype.
-
+${forbiddenBlock}
 <npc_instructions>
 ${s.routerModules?.npc?.instruction || ''}
 </npc_instructions>
@@ -6065,6 +6091,7 @@ ${s.routerModules?.npc?.instruction || ''}
 Rules:
 - The NPC MUST embody the requested archetype (e.g. a "Lover" should have romantic motivation toward the player; an "Arch Nemesis" should be a credible threat with personal stakes).
 - Invent a name suitable for the world if not provided.
+- You MUST NOT use any of the names listed in the Forbidden Names section.
 - Ground the NPC's appearance, backstory, and habits in the current campaign setting inferred from context.
 - Your output MUST be strictly formatted as a lorebook entry tag:
   [[NPC: Name | Description | keywords]]
@@ -6095,15 +6122,20 @@ Rules:
         };
 
         /**
-         * Shows the NPC Creator popup with three tabs:
-         *   1. Import from Character Card
-         *   2. Freeform Description
-         *   3. Archetype Generator
-         * @param {string} bookName - Target lorebook name
-         * @param {string} prefix - Campaign prefix
-         */
         const openNpcCreatorDialog = async (bookName, prefix) => {
             const ctx = SillyTavern.getContext();
+
+            // Load target book once to check for existing entries
+            let existingNpcNames = [];
+            let targetBookData = null;
+            try {
+                targetBookData = await ctx.loadWorldInfo(bookName);
+                if (targetBookData && targetBookData.entries) {
+                    existingNpcNames = Object.values(targetBookData.entries)
+                        .map(e => (e.comment || '').replace(/^\[.*?\]\s*/i, '').trim())
+                        .filter(Boolean);
+                }
+            } catch (_) {}
 
             // Fetch character list with timeout to prevent UI hang
             let allChars = [];
@@ -6199,12 +6231,35 @@ Rules:
             // ── Helper: AI preview + add flow ──────────────────────────────
             const showNpcPreviewAndAdd = async (generatedTag, defaultName, toastLabel) => {
                 if (!ctx.callGenericPopup) return;
+                const parsed = parseNpcTag(generatedTag);
+                const nameToAdd = parsed ? parsed.name : defaultName;
+
+                // Check for duplicate
+                let isDuplicate = false;
+                let bookData = null;
+                try { bookData = await ctx.loadWorldInfo(bookName); } catch (_) {}
+                if (bookData && bookData.entries) {
+                    const cleanLabel = nameToAdd.toLowerCase().trim();
+                    for (const [, entry] of Object.entries(bookData.entries)) {
+                        const entryLabel = (entry.comment || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+                        if (entryLabel === cleanLabel) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                }
+
                 const taId = `rt-npc-gen-preview-${Date.now()}`;
+                const warningHtml = isDuplicate
+                    ? `<div style="font-size:0.8em;color:#ff5555;margin-bottom:8px;font-weight:bold;background:rgba(255,0,0,0.1);padding:6px;border-radius:4px;border:1px solid rgba(255,0,0,0.2);">⚠️ An NPC named "${escapeHtml(nameToAdd)}" already exists! Please edit the name inside [[NPC: Name | ...]] before adding.</div>`
+                    : `<div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">Review the AI-generated entry. Edit if needed, then confirm.</div>`;
+
                 const previewHtml = `<div style="padding:10px;min-width:320px;max-width:520px;">
-                    <b style="display:block;margin-bottom:8px;">✨ Generated NPC — ${escapeHtml(defaultName)}</b>
-                    <div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">Review the AI-generated entry. Edit if needed, then confirm.</div>
+                    <b style="display:block;margin-bottom:8px;">✨ Generated NPC — ${escapeHtml(nameToAdd)}</b>
+                    ${warningHtml}
                     <textarea id="${taId}" style="width:100%;min-height:160px;resize:vertical;font-size:0.9em;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:inherit;box-sizing:border-box;">${escapeHtml(generatedTag)}</textarea>
                 </div>`;
+
                 let finalContent = generatedTag;
                 setTimeout(() => {
                     const ta = document.getElementById(taId);
@@ -6214,10 +6269,27 @@ Rules:
                     okButton: '✅ Add NPC', cancelButton: 'Cancel', wide: false,
                 });
                 if (result) {
-                    const fakeCard = { name: defaultName, avatar: null };
+                    const finalParsed = parseNpcTag(finalContent);
+                    const finalName = finalParsed ? finalParsed.name : nameToAdd;
+
+                    // Final duplicate verification
+                    let finalBookData = null;
+                    try { finalBookData = await ctx.loadWorldInfo(bookName); } catch (_) {}
+                    if (finalBookData && finalBookData.entries) {
+                        const cleanLabel = finalName.toLowerCase().trim();
+                        for (const [, entry] of Object.entries(finalBookData.entries)) {
+                            const entryLabel = (entry.comment || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+                            if (entryLabel === cleanLabel) {
+                                toastr['warning'](`NPC "${finalName}" already exists. Cannot add duplicate.`, toastLabel);
+                                return; // Blocks adding!
+                            }
+                        }
+                    }
+
+                    const fakeCard = { name: finalName, avatar: null };
                     const ok = await createNpcFromCharCard(fakeCard, bookName, finalContent);
                     if (ok) {
-                        toastr['success'](`Added "${defaultName}" as NPC.`, toastLabel);
+                        toastr['success'](`Added "${finalName}" as NPC.`, toastLabel);
                         overlay.remove();
                         await refreshManifest();
                     }
@@ -6386,7 +6458,7 @@ Rules:
                     genBtn.disabled = true;
                     genBtn.textContent = '⏳ Generating...';
                     try {
-                        const generated = await generateNpcFromFreeform(nameInput.value.trim(), rawDesc);
+                        const generated = await generateNpcFromFreeform(nameInput.value.trim(), rawDesc, existingNpcNames);
                         if (!generated) return;
                         const nameFallback = nameInput.value.trim() || 'New NPC';
                         await showNpcPreviewAndAdd(generated, nameFallback, 'NPC Creator');
@@ -6409,7 +6481,7 @@ Rules:
 
                 const hintEl = document.createElement('div');
                 hintEl.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:10px;line-height:1.5;';
-                hintEl.textContent = 'Pick a story role. The AI will generate a fitting NPC grounded in the current campaign context.';
+                hintEl.textContent = 'Pick a story role below, or type a custom one. The AI will generate a fitting NPC grounded in the current campaign context.';
                 archetypePanel.appendChild(hintEl);
 
                 const archetypes = [
@@ -6428,12 +6500,24 @@ Rules:
                 grid.className = 'rt-archetype-grid';
                 grid.style.marginBottom = '10px';
                 const chipMap = {};
+                
+                const customLabel = document.createElement('label');
+                customLabel.className = 'rt-npc-form-label';
+                customLabel.textContent = 'Selected Role / Archetype *';
+                
+                const customInput = document.createElement('input');
+                customInput.className = 'rt-npc-form-input';
+                customInput.type = 'text';
+                customInput.placeholder = 'Select a chip above or type a custom role (e.g. Mentor, Bartender)...';
+                customInput.style.marginBottom = '8px';
+
                 for (const { id, icon } of archetypes) {
                     const chip = document.createElement('div');
                     chip.className = 'rt-archetype-chip';
                     chip.innerHTML = `<span class="rt-archetype-chip-icon">${icon}</span> ${id}`;
                     chip.addEventListener('click', () => {
-                        selectedArchetype = (selectedArchetype === id) ? '' : id;
+                        selectedArchetype = id;
+                        customInput.value = id;
                         for (const [cid, cel] of Object.entries(chipMap)) {
                             cel.classList.toggle('selected', cid === selectedArchetype);
                         }
@@ -6441,7 +6525,17 @@ Rules:
                     grid.appendChild(chip);
                     chipMap[id] = chip;
                 }
+                
+                customInput.addEventListener('input', () => {
+                    selectedArchetype = customInput.value.trim();
+                    for (const [cid, cel] of Object.entries(chipMap)) {
+                        cel.classList.toggle('selected', cid.toLowerCase() === selectedArchetype.toLowerCase());
+                    }
+                });
+
                 archetypePanel.appendChild(grid);
+                archetypePanel.appendChild(customLabel);
+                archetypePanel.appendChild(customInput);
 
                 const nameLabel = document.createElement('label');
                 nameLabel.className = 'rt-npc-form-label';
@@ -6465,15 +6559,16 @@ Rules:
                 genBtn.className = 'rt-npc-generate-btn';
                 genBtn.textContent = '🤖 Generate NPC';
                 genBtn.addEventListener('click', async () => {
-                    if (!selectedArchetype) { toastr['warning']('Please select an archetype first.', 'NPC Creator'); return; }
+                    const role = customInput.value.trim();
+                    if (!role) { toastr['warning']('Please select or enter an archetype/role first.', 'NPC Creator'); return; }
                     genBtn.disabled = true;
                     genBtn.textContent = '⏳ Generating...';
                     try {
                         const generated = await generateNpcFromArchetype(
-                            selectedArchetype, nameInput.value.trim(), conceptInput.value.trim()
+                            role, nameInput.value.trim(), conceptInput.value.trim(), existingNpcNames
                         );
                         if (!generated) return;
-                        const nameFallback = nameInput.value.trim() || selectedArchetype;
+                        const nameFallback = nameInput.value.trim() || role;
                         await showNpcPreviewAndAdd(generated, nameFallback, 'NPC Creator');
                     } finally {
                         genBtn.disabled = false;
