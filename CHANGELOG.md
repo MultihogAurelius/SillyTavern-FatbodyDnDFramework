@@ -2,7 +2,7 @@
 
 All notable changes to the **Multihog D&D Framework** will be documented in this file.
 
-## [3.16.14] - 2026-06-25
+## [3.8.8] - 2026-06-30
 
 ### Added
 - **Relationship Bars System Rework**: Overhauled the NPC relationship bar system from a cosmetic feature into a functional, AI-driven mechanic. The narrator AI now emits inline annotations (e.g. `*(Affection: Elena +2 — sincere compliment)*`) at the point of interaction and machine tags (`[REL: Name | field | delta]`) at the end of each response. Tags are automatically parsed, deltas applied to the relationship bars (clamped ±100), and the updated values written back to lorebook NPC entries as the persistent campaign database. Context injection (`[NPC_RELATIONS]`) provides the narrator with a live snapshot of current standings for active NPCs only, keeping token usage minimal. System prompt guidance added with calibrated delta examples for both Friendship and Affection.
