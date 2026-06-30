@@ -423,7 +423,9 @@ RELATIONSHIP TRACKING — only active when [NPC_RELATIONS] appears in context.
 [NPC_RELATIONS] at the top of each turn shows current standings with active NPCs. Scale: -100 (deep hostility) to +100 (deep bond). Friendship = platonic trust. Affection = romantic/emotional warmth.
 
 WHEN TO EMIT:
-Be selective and natural about it. Only emit when {{user}} directly and meaningfully interacted with an NPC in this response — a real moment worth noting. An NPC being referenced, mentioned, or discussed by others does not warrant a tag.
+Be selective and natural. Only emit when {{user}} directly and meaningfully interacted with an NPC — a real moment worth noting. Magnitude MUST reflect the NPC's personality: a stoic warrior shifts less than a warm innkeeper for the same act.
+
+DO NOT EMIT when: the interaction has no emotional weight (buying supplies, directions), the NPC is absent, or nothing meaningful happened between {{user}} and that NPC this turn.
 
 INLINE ANNOTATION (visible — place immediately after the triggering moment):
 *(Friendship: Marcus +10 — saved his life in the alley)*
@@ -433,29 +435,33 @@ MACHINE TAGS (stripped before display — place ALL at the very end of the respo
 [REL: FirstName | field | delta]
   FirstName = NPC's first name only | field = friendship or affection | delta = signed integer
 
-FRIENDSHIP EXAMPLES (guides, not hard rules):
-+1/+2 ... Small warmth, casual kindness, shared laugh
-+2/+5 ... Genuine compliment, meaningful help with a problem
-+5/+10 .. Surviving danger together, real heartfelt conversation
-+10/+15 . Protecting or defending them, significant act of loyalty
-+15/+25 . Saving their life
+FRIENDSHIP scale (guides, not hard rules):
++1/+2 ... Casual warmth, shared laugh, pleasant campfire talk, small kindness
++2/+5 ... Compliment, meaningful help, bonding over shared memories or interests
++5/+10 .. Surviving danger together, heartfelt conversation, completing a shared goal
++10/+15 . Defending/protecting them, act of loyalty, keeping a difficult promise
++15/+25 . Saving their life, major self-sacrifice
 +25/+30 . Blood oath, brotherhood/sisterhood pact
--3/-5 ... Minor let-down, small broken promise
--5/-10 .. Insult, dismissal, belittling
+-1/-3 ... Dismissiveness, mild rudeness, forgetting something important to them
+-3/-5 ... Small broken promise, ignoring them in a group, letting them down
+-5/-10 .. Insult, belittling, disrespecting their values or beliefs
 -10/-20 . Public humiliation, badmouthing them (if overheard)
--20/-30 . Abandoning them in danger
+-20/-30 . Abandoning them in danger, breaking a major promise
 -40/-60 . Betraying them to an enemy
 
-AFFECTION EXAMPLES (guides, not hard rules):
-+1 ...... Subtle kind gesture, attentive small detail
-+2/+3 ... Sincere compliment on appearance, wit, or spirit
-+5/+10 .. Sweet gift, emotional gesture, intimate conversation
-+10/+20 . Protective act (romantic context), vulnerable confession
+AFFECTION scale (guides, not hard rules):
++1 ...... Subtle kind gesture, noticing a small detail about them
++2/+3 ... Sincere compliment on appearance, wit, or spirit; flirtatious banter (if receptive)
++5/+10 .. Meaningful gift, intimate conversation, shared vulnerability, romantic gesture
++10/+20 . Protective act in romantic context, vulnerable confession of feelings
 +20/+30 . Romantic proposal (if receptive)
--2/-3 ... Cold or dismissive behavior (per instance)
+-1/-2 ... Awkward or tone-deaf comment, mild social blunder
+-2/-3 ... Cold or dismissive behavior
 -5/-10 .. Public rejection or embarrassment
 -8/-15 .. Flirting with someone else in their presence
 -40/-60 . Romantic betrayal or cheating
+
+Typical range: 1-5 for minor moments, 5-15 for major events. Only use 15+ for life-altering ones.
 
 EXAMPLE — end of a response where {{user}} complimented Elena:
 *(Affection: Elena +2 — she seemed genuinely moved by the words)*
@@ -756,28 +762,9 @@ RELATIONSHIP TRACKING — only active when [NPC_RELATIONS] appears in context.
 [NPC_RELATIONS] at the top of each turn shows current standings with active NPCs. Scale: -100 (deep hostility) to +100 (deep bond). Friendship = platonic trust. Affection = romantic/emotional warmth.
 
 WHEN TO EMIT:
-Be selective and natural about it. Only emit when {{user}} directly and meaningfully interacted with an NPC in this response — a real moment worth noting. An NPC being referenced, mentioned, or discussed by others does not warrant a tag.
+Be selective and natural. Only emit when {{user}} directly and meaningfully interacted with an NPC — a real moment worth noting. Magnitude MUST reflect the NPC's personality: a stoic warrior shifts less than a warm innkeeper for the same act.
 
-Relationship shifts are NOT limited to obvious social acts. Consider ALL of the following (non-exhaustive — use your judgment for ANY situation):
-• Direct compliments, insults, gifts, threats, apologies
-• Sharing a meal, campfire conversation, bonding over shared interests or memories
-• Surviving danger together, escaping a trap, enduring hardship side by side
-• Completing a quest that matters to the NPC, fulfilling a promise made to them
-• Betrayal, breaking a promise, abandoning or failing to protect them
-• Saving their life or a loved one's life
-• Flirtatious banter — received well OR poorly depending on the NPC's current feelings
-• A meaningful personal confession, a vulnerable moment shared
-• A romantic gesture — a dance, a gift with personal significance, a protective act in romantic context
-• Spending extended quality time together with positive interactions
-• Disrespecting their values, culture, religion, or loved ones
-• Ignoring them, forgetting something important to them, treating them as unimportant
-
-MAGNITUDE MUST reflect the NPC's personality. A stoic warrior might shift +1 where a warm innkeeper shifts +3 for the same compliment. Personality matters more than the act itself — gauge against WHO the NPC is, their temperament, values, and what they care about.
-
-DO NOT EMIT when:
-• The interaction is purely transactional with no emotional weight (buying supplies, asking for directions)
-• The NPC is not present or participating in the scene
-• Nothing meaningful happened between {{user}} and the specific NPC this turn
+DO NOT EMIT when: the interaction has no emotional weight (buying supplies, directions), the NPC is absent, or nothing meaningful happened between {{user}} and that NPC this turn.
 
 INLINE ANNOTATION (visible — place immediately after the triggering moment):
 *(Friendship: Marcus +10 — saved his life in the alley)*
@@ -787,33 +774,33 @@ MACHINE TAGS (stripped before display — place ALL at the very end of the respo
 [REL: FirstName | field | delta]
   FirstName = NPC's first name only | field = friendship or affection | delta = signed integer
 
-FRIENDSHIP EXAMPLES (guides, not hard rules):
-+1/+2 ... Small warmth, casual kindness, shared laugh, pleasant campfire talk
-+2/+5 ... Genuine compliment, meaningful help with a problem, bonding over shared interests
-+5/+10 .. Surviving danger together, real heartfelt conversation, completing a shared goal
-+10/+15 . Protecting or defending them, significant act of loyalty, keeping a difficult promise
-+15/+25 . Saving their life, major self-sacrifice for their sake
+FRIENDSHIP scale (guides, not hard rules):
++1/+2 ... Casual warmth, shared laugh, pleasant campfire talk, small kindness
++2/+5 ... Compliment, meaningful help, bonding over shared memories or interests
++5/+10 .. Surviving danger together, heartfelt conversation, completing a shared goal
++10/+15 . Defending/protecting them, act of loyalty, keeping a difficult promise
++15/+25 . Saving their life, major self-sacrifice
 +25/+30 . Blood oath, brotherhood/sisterhood pact
--1/-3 ... Being dismissive, forgetting something they told you, mild rudeness
--3/-5 ... Minor let-down, small broken promise, ignoring them in a group
--5/-10 .. Insult, dismissal, belittling, disrespecting their beliefs
+-1/-3 ... Dismissiveness, mild rudeness, forgetting something important to them
+-3/-5 ... Small broken promise, ignoring them in a group, letting them down
+-5/-10 .. Insult, belittling, disrespecting their values or beliefs
 -10/-20 . Public humiliation, badmouthing them (if overheard)
 -20/-30 . Abandoning them in danger, breaking a major promise
 -40/-60 . Betraying them to an enemy
 
-AFFECTION EXAMPLES (guides, not hard rules):
-+1 ...... Subtle kind gesture, attentive small detail, noticing something about them
-+2/+3 ... Sincere compliment on appearance, wit, or spirit
-+5/+10 .. Sweet gift, emotional gesture, intimate conversation, shared vulnerability
-+10/+20 . Protective act (romantic context), vulnerable confession of feelings
+AFFECTION scale (guides, not hard rules):
++1 ...... Subtle kind gesture, noticing a small detail about them
++2/+3 ... Sincere compliment on appearance, wit, or spirit; flirtatious banter (if receptive)
++5/+10 .. Meaningful gift, intimate conversation, shared vulnerability, romantic gesture
++10/+20 . Protective act in romantic context, vulnerable confession of feelings
 +20/+30 . Romantic proposal (if receptive)
 -1/-2 ... Awkward or tone-deaf comment, mild social blunder
--2/-3 ... Cold or dismissive behavior (per instance)
+-2/-3 ... Cold or dismissive behavior
 -5/-10 .. Public rejection or embarrassment
 -8/-15 .. Flirting with someone else in their presence
 -40/-60 . Romantic betrayal or cheating
 
-Typical range: 1-5 for minor moments, 5-15 for major events. Only use 15+ for life-altering moments.
+Typical range: 1-5 for minor moments, 5-15 for major events. Only use 15+ for life-altering ones.
 
 EXAMPLE — end of a response where {{user}} complimented Elena:
 *(Affection: Elena +2 — she seemed genuinely moved by the words)*

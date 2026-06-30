@@ -9187,6 +9187,7 @@ function buildSysprompt(rawText) {
     let content = rawText
         .replace(/<(\w[\w_-]*)>([\s\S]*?)<\/\1>/g, (match, tag) => {
             if (mods[tag] === false) return '';
+            if (tag === 'relationship_tracking' && !s.npcRelationshipBars) return '';
             if (tag === 'rng_system' && !s.rngEnabled) {
                 const contentOnly = match.replace(/<\/?rng_system>/g, '');
                 let fallbackText = "To resolve actions, simulate a fair d20 roll internally and maintain all ROLL FORMAT rules.\n\n";
@@ -12171,6 +12172,7 @@ RULES:
         $('#rpg_tracker_npc_rel_bars').prop('checked', !!settings.npcRelationshipBars).on('change', function () {
             settings.npcRelationshipBars = $(this).prop('checked');
             saveSettings();
+            scheduleAutoApply();
         });
         // Note: experimentalNpcImport removed — NPC Creator button is always visible.
         $('#rpg_tracker_ignore_npc_limits').prop('checked', !!settings.ignoreNpcImportLimits).on('change', function () {

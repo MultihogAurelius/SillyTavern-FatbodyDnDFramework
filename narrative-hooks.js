@@ -380,6 +380,10 @@ function getAffectionTier(v) {
 }
 
 async function buildNpcRelationsBlock(settings) {
+    if (!settings.npcRelationshipBars) {
+        return '';
+    }
+
     const relVals = settings.npcRelationshipValues || {};
     const activeKeys = [...(settings.activeRouterKeys || []), ...(settings.activeWorldKeys || [])];
     
