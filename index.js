@@ -72,6 +72,15 @@ globalThis._rpgRefreshAgentManifest = async () => { if (typeof refreshAgentManif
 /** Refreshes the NPC card grid; assigned in createPanel so module-level code can call it. */
 let refreshNpcManifest = async () => { };
 
+// Combined refresh: updates both the tracker panel and the Lorebook Terminal NPC grid.
+// Used as the refresh callback for NPC-aware auto-generation.
+const refreshAll = () => {
+    refreshRenderedView();
+    if (typeof refreshNpcManifest === 'function') {
+        void refreshNpcManifest().catch(() => {});
+    }
+};
+
 let updateAgentWorldStatusRef = null;
 let updateWorldProgressionLastFiredDisplayRef = null;
 
@@ -843,6 +852,7 @@ function loadChatState(chatId) {
     s.portraitSkipPromptDialog = saved.portraitSkipPromptDialog ?? false;
     s.portraitAutoGenerateParty = saved.portraitAutoGenerateParty ?? false;
     s.portraitAutoGenerateEnemies = saved.portraitAutoGenerateEnemies ?? false;
+    s.portraitAutoGenerateNpcs = saved.portraitAutoGenerateNpcs ?? false;
     s.portraitConnectionSource = saved.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = saved.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = saved.portraitCompletionPresetId || "";
@@ -888,6 +898,7 @@ function loadChatState(chatId) {
     $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
     $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
     $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
+    $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!s.portraitAutoGenerateNpcs);
     $('#rpg_tracker_show_total_value').prop('checked', s.showTotalInventoryValue !== false);
     $('#rpg_tracker_inventory_worth_mode').val(s.inventoryWorthMode || 'hover');
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
@@ -950,10 +961,14 @@ function loadChatState(chatId) {
             const remMinutes = totalMins % 1440;
             const h24 = Math.floor(remMinutes / 60);
             const m = remMinutes % 60;
-            const suffix = h24 >= 12 ? 'PM' : 'AM';
-            let h12 = h24 % 12;
-            if (h12 === 0) h12 = 12;
-            return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+            if (s.use24hTime) {
+                return `Day ${day}, ${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            } else {
+                const suffix = h24 >= 12 ? 'PM' : 'AM';
+                let h12 = h24 % 12;
+                if (h12 === 0) h12 = 12;
+                return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+            }
         }
         const mins = s.worldProgressionLastFiredAtMinutes ?? -1;
         const label = s.worldProgressionLastFiredPeriodLabel || '';
@@ -2392,6 +2407,7 @@ function loadProfile(name) {
     s.portraitSkipPromptDialog = p.portraitSkipPromptDialog ?? false;
     s.portraitAutoGenerateParty = p.portraitAutoGenerateParty ?? false;
     s.portraitAutoGenerateEnemies = p.portraitAutoGenerateEnemies ?? false;
+    s.portraitAutoGenerateNpcs = p.portraitAutoGenerateNpcs ?? false;
     s.portraitConnectionSource = p.portraitConnectionSource ?? "default";
     s.portraitConnectionProfileId = p.portraitConnectionProfileId || "";
     s.portraitCompletionPresetId = p.portraitCompletionPresetId || "";
@@ -2434,6 +2450,7 @@ function loadProfile(name) {
     $('#rpg_tracker_portrait_skip_prompt').prop('checked', !!s.portraitSkipPromptDialog);
     $('#rpg_tracker_portrait_auto_party').prop('checked', !!s.portraitAutoGenerateParty);
     $('#rpg_tracker_portrait_auto_enemies').prop('checked', !!s.portraitAutoGenerateEnemies);
+    $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!s.portraitAutoGenerateNpcs);
     $('#rpg_portrait_connection_source').val(s.portraitConnectionSource || 'default');
     $('#rpg_portrait_connection_profile').val(s.portraitConnectionProfileId || '');
     $('#rpg_portrait_completion_preset').val(s.portraitCompletionPresetId || '');
@@ -3263,7 +3280,7 @@ function refreshRenderedView() {
     });
 
     if (_historyViewIndex === -1) {
-        checkAndTriggerAutoGenerations(refreshRenderedView);
+        checkAndTriggerAutoGenerations(refreshAll);
     }
 }
 
@@ -3743,8 +3760,10 @@ function createPanel() {
     if (header instanceof HTMLElement) {
         makeDraggable(/** @type {HTMLElement} */(panel), header);
     }
-    setupResizeObserver(/** @type {HTMLElement} */(panel));
     loadPanelGeometry(/** @type {HTMLElement} */(panel));
+    // Start the resize observer AFTER geometry is restored so the initial
+    // ResizeObserver callback doesn't immediately overwrite the restored position.
+    setupResizeObserver(/** @type {HTMLElement} */(panel));
 
     const resizerTR = panel.querySelector('#rt-resizer-tr');
     if (resizerTR instanceof HTMLElement) {
@@ -4026,9 +4045,13 @@ function createPanel() {
                 const day = Math.floor(m / 1440) + 1;
                 const rem = m % 1440;
                 const h24 = Math.floor(rem / 60), min = rem % 60;
-                const suffix = h24 >= 12 ? 'PM' : 'AM';
-                let h12 = h24 % 12; if (h12 === 0) h12 = 12;
-                return `Day ${day}, ${String(h12).padStart(2,'0')}:${String(min).padStart(2,'0')} ${suffix}`;
+                if (wpS.use24hTime) {
+                    return `Day ${day}, ${String(h24).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+                } else {
+                    const suffix = h24 >= 12 ? 'PM' : 'AM';
+                    let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+                    return `Day ${day}, ${String(h12).padStart(2,'0')}:${String(min).padStart(2,'0')} ${suffix}`;
+                }
             }
             const wpLastEl = agentPanel.querySelector('#rt-agent-world-last-fired');
             const wpNextEl = agentPanel.querySelector('#rt-agent-world-next-fire');
@@ -4348,9 +4371,13 @@ function createPanel() {
                 const day = Math.floor(m / 1440) + 1;
                 const rem = m % 1440;
                 const h24 = Math.floor(rem / 60), min = rem % 60;
-                const suffix = h24 >= 12 ? 'PM' : 'AM';
-                let h12 = h24 % 12; if (h12 === 0) h12 = 12;
-                return `Day ${day}, ${String(h12).padStart(2,'0')}:${String(min).padStart(2,'0')} ${suffix}`;
+                if (s.use24hTime) {
+                    return `Day ${day}, ${String(h24).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+                } else {
+                    const suffix = h24 >= 12 ? 'PM' : 'AM';
+                    let h12 = h24 % 12; if (h12 === 0) h12 = 12;
+                    return `Day ${day}, ${String(h12).padStart(2,'0')}:${String(min).padStart(2,'0')} ${suffix}`;
+                }
             }
             const lastEl = agentPanel.querySelector('#rt-agent-world-last-fired');
             const nextEl = agentPanel.querySelector('#rt-agent-world-next-fire');
@@ -4535,7 +4562,11 @@ function createPanel() {
 
             const contentRead = document.createElement('div');
             contentRead.style.cssText = 'font-size:10px; opacity:0.88; color:var(--rt-text); line-height:1.45; white-space:pre-wrap; word-break:break-word; overflow-y:auto;';
-            const _stripCoreTagsForDisplay = (s) => (s || '').replace(/\[\/?CORE\]/gi, '').trim();
+            const _stripCoreTagsForDisplay = (s) => {
+                if (!s) return '';
+                const stripped = s.replace(/\[CORE\][\s\S]*?\[\/CORE\]/gi, '').trim();
+                return stripped || '(No campaign history recorded yet)';
+            };
             contentRead.textContent = _stripCoreTagsForDisplay(item.content);
 
             const cleanBtn = entryHdr.querySelector('.rt-agent-entry-clean');
@@ -4737,14 +4768,14 @@ function createPanel() {
                 contentArea.value = item.content || '';
                 syncReadFromItem();
                 
+                readPane.style.display = 'flex';
+                editPane.style.display = 'none';
+                
                 if (!entryHdr.parentElement) {
                     body.style.display = 'none';
                     _openEntries.delete(item.id);
                     const card = body.previousElementSibling;
                     if (card && card.classList.contains('rt-npc-card')) card.classList.remove('open');
-                } else {
-                    readPane.style.display = 'flex';
-                    editPane.style.display = 'none';
                 }
             });
 
@@ -4822,7 +4853,7 @@ function createPanel() {
                             <span class="rt-mf-icon" style="font-size:9px; opacity:0.5; width:10px; flex-shrink:0; font-family:monospace;">${isOpen ? '▼' : '▶'}</span>
                             <span style="font-weight:bold; font-size:11px; flex:1; color:var(--rt-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(displayName)}</span>
                             <span style="font-size:9px; opacity:0.45; color:var(--rt-text-muted); flex-shrink:0;">${activeCount}/${items.length} (${totalTokens}t)</span>
-                            ${isNpcBook ? '<button class="rt-npc-settings-btn" title="NPC Settings" style="background:none;border:none;cursor:pointer;font-size:12px;opacity:0.5;padding:2px 4px;color:var(--rt-text-muted);flex-shrink:0;" onclick="event.stopPropagation()">⚙️</button>' : ''}
+                            ${isNpcBook ? '<button class="rt-npc-settings-btn" title="NPC Settings" style="background:none;border:none;cursor:pointer;font-size:11px;opacity:0.5;padding:0;margin:0;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:var(--rt-text-muted);flex-shrink:0;line-height:1;" onclick="event.stopPropagation()">⚙️</button>' : ''}
                         `;
 
                     const folderBody = document.createElement('div');
@@ -4874,26 +4905,26 @@ function createPanel() {
                                     <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:14px;">Shows Friendship/Affection tracking bars on NPC cards and popups. Also adds relationship fields to the AI instruction.</div>
 
                                     <div style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
-                                        <label style="font-size:12px;color:rgba(255,255,255,0.7);flex:1;">Character Card Converter</label>
+                                        <label style="font-size:12px;color:rgba(255,255,255,0.7);flex:1;">Ignore Character Limits When Importing Character Cards</label>
                                         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                                            <input type="checkbox" id="rt-npc-card-import" ${curS.experimentalNpcImport ? 'checked' : ''}
+                                            <input type="checkbox" id="rt-ignore-npc-limits" ${curS.ignoreNpcImportLimits ? 'checked' : ''}
                                                 style="width:16px;height:16px;accent-color:#d4a940;cursor:pointer;">
-                                            <span style="font-size:11px;color:rgba(255,255,255,0.5);">${curS.experimentalNpcImport ? 'Enabled' : 'Disabled'}</span>
+                                            <span style="font-size:11px;color:rgba(255,255,255,0.5);">${curS.ignoreNpcImportLimits ? 'Enabled' : 'Disabled'}</span>
                                         </label>
                                     </div>
-                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Shows the "Add NPC from Character Card" button. This allows importing character cards into campaigns with AI review to fit them into the story. However, organic NPC creation is recommended.</div>
+                                    <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-bottom:10px;">Omits the &lt;CORE LENGTH TARGETS&gt; section from the NPC prompt.</div>
                                 </div>`;
 
                                 let newMajor = curS.npcMajorWords ?? 25;
                                 let newMinor = curS.npcMinorWords ?? 15;
                                 let newRel = curS.npcRelationshipBars ?? false;
-                                let newImport = curS.experimentalNpcImport ?? false;
+                                let newIgnoreLimits = curS.ignoreNpcImportLimits ?? false;
 
                                 setTimeout(() => {
                                     const majorEl = document.getElementById('rt-npc-major-words');
                                     const minorEl = document.getElementById('rt-npc-minor-words');
                                     const relEl = document.getElementById('rt-npc-rel-bars');
-                                    const importEl = document.getElementById('rt-npc-card-import');
+                                    const ignoreEl = document.getElementById('rt-ignore-npc-limits');
 
                                     if (majorEl) majorEl.addEventListener('input', () => newMajor = parseInt(majorEl.value, 10) || 25);
                                     if (minorEl) minorEl.addEventListener('input', () => newMinor = parseInt(minorEl.value, 10) || 15);
@@ -4903,10 +4934,11 @@ function createPanel() {
                                             if (relEl.nextElementSibling) relEl.nextElementSibling.textContent = newRel ? 'Enabled' : 'Disabled';
                                         });
                                     }
-                                    if (importEl) {
-                                        importEl.addEventListener('change', () => {
-                                            newImport = importEl.checked;
-                                            if (importEl.nextElementSibling) importEl.nextElementSibling.textContent = newImport ? 'Enabled' : 'Disabled';
+                                    if (ignoreEl) {
+                                        ignoreEl.addEventListener('change', () => {
+                                            newIgnoreLimits = ignoreEl.checked;
+                                            if (ignoreEl.nextElementSibling) ignoreEl.nextElementSibling.textContent = newIgnoreLimits ? 'Enabled' : 'Disabled';
+
                                         });
                                     }
                                 }, 0);
@@ -4920,7 +4952,7 @@ function createPanel() {
                                     newMinor = Math.max(5, Math.min(100, newMinor));
 
                                     const updS = getSettings();
-                                    updS.experimentalNpcImport = newImport;
+                                    updS.ignoreNpcImportLimits = newIgnoreLimits;
                                     updS.npcMajorWords = newMajor;
                                     updS.npcMinorWords = newMinor;
                                     updS.npcRelationshipBars = newRel;
@@ -4929,11 +4961,11 @@ function createPanel() {
                                     $('#rpg_tracker_npc_major_words').val(newMajor);
                                     $('#rpg_tracker_npc_minor_words').val(newMinor);
                                     $('#rpg_tracker_npc_rel_bars').prop('checked', newRel);
-                                    $('#rpg_tracker_npc_card_import').prop('checked', newImport);
+                                    $('#rpg_tracker_ignore_npc_limits').prop('checked', newIgnoreLimits);
 
                                     // Rebuild the NPC instruction from settings
                                     if (updS.routerModules?.npc) {
-                                        updS.routerModules.npc.instruction = buildNpcInstruction(newMajor, newMinor);
+                                        updS.routerModules.npc.instruction = buildNpcInstruction(newMajor, newMinor, newIgnoreLimits);
                                     }
 
                                     SillyTavern.getContext().saveSettingsDebounced?.();
@@ -5004,7 +5036,7 @@ function createPanel() {
                             // Strip [CORE] and [/CORE] tags before parsing
                             const cleanContent = content.replace(/\[\/?CORE\]/gi, '');
                             // Try to extract Appearance section content first
-                            const appMatch = cleanContent.match(/Appearance:\s*(.+?)(?=\s*(?:Personality|Brief Background|Habits|Behaviors|Relationship with|Friendship\/Rapport|Affection\/Interest):|$)/is);
+                            const appMatch = cleanContent.match(/(?:Appearance\/Species|Appearance):\s*(.+?)(?=\s*(?:Personality|Brief Background|Habits|Behaviors|Relationship with|Friendship\/Rapport|Affection\/Interest):|$)/is);
                             if (appMatch && appMatch[1].trim()) {
                                 return appMatch[1].trim().substring(0, 140);
                             }
@@ -5036,11 +5068,11 @@ function createPanel() {
                             }
 
                             // 2. Parse core sections
-                            const sectionMarkers = /(?=(?:Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:)/gi;
+                            const sectionMarkers = /(?=(?:Appearance\/Species|Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:)/gi;
                             const normalizedCore = coreContent.replace(sectionMarkers, '\n');
                             const coreLines = normalizedCore.split('\n');
                             let currentSection = 'General';
-                            const sectionPattern = /^(Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:/i;
+                            const sectionPattern = /^(Appearance\/Species|Appearance|Personality|Brief Background|Habits\/Behaviors|(?<!Habits\/)Behaviors|Relationship with\s*\{\{user\}\}|(?<!Friendship\/|Affection\/)Relationship)\s*:/i;
 
                             for (const line of coreLines) {
                                 const trimmed = line.trim();
@@ -5078,59 +5110,56 @@ function createPanel() {
 
                         // Helper: section icon map
                         const sectionIcons = {
-                            'General': '📋', 'Appearance': '👁️', 'Personality': '🧠',
+                            'General': '📋', 'Appearance/Species': '👁️', 'Appearance': '👁️', 'Personality': '🧠',
                             'Brief Background': '📜', 'Habits/Behaviors': '🔄', 'Habits': '🔄',
                             'Behaviors': '🔄', 'Relationship': '❤️',
                         };
 
                         // Helper: open NPC detail popup
-                        const openNpcDetailPopup = (item, rel) => {
+                        const openNpcDetailPopup = async (item, rel) => {
                             const ctx = SillyTavern.getContext();
                             if (!ctx.callGenericPopup) return;
                             const normLabel = item.label.replace(/\s*\(.*?\)/g, '').trim();
                             const portraitSrc = s.customPortraits?.[normLabel] || '';
-                            const sections = parseNpcSections(item.content);
 
-                            // Build sections HTML
-                            let sectionsHtml = '';
-
-                            // Render Core Identity
-                            const coreEntries = Object.entries(sections.core);
-                            if (coreEntries.length > 0) {
-                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
-                                for (const [name, lines] of coreEntries) {
-                                    const icon = sectionIcons[name] || '📋';
-                                    const sectionColor = name === 'Appearance' ? '#d4a940' :
-                                                         name === 'Personality' ? '#8b5cf6' :
-                                                         name === 'Brief Background' ? '#3b82f6' :
-                                                         name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
-                                                         name === 'Relationship' ? '#f472b6' : 'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
-                                    sectionsHtml += `<div style="margin-bottom:18px;">
-                                        <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
-                                            <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
-                                        </div>
-                                        <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
-                                            ${lines.map(l => escapeHtml(l)).join('<br>')}
-                                        </div>
-                                    </div>`;
-                                }
-                            }
-
-                            // Render Dynamic Updates / Campaign History
-                            if (sections.dynamic.length > 0) {
-                                sectionsHtml += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:24px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📖 Campaign History & Dynamic Lore</div>`;
-                                sectionsHtml += `<div style="font-size:14px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);padding:4px 0 4px 10px;">`;
-                                sectionsHtml += sections.dynamic.map(line => {
-                                    // Style timestamps uniquely if they match [Day X, HH:MM] or [HH:MM PM, Day X]
-                                    const timestampRegex = /^(\[.+?\])\s*(.*)/;
-                                    const match = line.match(timestampRegex);
-                                    if (match) {
-                                        return `<div style="margin-bottom:8px;"><span style="color:#d4a940;font-weight:bold;font-family:monospace;font-size:12px;background:rgba(212,169,64,0.1);padding:2px 6px;border-radius:4px;margin-right:6px;">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span></div>`;
+                            // Helper: build formatted sections HTML from raw content string
+                            const renderSectionsHtml = (rawContent) => {
+                                const parsed = parseNpcSections(rawContent);
+                                let html = '';
+                                const coreEntries = Object.entries(parsed.core);
+                                if (coreEntries.length > 0) {
+                                    html += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">🛡️ Core Identity (Immutable)</div>`;
+                                    for (const [name, lines] of coreEntries) {
+                                        const icon = sectionIcons[name] || '📋';
+                                        const sectionColor = (name === 'Appearance/Species' || name === 'Appearance') ? '#d4a940' :
+                                                             name === 'Personality' ? '#8b5cf6' :
+                                                             name === 'Brief Background' ? '#3b82f6' :
+                                                             name.includes('Habit') || name.includes('Behavior') ? '#10b981' :
+                                                             'var(--SmartThemeEmColor, var(--SmartThemeBodyColorTextMuted, rgba(128,128,128,0.5)))';
+                                        html += `<div style="margin-bottom:18px;">
+                                            <div style="font-size:14px;font-weight:bold;color:${sectionColor};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
+                                                <span style="font-size:16px;">${icon}</span> ${escapeHtml(name)}
+                                            </div>
+                                            <div style="font-size:15px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);border-left:3px solid ${sectionColor}44;margin-left:3px;padding:6px 0 6px 14px;">
+                                                ${lines.map(l => escapeHtml(l)).join('<br>')}
+                                            </div>
+                                        </div>`;
                                     }
-                                    return `<div style="margin-bottom:8px;">${escapeHtml(line)}</div>`;
-                                }).join('');
-                                sectionsHtml += `</div>`;
-                            }
+                                }
+                                if (parsed.dynamic.length > 0) {
+                                    html += `<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-top:24px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📖 Campaign History &amp; Dynamic Lore</div>`;
+                                    html += `<div style="font-size:14px;line-height:1.6;color:var(--SmartThemeBodyColor, inherit);padding:4px 0 4px 10px;">`;
+                                    html += parsed.dynamic.map(line => {
+                                        const match = line.match(/^(\[.+?\])\s*(.*)/);
+                                        if (match) {
+                                            return `<div style="margin-bottom:8px;"><span style="color:#d4a940;font-weight:bold;font-family:monospace;font-size:12px;background:rgba(212,169,64,0.1);padding:2px 6px;border-radius:4px;margin-right:6px;">${escapeHtml(match[1])}</span><span>${escapeHtml(match[2])}</span></div>`;
+                                        }
+                                        return `<div style="margin-bottom:8px;">${escapeHtml(line)}</div>`;
+                                    }).join('');
+                                    html += `</div>`;
+                                }
+                                return html;
+                            };
 
                             // Friendship/Affection bars for popup (large version, with editable sliders)
                             const makeBigBar = (val, label, colorPos, colorNeg, icon, type) => {
@@ -5165,123 +5194,103 @@ function createPanel() {
                                 ? `<img src="${escapeHtml(portraitSrc)}" style="width:100%;height:auto;aspect-ratio:1;object-fit:cover;border-radius:12px;border:2px solid rgba(212,169,64,0.3);box-shadow:0 4px 20px rgba(0,0,0,0.4);" alt="${escapeHtml(item.label)}">`
                                 : `<div style="width:100%;aspect-ratio:1;border-radius:12px;background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));border:2px solid rgba(212,169,64,0.2);display:flex;align-items:center;justify-content:center;font-size:64px;opacity:0.25;color:var(--SmartThemeBodyColor, inherit);">👤</div>`;
 
-                            const popupHtml = `<div style="width:100%;box-sizing:border-box;padding:24px;text-align:left;max-height:80vh;overflow-y:auto;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);">
+                            // Build popup DOM
+                            const popupDom = document.createElement('div');
+                            popupDom.style.cssText = 'width:100%;box-sizing:border-box;padding:24px;text-align:left;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);';
+
+                            popupDom.innerHTML = `
                                 <div style="display:flex;gap:24px;margin-bottom:20px;align-items:flex-start;flex-wrap:wrap;">
                                     <div style="flex-shrink:0;width:280px;">
                                         ${portraitEl}
                                     </div>
-                                    <div style="flex:1;min-width:220px;">
-                                        <div style="font-size:24px;font-weight:bold;color:#d4a940;margin-bottom:8px;line-height:1.2;">${escapeHtml(item.label)}</div>
-                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;${item.is_active ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);' : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
+                                    <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px;">
+                                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                                            <div style="font-size:24px;font-weight:bold;color:#d4a940;line-height:1.2;">${escapeHtml(item.label)}</div>
+                                            <button class="rt-npc-popup-edit-btn menu_button" style="flex-shrink:0;font-size:12px;padding:4px 12px;white-space:nowrap;">✏️ Edit Text</button>
+                                        </div>
+                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;align-self:flex-start;${item.is_active ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);' : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
                                         ${s.npcRelationshipBars ? `<div style="margin-top:20px;">${barsHtml}</div>` : ''}
                                     </div>
                                 </div>
                                 <div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;">
-                                    ${sectionsHtml || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Edit the entry to add Appearance, Personality, and other sections.</div>`}
+                                    <!-- VIEW PANE -->
+                                    <div class="rt-npc-popup-view">
+                                        <div class="rt-npc-popup-sections">
+                                            ${renderSectionsHtml(item.content) || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`}
+                                        </div>
+                                    </div>
+                                    <!-- EDIT PANE -->
+                                    <div class="rt-npc-popup-edit" style="display:none;flex-direction:column;gap:10px;">
+                                        <div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;">✏️ Editing Raw Entry Content</div>
+                                        <textarea class="rt-npc-popup-textarea" spellcheck="false" style="width:100%;min-height:420px;box-sizing:border-box;background:var(--SmartThemeBlurTintColor, rgba(0,0,0,0.3));color:var(--SmartThemeBodyColor, inherit);border:1px solid rgba(212,169,64,0.35);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;line-height:1.6;resize:vertical;"></textarea>
+                                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                                            <button class="rt-npc-popup-cancel-btn menu_button" style="font-size:12px;padding:5px 14px;">Cancel</button>
+                                            <button class="rt-npc-popup-save-btn menu_button" style="font-size:12px;padding:5px 18px;background:rgba(212,169,64,0.2);border-color:rgba(212,169,64,0.5);color:#d4a940;font-weight:bold;">💾 Save</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                ${(() => {
-                                    const log = (s.npcRelationshipLog?.[item.id] || []).slice(0, 20);
-                                    if (!s.npcRelationshipBars || log.length === 0) return '';
-                                    const rows = log.map(e => {
-                                        const date = new Date(e.timestamp);
-                                        const timeStr = date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + ', ' + date.toLocaleDateString([], {month:'short',day:'numeric'});
-                                        const sign = e.delta > 0 ? '+' : '';
-                                        const deltaColor = e.delta > 0 ? '#4ade80' : '#ef4444';
-                                        const srcIcon = e.source === 'manual' ? '✋' : '🤖';
-                                        const fieldLabel = e.field === 'friendship' ? '🤝' : '💗';
-                                        return `<tr>
-                                            <td style="font-size:10px;color:var(--SmartThemeBodyColor,inherit);opacity:0.5;padding:3px 8px 3px 0;white-space:nowrap;">${timeStr}</td>
-                                            <td style="font-size:12px;padding:3px 8px;">${fieldLabel}</td>
-                                            <td style="font-size:13px;font-weight:bold;color:${deltaColor};font-family:monospace;padding:3px 8px;">${sign}${e.delta}</td>
-                                            <td style="font-size:11px;color:var(--SmartThemeBodyColor,inherit);opacity:0.45;padding:3px 0;">${srcIcon} → ${e.newValue >= 0 ? '+' : ''}${e.newValue}</td>
-                                        </tr>`;
-                                    }).join('');
-                                    return `<div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;margin-top:18px;">
-                                        <div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📊 Relationship History</div>
-                                        <table style="width:100%;border-collapse:collapse;">${rows}</table>
-                                    </div>`;
-                                })()}
-                            </div>`;
+                            }
 
+                            // Wire up in-popup edit/save/cancel
+                            const viewPane = popupDom.querySelector('.rt-npc-popup-view');
+                            const editPane = popupDom.querySelector('.rt-npc-popup-edit');
+                            const sectionsDiv = popupDom.querySelector('.rt-npc-popup-sections');
+                            const textarea = /** @type {HTMLTextAreaElement} */ (popupDom.querySelector('.rt-npc-popup-textarea'));
+                            const editBtn = popupDom.querySelector('.rt-npc-popup-edit-btn');
+                            const cancelBtn = popupDom.querySelector('.rt-npc-popup-cancel-btn');
+                            const saveBtn = /** @type {HTMLButtonElement} */ (popupDom.querySelector('.rt-npc-popup-save-btn'));
 
-
-                            ctx.callGenericPopup(popupHtml, ctx.POPUP_TYPE?.TEXT ?? 1, '', {
-                                okButton: 'Close', cancelButton: false, wide: true, large: true,
+                            editBtn.addEventListener('click', () => {
+                                textarea.value = item.content || '';
+                                viewPane.style.display = 'none';
+                                editPane.style.display = 'flex';
+                                textarea.focus();
                             });
 
-                            // Attach input change listeners to the sliders
-                            if (s.npcRelationshipBars) {
-                                setTimeout(() => {
-                                    ['friendship', 'affection'].forEach(type => {
-                                        const slider = document.getElementById(`rt-npc-detail-${type}-slider`);
-                                        if (!slider) return;
-                                        // Capture the value at drag-start for delta calculation
-                                        let valueAtDragStart = parseInt(slider.value, 10);
-                                        slider.addEventListener('mousedown', () => {
-                                            valueAtDragStart = parseInt(slider.value, 10);
-                                        });
-                                        slider.addEventListener('input', (e) => {
-                                            const newVal = parseInt(e.target.value, 10);
-                                            // 1. Update text and fill
-                                            const textEl = document.getElementById(`rt-npc-detail-${type}-text`);
-                                            const fillEl = document.getElementById(`rt-npc-detail-${type}-fill`);
-                                            if (textEl) {
-                                                textEl.textContent = (newVal > 0 ? '+' : '') + newVal;
-                                            }
-                                            if (fillEl) {
-                                                const pct = Math.abs(newVal) / 2;
-                                                fillEl.style.width = `${pct}%`;
-                                                let bgColor = '';
-                                                if (newVal >= 0) {
-                                                    fillEl.style.left = '50%';
-                                                    fillEl.style.right = 'auto';
-                                                    bgColor = type === 'friendship' ? '#4ade80' : '#f472b6';
-                                                } else {
-                                                    fillEl.style.left = 'auto';
-                                                    fillEl.style.right = '50%';
-                                                    bgColor = type === 'friendship' ? '#ef4444' : '#a855f7';
-                                                }
-                                                fillEl.style.background = bgColor;
-                                                slider.style.accentColor = bgColor;
-                                                if (textEl) {
-                                                    textEl.style.color = newVal === 0 ? 'var(--SmartThemeEmColor, inherit)' : bgColor;
-                                                }
-                                            }
-                                            // 2. Save value (log written on 'change', not on every 'input' tick)
-                                            const settings = getSettings();
-                                            if (!settings.npcRelationshipValues) settings.npcRelationshipValues = {};
-                                            if (!settings.npcRelationshipValues[item.id]) {
-                                                settings.npcRelationshipValues[item.id] = { friendship: 0, affection: 0 };
-                                            }
-                                            settings.npcRelationshipValues[item.id][type] = newVal;
-                                            saveSettings();
-                                        });
+                            cancelBtn.addEventListener('click', () => {
+                                editPane.style.display = 'none';
+                                viewPane.style.display = 'block';
+                            });
 
-                                        slider.addEventListener('change', () => {
-                                            // On drag release: compute effective delta and write a manual log entry
-                                            const settings = getSettings();
-                                            const finalVal = settings.npcRelationshipValues?.[item.id]?.[type] ?? 0;
-                                            const effectiveDelta = finalVal - valueAtDragStart;
-                                            if (effectiveDelta !== 0) {
-                                                if (!settings.npcRelationshipLog) settings.npcRelationshipLog = {};
-                                                if (!settings.npcRelationshipLog[item.id]) settings.npcRelationshipLog[item.id] = [];
-                                                settings.npcRelationshipLog[item.id].unshift({
-                                                    timestamp: Date.now(),
-                                                    field: type,
-                                                    delta: effectiveDelta,
-                                                    newValue: finalVal,
-                                                    source: 'manual',
-                                                });
-                                                if (settings.npcRelationshipLog[item.id].length > 50) settings.npcRelationshipLog[item.id].length = 50;
-                                                saveSettings();
-                                            }
-                                            valueAtDragStart = finalVal;
-                                            if (typeof refreshManifest === 'function') refreshManifest();
-                                        });
-                                    });
-                                }, 0);
+
+                            saveBtn.addEventListener('click', async () => {
+                                if (isRouterRunning()) {
+                                    // @ts-ignore
+                                    toastr.warning('Agent is running — wait for it to finish before saving.', 'Lorebook Agent');
+                                    return;
+                                }
+                                saveBtn.disabled = true;
+                                saveBtn.textContent = '…';
+                                const ok = await updateLorebookEntry(item.id, {
+                                    content: textarea.value,
+                                    key: item.keys,
+                                    comment: item.label,
+                                });
+                                if (ok) {
+                                    item.content = textarea.value;
+                                    _dirtyEntries.delete(item.id);
+                                    document.dispatchEvent(new CustomEvent('rt_lore_agent_updated'));
+                                    await refreshManifest();
+                                    // @ts-ignore
+                                    toastr.success('Entry saved.', 'Lorebook Agent');
+                                    const newHtml = renderSectionsHtml(item.content);
+                                    sectionsDiv.innerHTML = newHtml || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`;
+                                    editPane.style.display = 'none';
+                                    viewPane.style.display = 'block';
+                                } else {
+                                    // @ts-ignore
+                                    toastr.error('Save failed.', 'Lorebook Agent');
+                                }
+                                saveBtn.disabled = false;
+                                saveBtn.textContent = '💾 Save';
+                            });
                             }
+
+                            // Show popup with DOM element (upstream approach)
+                            const popupOpts = { okButton: 'Close', cancelButton: false, wide: true, large: true };
+                            await ctx.callGenericPopup(popupDom, ctx.POPUP_TYPE?.TEXT ?? 1, '', popupOpts);
                         };
+
 
                         for (const item of items) {
                             const rel = parseRelationship(item.id);
@@ -5313,7 +5322,7 @@ function createPanel() {
                                         ${renderRelBar(rel.affection, 'affection', item.id)}
                                     </div>` : ''}
                                     <div class="rt-npc-actions">
-                                        <button class="rt-npc-action-btn rt-npc-view" data-id="${item.id}" title="View NPC card"><i class="fa-solid fa-address-card"></i></button>
+                                        <button class="rt-npc-action-btn rt-npc-view" data-id="${item.id}" title="View NPC card"><i class="fa-solid fa-address-card"></i> Full NPC Card</button>
                                         <button class="rt-npc-action-btn rt-npc-edit" data-id="${item.id}" title="Edit entry"><i class="fa-solid fa-pen-to-square"></i></button>
                                         <button class="rt-npc-action-btn rt-npc-clean" data-id="${item.id}" title="Cleanup entry"><i class="fa-solid fa-broom"></i></button>
                                         <button class="rt-npc-action-btn rt-npc-delete" data-id="${item.id}" title="Delete entry"><i class="fa-solid fa-trash"></i></button>
@@ -5355,42 +5364,7 @@ function createPanel() {
                             if (portraitWrap) {
                                 portraitWrap.addEventListener('click', async (e) => {
                                     e.stopPropagation();
-                                    if (portraitSrc) {
-                                        await showPortraitSettingsMenu(item.label, refreshManifest, item.content || '');
-                                    } else {
-                                        try {
-                                            if (s.portraitSkipPromptDialog) {
-                                                toastr['info'](`Generating portrait for ${item.label} in background…`, 'NPC Portrait');
-                                                const prompt = await generateNpcPortraitPrompt(item.label, item.content || '');
-                                                if (!prompt) {
-                                                    toastr['warning']('Could not generate portrait prompt.', 'NPC Portrait');
-                                                    return;
-                                                }
-                                                toastr['info'](`Generating image for ${item.label}…`, 'NPC Portrait');
-                                                const dataUrl = await generatePortraitDirect(prompt, item.label);
-                                                const scaled = await scaleImageTo512Square(dataUrl);
-                                                applyPortraitData(item.label, scaled);
-                                                toastr['success'](`Portrait auto-generated and applied for ${item.label}!`, 'NPC Portrait');
-                                                await refreshManifest();
-                                                refreshRenderedView();
-                                            } else {
-                                                toastr['info'](`Generating portrait prompt for ${item.label}...`, 'NPC Portrait');
-                                                const prompt = await generateNpcPortraitPrompt(item.label, item.content || '');
-                                                if (!prompt) {
-                                                    toastr['warning']('Could not generate portrait prompt.', 'NPC Portrait');
-                                                    return;
-                                                }
-                                                await showPortraitPromptPopup(prompt, item.label, (src) => {
-                                                    applyPortraitData(item.label, src);
-                                                }, () => {
-                                                    void refreshManifest().catch(() => {});
-                                                    refreshRenderedView();
-                                                });
-                                            }
-                                        } catch (err) {
-                                            toastr['error'](`Portrait generation failed: ${String(err.message || err).substring(0, 120)}`, 'NPC Portrait');
-                                        }
-                                    }
+                                    await showPortraitSettingsMenu(item.label, refreshManifest, item.content || '');
                                 });
                             }
 
@@ -5477,14 +5451,14 @@ function createPanel() {
 
                         folderBody.appendChild(npcGrid);
 
-                        // ── "Add NPC" button ──
-                        if (s.experimentalNpcImport) {
+                        // ── "Add NPC to Story" button (always visible) ──
+                        {
                             const addNpcBtn = document.createElement('div');
                             addNpcBtn.className = 'rt-npc-add-btn';
-                            addNpcBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add NPC from Character Card';
+                            addNpcBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Add NPC to Story';
                             addNpcBtn.addEventListener('click', (e) => {
                                 e.stopPropagation();
-                                openNpcCharacterPicker(bookName, prefix);
+                                openNpcCreatorDialog(bookName, prefix);
                             });
                             folderBody.appendChild(addNpcBtn);
                         }
@@ -5678,8 +5652,8 @@ function createPanel() {
                             ${statusDotHtml}
                             <span class="rt-agent-entry-label-span" style="${labelStyle}">${escapeHtml(node.name)}${isDirty ? ' <span style="color:#ffa500; font-size:8px;" title="Unsaved edits">●</span>' : ''}</span>
                             ${tokensHtml}
-                            ${cleanHtml}
                             ${editHtml}
+                            ${cleanHtml}
                             ${deleteHtml}
                         `;
 
@@ -5771,8 +5745,24 @@ function createPanel() {
         refreshNpcManifest = refreshManifest;
 
         // ════════════════════════════════════════════════════════════════════
-        //  NPC Character Card Picker + AI Adaptation
+        //  NPC Creator Dialog — Card Import, Freeform, Archetype Generator
         // ════════════════════════════════════════════════════════════════════
+
+        /**
+         * Robust helper to parse the [[NPC: Name | Description | Keywords]] format anywhere in the text.
+         * @param {string|null} text
+         * @returns {{name: string, description: string, keywords: string[]}|null}
+         */
+        const parseNpcTag = (text) => {
+            if (!text) return null;
+            const match = text.match(/\[\[NPC:\s*([^|]*?)\s*\|\s*([\s\S]*?)\s*\|\s*([^|]*?)\]\]/i);
+            if (!match) return null;
+            return {
+                name: match[1].trim(),
+                description: match[2].trim(),
+                keywords: match[3].split(',').map(k => k.trim()).filter(Boolean)
+            };
+        };
 
         /**
          * Creates an NPC lorebook entry from a character card.
@@ -5792,18 +5782,17 @@ function createPanel() {
             // Build NPC entry content
             let content;
             if (adaptedContent) {
-                content = adaptedContent;
-                // Parse the [[NPC: Name | Description | Keywords]] format if AI provided it
-                const match = content.match(/^\[\[NPC:\s*(.*?)\s*\|\s*([\s\S]*)\s*\|\s*(.*?)\]\]$/i);
-                if (match) {
-                    name = match[1].trim();
-                    content = match[2].trim();
+                const parsed = parseNpcTag(adaptedContent);
+                if (parsed) {
+                    name = parsed.name;
+                    content = parsed.description;
                     // Clean up any stray | separators the AI might have used instead of newlines
-                    content = content.replace(/\s*\|\s*(?=Appearance:|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
-                    const extractedKeys = match[3].split(',').map(k => k.trim()).filter(Boolean);
-                    if (extractedKeys.length > 0) {
-                        keys = extractedKeys;
+                    content = content.replace(/\s*\|\s*(?=(?:Appearance\/Species|Appearance):|Personality:|Brief Background:|Habits\/Behaviors:|Relationship with)/gi, '\n');
+                    if (parsed.keywords.length > 0) {
+                        keys = parsed.keywords;
                     }
+                } else {
+                    content = adaptedContent;
                 }
             } else {
                 // Direct add: use name, description, personality (NOT scenario/first_mes)
@@ -6050,12 +6039,182 @@ Rules:
         };
 
         /**
-         * Opens the character card picker popup for adding NPCs.
-         * @param {string} bookName - Target lorebook name
-         * @param {string} prefix - Campaign prefix
+         * Gathers campaign context parts for NPC generation prompts.
+         * @returns {string[]}
          */
-        const openNpcCharacterPicker = async (bookName, prefix) => {
+        const gatherNpcCampaignContext = async () => {
+            const s = getSettings();
             const ctx = SillyTavern.getContext();
+            const parts = [];
+            if (s.currentMemo) {
+                parts.push(`CURRENT GAME STATE:\n${s.currentMemo.substring(0, 2000)}`);
+            }
+            if (ctx.chat && Array.isArray(ctx.chat)) {
+                const msgs = ctx.chat.filter(m => !m.is_system && m.mes?.trim()).slice(-8);
+                if (msgs.length > 0) {
+                    const msgText = msgs.map(m => `${m.name || (m.is_user ? 'User' : 'Character')}: ${m.mes}`).join('\n\n');
+                    parts.push(`RECENT CHAT (for setting/tone context):\n${msgText.substring(0, 4000)}`);
+                }
+            }
+            try {
+                const charData = ctx.characters?.[ctx.characterId];
+                if (charData?.description) {
+                    parts.push(`NARRATOR/WORLD CARD:\n${charData.description.substring(0, 1500)}`);
+                }
+            } catch (_) {}
+            try {
+                if (s.activeRouterKeys?.length > 0) {
+                    const summaries = [];
+                    const loaded = {};
+                    for (const k of s.activeRouterKeys.slice(0, 12)) {
+                        const [bk, uid] = k.split('::');
+                        if (!loaded[bk]) loaded[bk] = await ctx.loadWorldInfo(bk);
+                        const entry = loaded[bk]?.entries?.[uid];
+                        if (entry) summaries.push(`[${entry.comment || 'Entry'}]: ${(entry.content || '').substring(0, 180)}`);
+                    }
+                    if (summaries.length > 0) {
+                        parts.push(`ACTIVE LOREBOOK ENTRIES (world context):\n${summaries.join('\n')}`);
+                    }
+                }
+            } catch (_) {}
+            return parts;
+        };
+
+        /**
+         * Generates NPC from a freeform name + description using AI.
+         * @param {string} name - NPC name (may be empty)
+         * @param {string} rawDesc - User's free-text description
+         * @param {string[]} existingNpcNames - List of existing NPC names to forbid
+         * @returns {Promise<string|null>} Lorebook [[NPC: ...]] tag string
+         */
+        const generateNpcFromFreeform = async (name, rawDesc, existingNpcNames = []) => {
+            const s = getSettings();
+            const contextParts = await gatherNpcCampaignContext();
+            const label = name ? `Name: ${name}\n` : '';
+            contextParts.unshift(`USER'S NPC CONCEPT:\n${label}Description: ${rawDesc}`);
+
+            const forbiddenBlock = existingNpcNames.length > 0
+                ? `\nForbidden Names (Do NOT use these existing NPC/character names under any circumstances):\n${existingNpcNames.map(n => `- ${n}`).join('\n')}\n`
+                : '';
+
+            const systemPrompt = `${s.routerSystemPromptTemplate || ''}
+
+---
+
+You are an NPC Creation Agent. The user has provided a brief concept or description for a new NPC they want to add to the current ongoing campaign.
+${forbiddenBlock}
+<npc_instructions>
+${s.routerModules?.npc?.instruction || ''}
+</npc_instructions>
+
+Rules:
+- Use the USER'S NPC CONCEPT as your primary source. Expand it into a full, vivid character.
+- If no name is provided, create a fitting one for the world setting.
+- You MUST NOT use any of the names listed in the Forbidden Names section. If the concept implies a name from this list, modify or create a new unique name.
+- Adapt appearance, background and habits to fit naturally into the current campaign setting/tone inferred from context.
+- Your output MUST be strictly formatted as a lorebook entry tag:
+  [[NPC: Name | Description | keywords]]
+- Replace "Name" with the character's name.
+- Replace "Description" with the full formatted entry. Wrap all immutable identity sections (Appearance/Species, Personality, Brief Background, Habits/Behaviors) inside a single [CORE] and [/CORE] block. DO NOT use "|" inside Description. Use newlines.
+- Replace "keywords" with a comma-separated list including their name.
+- Output ONLY this single [[NPC: ...]] tag. No preamble, no explanation.`;
+
+            const aiSettings = {
+                connectionSource: s.routerConnectionSource ?? 'default',
+                connectionProfileId: s.routerConnectionProfileId || '',
+                completionPresetId: s.routerCompletionPresetId || '',
+                ollamaUrl: s.routerOllamaUrl || 'http://localhost:11434',
+                ollamaModel: s.routerOllamaModel || '',
+                openaiUrl: s.routerOpenaiUrl || '',
+                openaiKey: s.routerOpenaiKey || '',
+                openaiModel: s.routerOpenaiModel || '',
+                maxTokens: s.routerMaxTokens || 0,
+                debugMode: s.debugMode,
+            };
+            try {
+                const result = await sendStateRequest(aiSettings, systemPrompt, contextParts.join('\n\n---\n\n'));
+                return (result || '').trim() || null;
+            } catch (err) {
+                toastr['error'](`NPC generation failed: ${String(err.message || err).substring(0, 120)}`, 'NPC Creator');
+                return null;
+            }
+        };
+
+        /**
+         * Generates NPC from a chosen archetype + optional concept using AI.
+         * @param {string} archetype - e.g. "Arch Nemesis"
+         * @param {string} name - optional name hint
+         * @param {string} concept - optional extra descriptive prompt
+         * @param {string[]} existingNpcNames - List of existing NPC names to forbid
+         * @returns {Promise<string|null>} Lorebook [[NPC: ...]] tag string
+         */
+        const generateNpcFromArchetype = async (archetype, name, concept, existingNpcNames = []) => {
+            const s = getSettings();
+            const contextParts = await gatherNpcCampaignContext();
+            const nameLine = name ? `Desired Name: ${name}\n` : '';
+            const conceptLine = concept ? `Additional concept: ${concept}\n` : '';
+            contextParts.unshift(`ARCHETYPE REQUEST:\nArchetype: ${archetype}\n${nameLine}${conceptLine}`);
+
+            const forbiddenBlock = existingNpcNames.length > 0
+                ? `\nForbidden Names (Do NOT use these existing NPC/character names under any circumstances):\n${existingNpcNames.map(n => `- ${n}`).join('\n')}\n`
+                : '';
+
+            const systemPrompt = `${s.routerSystemPromptTemplate || ''}
+
+---
+
+You are an NPC Creation Agent. Create a new NPC for the current ongoing campaign fitting the requested archetype.
+${forbiddenBlock}
+<npc_instructions>
+${s.routerModules?.npc?.instruction || ''}
+</npc_instructions>
+
+Rules:
+- The NPC MUST embody the requested archetype (e.g. a "Lover" should have romantic motivation toward the player; an "Arch Nemesis" should be a credible threat with personal stakes).
+- Invent a name suitable for the world if not provided.
+- You MUST NOT use any of the names listed in the Forbidden Names section.
+- Ground the NPC's appearance, backstory, and habits in the current campaign setting inferred from context.
+- Your output MUST be strictly formatted as a lorebook entry tag:
+  [[NPC: Name | Description | keywords]]
+- Replace "Name" with the character's name.
+- Replace "Description" with the full formatted entry. Wrap all immutable identity sections (Appearance/Species, Personality, Brief Background, Habits/Behaviors) inside a single [CORE] and [/CORE] block. DO NOT use "|" inside Description. Use newlines.
+- Replace "keywords" with a comma-separated list including their name.
+- Output ONLY this single [[NPC: ...]] tag. No preamble, no explanation.`;
+
+            const aiSettings = {
+                connectionSource: s.routerConnectionSource ?? 'default',
+                connectionProfileId: s.routerConnectionProfileId || '',
+                completionPresetId: s.routerCompletionPresetId || '',
+                ollamaUrl: s.routerOllamaUrl || 'http://localhost:11434',
+                ollamaModel: s.routerOllamaModel || '',
+                openaiUrl: s.routerOpenaiUrl || '',
+                openaiKey: s.routerOpenaiKey || '',
+                openaiModel: s.routerOpenaiModel || '',
+                maxTokens: s.routerMaxTokens || 0,
+                debugMode: s.debugMode,
+            };
+            try {
+                const result = await sendStateRequest(aiSettings, systemPrompt, contextParts.join('\n\n---\n\n'));
+                return (result || '').trim() || null;
+            } catch (err) {
+                toastr['error'](`NPC generation failed: ${String(err.message || err).substring(0, 120)}`, 'NPC Creator');
+                return null;
+            }
+        };
+        const openNpcCreatorDialog = async (bookName, prefix) => {
+            const ctx = SillyTavern.getContext();
+
+            // Load target book once to check for existing entries
+            let existingNpcNames = [];
+            let targetBookData = null;
+            try {
+                targetBookData = await ctx.loadWorldInfo(bookName);
+                if (targetBookData && targetBookData.entries) {
+                    existingNpcNames = Object.values(targetBookData.entries)
+                        .map(e => (e.comment || '').replace(/^\[.*?\]\s*/i, '').trim())
+                        .filter(Boolean);
+                }
+            } catch (_) {}
 
             // Fetch character list with timeout to prevent UI hang
             let allChars = [];
@@ -6091,213 +6250,431 @@ Rules:
                 return;
             }
 
-
-            if (allChars.length === 0) {
-                toastr['info']('No character cards found.', 'NPC Import');
-                return;
-            }
-
-            // Build popup
+            // ── Build dialog shell ──────────────────────────────────────────
             const overlay = document.createElement('div');
             overlay.className = 'rt-charpicker-overlay';
 
             const popup = document.createElement('div');
             popup.className = 'rt-charpicker-popup';
+            popup.style.width = '490px';
 
             // Header
             const header = document.createElement('div');
             header.className = 'rt-charpicker-header';
-            header.innerHTML = `<h3>👤 Add NPC from Character Card</h3>`;
+            header.innerHTML = `<h3>✨ Add NPC to Story</h3>`;
             const closeBtn = document.createElement('button');
             closeBtn.className = 'rt-charpicker-close';
             closeBtn.textContent = '✕';
             closeBtn.addEventListener('click', () => overlay.remove());
             header.appendChild(closeBtn);
 
-            // Search
-            const searchInput = document.createElement('input');
-            searchInput.className = 'rt-charpicker-search';
-            searchInput.type = 'text';
-            searchInput.placeholder = '🔍 Search characters by name...';
-
-            // List container
-            const listContainer = document.createElement('div');
-            listContainer.className = 'rt-charpicker-list';
-
-            popup.appendChild(header);
-            popup.appendChild(searchInput);
-            popup.appendChild(listContainer);
-            overlay.appendChild(popup);
-
-            // Close on backdrop click
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) overlay.remove();
+            // Tab bar
+            const tabBar = document.createElement('div');
+            tabBar.className = 'rt-npc-creator-tabs';
+            const tabDefs = [
+                { id: 'card',      label: '🗂️ From Card' },
+                { id: 'freeform', label: '✍️ Freeform' },
+                { id: 'archetype', label: '🎭 Archetype' },
+            ];
+            const tabBtns = {};
+            const tabPanels = {};
+            for (const { id, label } of tabDefs) {
+                const btn = document.createElement('div');
+                btn.className = 'rt-npc-creator-tab' + (id === 'card' ? ' active' : '');
+                btn.textContent = label;
+                btn.dataset.tab = id;
+                tabBar.appendChild(btn);
+                tabBtns[id] = btn;
+                const panel = document.createElement('div');
+                panel.className = 'rt-npc-creator-panel' + (id === 'card' ? '' : ' hidden');
+                panel.dataset.panel = id;
+                tabPanels[id] = panel;
+            }
+            const switchTab = (id) => {
+                for (const [tid, btn] of Object.entries(tabBtns)) {
+                    btn.classList.toggle('active', tid === id);
+                    tabPanels[tid].classList.toggle('hidden', tid !== id);
+                }
+            };
+            tabBar.addEventListener('click', (e) => {
+                const tgt = /** @type {HTMLElement} */ (e.target).closest('[data-tab]');
+                if (tgt) switchTab(tgt.dataset.tab);
             });
 
-            // State
-            let currentFilter = '';
-            let displayCount = 10;
+            popup.appendChild(header);
+            popup.appendChild(tabBar);
+            for (const { id } of tabDefs) popup.appendChild(tabPanels[id]);
+            overlay.appendChild(popup);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-            const renderList = () => {
-                listContainer.innerHTML = '';
-                const filtered = currentFilter
-                    ? allChars.filter(c => (c.name || '').toLowerCase().includes(currentFilter.toLowerCase()))
-                    : allChars;
+            // ── Helper: AI preview + add flow ──────────────────────────────
+            const showNpcPreviewAndAdd = async (generatedTag, defaultName, toastLabel) => {
+                if (!ctx.callGenericPopup) return;
+                const parsed = parseNpcTag(generatedTag);
+                const nameToAdd = parsed ? parsed.name : defaultName;
 
-                if (filtered.length === 0) {
-                    listContainer.innerHTML = '<div class="rt-charpicker-empty">No characters match your search.</div>';
-                    return;
+                // Check for duplicate
+                let isDuplicate = false;
+                let bookData = null;
+                try { bookData = await ctx.loadWorldInfo(bookName); } catch (_) {}
+                if (bookData && bookData.entries) {
+                    const cleanLabel = nameToAdd.toLowerCase().trim();
+                    for (const [, entry] of Object.entries(bookData.entries)) {
+                        const entryLabel = (entry.comment || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+                        if (entryLabel === cleanLabel) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
                 }
 
-                const visible = filtered.slice(0, displayCount);
+                const taId = `rt-npc-gen-preview-${Date.now()}`;
+                const warningHtml = isDuplicate
+                    ? `<div style="font-size:0.8em;color:#ff5555;margin-bottom:8px;font-weight:bold;background:rgba(255,0,0,0.1);padding:6px;border-radius:4px;border:1px solid rgba(255,0,0,0.2);">⚠️ An NPC named "${escapeHtml(nameToAdd)}" already exists! Please edit the name inside [[NPC: Name | ...]] before adding.</div>`
+                    : `<div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">Review the AI-generated entry. Edit if needed, then confirm.</div>`;
 
-                for (const char of visible) {
-                    const item = document.createElement('div');
-                    item.className = 'rt-charpicker-item';
+                const previewHtml = `<div style="padding:10px;min-width:320px;max-width:520px;">
+                    <b style="display:block;margin-bottom:8px;">✨ Generated NPC — ${escapeHtml(nameToAdd)}</b>
+                    ${warningHtml}
+                    <textarea id="${taId}" style="width:100%;min-height:160px;resize:vertical;font-size:0.9em;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:inherit;box-sizing:border-box;">${escapeHtml(generatedTag)}</textarea>
+                </div>`;
 
-                    // Avatar
-                    const avatarDiv = document.createElement('div');
-                    avatarDiv.className = 'rt-charpicker-avatar';
-                    if (char.avatar && char.avatar !== 'none') {
-                        const img = document.createElement('img');
-                        img.src = `/characters/${encodeURIComponent(char.avatar)}`;
-                        img.loading = 'lazy';
-                        img.alt = char.name;
-                        img.onerror = () => { img.replaceWith(Object.assign(document.createElement('div'), { className: 'rt-charpicker-avatar-placeholder', textContent: '👤' })); };
-                        avatarDiv.appendChild(img);
-                    } else {
-                        avatarDiv.innerHTML = '<div class="rt-charpicker-avatar-placeholder">👤</div>';
+                let finalContent = generatedTag;
+                setTimeout(() => {
+                    const ta = document.getElementById(taId);
+                    if (ta) { ta.addEventListener('input', () => { finalContent = ta.value; }); ta.focus(); }
+                }, 0);
+                const result = await ctx.callGenericPopup(previewHtml, ctx.POPUP_TYPE?.CONFIRM ?? 1, '', {
+                    okButton: '✅ Add NPC', cancelButton: 'Cancel', wide: false,
+                });
+                if (result) {
+                    const finalParsed = parseNpcTag(finalContent);
+                    const finalName = finalParsed ? finalParsed.name : nameToAdd;
+
+                    // Final duplicate verification
+                    let finalBookData = null;
+                    try { finalBookData = await ctx.loadWorldInfo(bookName); } catch (_) {}
+                    if (finalBookData && finalBookData.entries) {
+                        const cleanLabel = finalName.toLowerCase().trim();
+                        for (const [, entry] of Object.entries(finalBookData.entries)) {
+                            const entryLabel = (entry.comment || '').replace(/^\[.*?\]\s*/i, '').toLowerCase().trim();
+                            if (entryLabel === cleanLabel) {
+                                toastr['warning'](`NPC "${finalName}" already exists. Cannot add duplicate.`, toastLabel);
+                                return; // Blocks adding!
+                            }
+                        }
                     }
 
-                    // Info
-                    const infoDiv = document.createElement('div');
-                    infoDiv.className = 'rt-charpicker-info';
-                    const nameEl = document.createElement('div');
-                    nameEl.className = 'rt-charpicker-name';
-                    nameEl.textContent = char.name || 'Unnamed';
-                    const descEl = document.createElement('div');
-                    descEl.className = 'rt-charpicker-desc';
-                    descEl.textContent = (char.description || char.personality || 'No description').substring(0, 120);
-                    infoDiv.appendChild(nameEl);
-                    infoDiv.appendChild(descEl);
-
-                    // Buttons
-                    const btnsDiv = document.createElement('div');
-                    btnsDiv.className = 'rt-charpicker-btns';
-
-                    const directBtn = document.createElement('button');
-                    directBtn.className = 'rt-charpicker-add-btn direct';
-                    directBtn.textContent = '+ Add as is (not recommended)';
-                    directBtn.addEventListener('click', async () => {
-                        directBtn.disabled = true;
-                        directBtn.textContent = '⏳ Adding...';
-                        try {
-                            const ok = await createNpcFromCharCard(char, bookName);
-                            if (ok) {
-                                toastr['success'](`Added "${char.name}" as NPC.`, 'NPC Import');
-                                overlay.remove();
-                                await refreshManifest();
-                            }
-                        } catch (err) {
-                            toastr['error'](`Failed: ${String(err.message || err).substring(0, 100)}`, 'NPC Import');
-                        } finally {
-                            directBtn.disabled = false;
-                            directBtn.textContent = '+ Add as is (not recommended)';
-                        }
-                    });
-
-                    const aiBtn = document.createElement('button');
-                    aiBtn.className = 'rt-charpicker-add-btn ai-adapt';
-                    aiBtn.textContent = '🤖 Fit into Story';
-                    aiBtn.addEventListener('click', async () => {
-                        aiBtn.disabled = true;
-                        aiBtn.textContent = '⏳ Adapting...';
-                        try {
-                            const adapted = await adaptNpcWithAI(char);
-                            if (!adapted) {
-                                aiBtn.disabled = false;
-                                aiBtn.textContent = '🤖 Fit into Story';
-                                return;
-                            }
-
-                            // Show preview popup
-                            if (ctx.callGenericPopup) {
-                                const taId = `rt-npc-adapt-preview-${Date.now()}`;
-                                const previewHtml = `<div style="padding:10px;min-width:320px;max-width:500px;">
-                                    <b style="display:block;margin-bottom:8px;">🤖 Adapted NPC — ${escapeHtml(char.name)}</b>
-                                    <div style="font-size:0.8em;opacity:0.6;margin-bottom:8px;">Review the AI-adapted entry below. Edit if needed, then confirm.</div>
-                                    <textarea id="${taId}" style="width:100%;min-height:140px;resize:vertical;font-size:0.9em;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.3);color:inherit;box-sizing:border-box;">${escapeHtml(adapted)}</textarea>
-                                </div>`;
-
-                                let finalContent = adapted;
-                                setTimeout(() => {
-                                    const ta = document.getElementById(taId);
-                                    if (ta) {
-                                        ta.addEventListener('input', () => { finalContent = ta.value; });
-                                        ta.focus();
-                                    }
-                                }, 0);
-
-                                const result = await ctx.callGenericPopup(previewHtml, ctx.POPUP_TYPE?.CONFIRM ?? 1, '', {
-                                    okButton: '✅ Add NPC', cancelButton: 'Cancel', wide: false,
-                                });
-
-                                if (result) {
-                                    const ok = await createNpcFromCharCard(char, bookName, finalContent);
-                                    if (ok) {
-                                        toastr['success'](`Added adapted "${char.name}" as NPC.`, 'NPC Import');
-                                        overlay.remove();
-                                        await refreshManifest();
-                                    }
-                                }
-                            }
-                        } catch (err) {
-                            toastr['error'](`Adaptation failed: ${String(err.message || err).substring(0, 100)}`, 'NPC Import');
-                        } finally {
-                            aiBtn.disabled = false;
-                            aiBtn.textContent = '🤖 Fit into Story';
-                        }
-                    });
-
-                    btnsDiv.appendChild(aiBtn);
-                    btnsDiv.appendChild(directBtn);
-
-                    item.appendChild(avatarDiv);
-                    item.appendChild(infoDiv);
-                    item.appendChild(btnsDiv);
-                    listContainer.appendChild(item);
-                }
-
-                // Load more button
-                if (visible.length < filtered.length) {
-                    const loadMore = document.createElement('div');
-                    loadMore.className = 'rt-charpicker-load-more';
-                    loadMore.textContent = `Show more (${visible.length} of ${filtered.length})`;
-                    loadMore.addEventListener('click', () => {
-                        displayCount += 10;
-                        renderList();
-                    });
-                    listContainer.appendChild(loadMore);
+                    const fakeCard = { name: finalName, avatar: null };
+                    const ok = await createNpcFromCharCard(fakeCard, bookName, finalContent);
+                    if (ok) {
+                        toastr['success'](`Added "${finalName}" as NPC.`, toastLabel);
+                        overlay.remove();
+                        await refreshManifest();
+                    }
                 }
             };
 
-            // Search handler with debounce
-            let searchTimeout = null;
-            searchInput.addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    currentFilter = searchInput.value.trim();
-                    displayCount = 10;
-                    renderList();
-                }, 200);
-            });
+            // ── Tab 1: Import from Character Card ──────────────────────────
+            {
+                const cardPanel = tabPanels['card'];
 
-            // Initial render
-            renderList();
+                const searchInput = document.createElement('input');
+                searchInput.className = 'rt-charpicker-search';
+                searchInput.type = 'text';
+                searchInput.placeholder = '🔍 Search characters by name...';
+                searchInput.style.margin = '0 0 8px 0';
+                searchInput.style.width = '100%';
+                searchInput.style.boxSizing = 'border-box';
+
+                const listContainer = document.createElement('div');
+                listContainer.className = 'rt-charpicker-list';
+                listContainer.style.padding = '0';
+
+                cardPanel.appendChild(searchInput);
+                cardPanel.appendChild(listContainer);
+
+                let currentFilter = '';
+                let displayCount = 10;
+
+                const renderList = () => {
+                    listContainer.innerHTML = '';
+                    const filtered = currentFilter
+                        ? allChars.filter(c => (c.name || '').toLowerCase().includes(currentFilter.toLowerCase()))
+                        : allChars;
+
+                    if (filtered.length === 0) {
+                        listContainer.innerHTML = '<div class="rt-charpicker-empty">No characters match your search.</div>';
+                        return;
+                    }
+                    const visible = filtered.slice(0, displayCount);
+                    for (const char of visible) {
+                        const item = document.createElement('div');
+                        item.className = 'rt-charpicker-item';
+
+                        const avatarDiv = document.createElement('div');
+                        avatarDiv.className = 'rt-charpicker-avatar';
+                        if (char.avatar && char.avatar !== 'none') {
+                            const img = document.createElement('img');
+                            img.src = `/characters/${encodeURIComponent(char.avatar)}`;
+                            img.loading = 'lazy';
+                            img.alt = char.name;
+                            img.onerror = () => { img.replaceWith(Object.assign(document.createElement('div'), { className: 'rt-charpicker-avatar-placeholder', textContent: '👤' })); };
+                            avatarDiv.appendChild(img);
+                        } else {
+                            avatarDiv.innerHTML = '<div class="rt-charpicker-avatar-placeholder">👤</div>';
+                        }
+
+                        const infoDiv = document.createElement('div');
+                        infoDiv.className = 'rt-charpicker-info';
+                        const nameEl = document.createElement('div');
+                        nameEl.className = 'rt-charpicker-name';
+                        nameEl.textContent = char.name || 'Unnamed';
+                        const descEl = document.createElement('div');
+                        descEl.className = 'rt-charpicker-desc';
+                        descEl.textContent = (char.description || char.personality || 'No description').substring(0, 120);
+                        infoDiv.appendChild(nameEl);
+                        infoDiv.appendChild(descEl);
+
+                        const btnsDiv = document.createElement('div');
+                        btnsDiv.className = 'rt-charpicker-btns';
+
+                        const directBtn = document.createElement('button');
+                        directBtn.className = 'rt-charpicker-add-btn direct';
+                        directBtn.textContent = '+ Add as is';
+                        directBtn.addEventListener('click', async () => {
+                            directBtn.disabled = true;
+                            directBtn.textContent = '⏳ Adding...';
+                            try {
+                                const ok = await createNpcFromCharCard(char, bookName);
+                                if (ok) {
+                                    toastr['success'](`Added "${char.name}" as NPC.`, 'NPC Creator');
+                                    overlay.remove();
+                                    await refreshManifest();
+                                }
+                            } catch (err) {
+                                toastr['error'](`Failed: ${String(err.message || err).substring(0, 100)}`, 'NPC Creator');
+                            } finally {
+                                directBtn.disabled = false;
+                                directBtn.textContent = '+ Add as is';
+                            }
+                        });
+
+                        const aiBtn = document.createElement('button');
+                        aiBtn.className = 'rt-charpicker-add-btn ai-adapt';
+                        aiBtn.textContent = '🤖 Fit into Story';
+                        aiBtn.addEventListener('click', async () => {
+                            aiBtn.disabled = true;
+                            aiBtn.textContent = '⏳ Adapting...';
+                            try {
+                                const adapted = await adaptNpcWithAI(char);
+                                if (!adapted) { aiBtn.disabled = false; aiBtn.textContent = '🤖 Fit into Story'; return; }
+                                await showNpcPreviewAndAdd(adapted, char.name, 'NPC Creator');
+                            } catch (err) {
+                                toastr['error'](`Adaptation failed: ${String(err.message || err).substring(0, 100)}`, 'NPC Creator');
+                            } finally {
+                                aiBtn.disabled = false;
+                                aiBtn.textContent = '🤖 Fit into Story';
+                            }
+                        });
+
+                        btnsDiv.appendChild(aiBtn);
+                        btnsDiv.appendChild(directBtn);
+                        item.appendChild(avatarDiv);
+                        item.appendChild(infoDiv);
+                        item.appendChild(btnsDiv);
+                        listContainer.appendChild(item);
+                    }
+                    if (visible.length < filtered.length) {
+                        const loadMore = document.createElement('div');
+                        loadMore.className = 'rt-charpicker-load-more';
+                        loadMore.textContent = `Show more (${visible.length} of ${filtered.length})`;
+                        loadMore.addEventListener('click', () => { displayCount += 10; renderList(); });
+                        listContainer.appendChild(loadMore);
+                    }
+                };
+                let searchTimeout = null;
+                searchInput.addEventListener('input', () => {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => { currentFilter = searchInput.value.trim(); displayCount = 10; renderList(); }, 200);
+                });
+                renderList();
+            }
+
+            // ── Tab 2: Freeform Description ────────────────────────────────
+            {
+                const freeformPanel = tabPanels['freeform'];
+
+                const hintEl = document.createElement('div');
+                hintEl.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:8px;line-height:1.5;';
+                hintEl.textContent = 'Describe the NPC in your own words. The AI will expand it into a full lorebook entry fitting the current campaign.';
+                freeformPanel.appendChild(hintEl);
+
+                const nameLabel = document.createElement('label');
+                nameLabel.className = 'rt-npc-form-label';
+                nameLabel.textContent = 'Name (optional)';
+                const nameInput = document.createElement('input');
+                nameInput.className = 'rt-npc-form-input';
+                nameInput.type = 'text';
+                nameInput.placeholder = 'e.g. Igor, Mira Voss, …';
+                nameInput.style.marginBottom = '8px';
+
+                const descLabel = document.createElement('label');
+                descLabel.className = 'rt-npc-form-label';
+                descLabel.textContent = 'Description / Concept *';
+                const descInput = document.createElement('textarea');
+                descInput.className = 'rt-npc-form-input';
+                descInput.rows = 5;
+                descInput.placeholder = 'e.g. A massive bovine warrior, stoic and dry-witted, survivor of the Tether-Break…';
+                descInput.style.marginBottom = '4px';
+
+                const genBtn = document.createElement('button');
+                genBtn.className = 'rt-npc-generate-btn';
+                genBtn.textContent = '🤖 Generate NPC';
+                genBtn.addEventListener('click', async () => {
+                    const rawDesc = descInput.value.trim();
+                    if (!rawDesc) { toastr['warning']('Please enter a description.', 'NPC Creator'); return; }
+                    genBtn.disabled = true;
+                    genBtn.textContent = '⏳ Generating...';
+                    try {
+                        const generated = await generateNpcFromFreeform(nameInput.value.trim(), rawDesc, existingNpcNames);
+                        if (!generated) return;
+                        const nameFallback = nameInput.value.trim() || 'New NPC';
+                        await showNpcPreviewAndAdd(generated, nameFallback, 'NPC Creator');
+                    } finally {
+                        genBtn.disabled = false;
+                        genBtn.textContent = '🤖 Generate NPC';
+                    }
+                });
+
+                freeformPanel.appendChild(nameLabel);
+                freeformPanel.appendChild(nameInput);
+                freeformPanel.appendChild(descLabel);
+                freeformPanel.appendChild(descInput);
+                freeformPanel.appendChild(genBtn);
+            }
+
+            // ── Tab 3: Archetype Generator ─────────────────────────────────
+            {
+                const archetypePanel = tabPanels['archetype'];
+
+                const hintEl = document.createElement('div');
+                hintEl.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:10px;line-height:1.5;';
+                hintEl.textContent = 'Pick a story role below, or type a custom one. The AI will generate a fitting NPC grounded in the current campaign context.';
+                archetypePanel.appendChild(hintEl);
+
+                const archetypes = [
+                    { id: 'Enemy',              icon: '⚔️' },
+                    { id: 'Arch Nemesis',        icon: '💀' },
+                    { id: 'Lover',               icon: '❤️' },
+                    { id: 'Family Relative',     icon: '👨‍👩‍👧' },
+                    { id: 'Companion / Ally',    icon: '🛡️' },
+                    { id: 'Merchant',            icon: '🪙' },
+                    { id: 'Mysterious Stranger', icon: '🎭' },
+                    { id: 'Rival',               icon: '🧙' },
+                    { id: 'Custom',              icon: '✍️' },
+                ];
+
+                let selectedArchetype = '';
+                const grid = document.createElement('div');
+                grid.className = 'rt-archetype-grid';
+                grid.style.marginBottom = '10px';
+                const chipMap = {};
+                
+                const customLabel = document.createElement('label');
+                customLabel.className = 'rt-npc-form-label';
+                customLabel.textContent = 'Custom Archetype / Role *';
+                customLabel.style.display = 'none';
+                
+                const customInput = document.createElement('input');
+                customInput.className = 'rt-npc-form-input';
+                customInput.type = 'text';
+                customInput.placeholder = 'e.g. Mentor, Bartender, Guildmaster...';
+                customInput.style.marginBottom = '8px';
+                customInput.style.display = 'none';
+
+                for (const { id, icon } of archetypes) {
+                    const chip = document.createElement('div');
+                    chip.className = 'rt-archetype-chip';
+                    chip.innerHTML = `<span class="rt-archetype-chip-icon">${icon}</span> ${id}`;
+                    chip.addEventListener('click', () => {
+                        selectedArchetype = id;
+                        
+                        if (id === 'Custom') {
+                            customLabel.style.display = 'block';
+                            customInput.style.display = 'block';
+                            customInput.value = '';
+                            customInput.focus();
+                        } else {
+                            customLabel.style.display = 'none';
+                            customInput.style.display = 'none';
+                            customInput.value = id;
+                        }
+                        
+                        for (const [cid, cel] of Object.entries(chipMap)) {
+                            cel.classList.toggle('selected', cid === selectedArchetype);
+                        }
+                    });
+                    grid.appendChild(chip);
+                    chipMap[id] = chip;
+                }
+                
+                customInput.addEventListener('input', () => {
+                    selectedArchetype = customInput.value.trim();
+                });
+
+                archetypePanel.appendChild(grid);
+                archetypePanel.appendChild(customLabel);
+                archetypePanel.appendChild(customInput);
+
+                const nameLabel = document.createElement('label');
+                nameLabel.className = 'rt-npc-form-label';
+                nameLabel.textContent = 'Name (optional)';
+                const nameInput = document.createElement('input');
+                nameInput.className = 'rt-npc-form-input';
+                nameInput.type = 'text';
+                nameInput.placeholder = 'Leave blank to let the AI choose';
+                nameInput.style.marginBottom = '8px';
+
+                const conceptLabel = document.createElement('label');
+                conceptLabel.className = 'rt-npc-form-label';
+                conceptLabel.textContent = 'Extra concept / prompt (optional)';
+                const conceptInput = document.createElement('textarea');
+                conceptInput.className = 'rt-npc-form-input';
+                conceptInput.rows = 2;
+                conceptInput.placeholder = 'e.g. ex-soldier, uses poison daggers, secretly a doppelganger…';
+                conceptInput.style.marginBottom = '4px';
+
+                const genBtn = document.createElement('button');
+                genBtn.className = 'rt-npc-generate-btn';
+                genBtn.textContent = '🤖 Generate NPC';
+                genBtn.addEventListener('click', async () => {
+                    const role = customInput.value.trim();
+                    if (!role) { toastr['warning']('Please select or enter an archetype/role first.', 'NPC Creator'); return; }
+                    genBtn.disabled = true;
+                    genBtn.textContent = '⏳ Generating...';
+                    try {
+                        const generated = await generateNpcFromArchetype(
+                            role, nameInput.value.trim(), conceptInput.value.trim(), existingNpcNames
+                        );
+                        if (!generated) return;
+                        const nameFallback = nameInput.value.trim() || role;
+                        await showNpcPreviewAndAdd(generated, nameFallback, 'NPC Creator');
+                    } finally {
+                        genBtn.disabled = false;
+                        genBtn.textContent = '🤖 Generate NPC';
+                    }
+                });
+
+                archetypePanel.appendChild(nameLabel);
+                archetypePanel.appendChild(nameInput);
+                archetypePanel.appendChild(conceptLabel);
+                archetypePanel.appendChild(conceptInput);
+                archetypePanel.appendChild(genBtn);
+            }
 
             // Add to DOM
             document.body.appendChild(overlay);
-            searchInput.focus();
         };
 
         const refreshBtn = agentPanel.querySelector('#rt-agent-manifest-refresh');
@@ -7144,8 +7521,12 @@ Rules:
     const logClear = agentPanel.querySelector('#rt-agent-router-log-clear');
 
     document.addEventListener('rt_lore_agent_step', (e) => {
-        if (!terminal) return;
         const step = (/** @type {CustomEvent} */ (e)).detail;
+        console.log('[RPG Tracker] rt_lore_agent_step event received. Type:', step?.type, 'Content:', step?.content, 'Terminal exists:', !!terminal);
+        if (!terminal) {
+            console.warn('[RPG Tracker] rt_lore_agent_step event ignored because terminal element is null/missing.');
+            return;
+        }
 
         if (step.type === 'start') {
             _routerSteps = [];
@@ -7161,8 +7542,13 @@ Rules:
         // Refresh Campaign Records after the pass fully completes — at this point
         // all applyAction writes and saveWorldInfo cache-busts are guaranteed done.
         if (step.type === 'finish' || step.type === 'error') {
+            console.log(`[RPG Tracker] Lorebook Agent step "${step.type}" matched. Refreshing manifest...`);
             refreshManifest();
             updateAgentStatusIndicator(false);
+            if (step.type === 'finish') {
+                console.log('[RPG Tracker] Lorebook Agent pass finished. Invoking checkAndTriggerAutoGenerations...');
+                checkAndTriggerAutoGenerations(refreshAll);
+            }
         }
     });
 
@@ -7837,9 +8223,14 @@ function makeResizableBL(panel, handle) {
 }
 
 function setupResizeObserver(panel) {
-    // Debounced save on resize
+    // Debounced save on resize.
+    // Skip the very first callback — it fires immediately on observe() before
+    // the panel's restored geometry (from loadPanelGeometry) has been painted,
+    // which would cause it to overwrite the saved position with the CSS default.
     let _resizeTimer;
+    let _initialFired = false;
     const ro = new ResizeObserver(() => {
+        if (!_initialFired) { _initialFired = true; return; }
         clearTimeout(_resizeTimer);
         _resizeTimer = setTimeout(() => savePanelGeometry(panel), 300);
     });
@@ -7902,13 +8293,13 @@ function updateStatusIndicator(state) {
 const RENDER_HINTS = {
     CHARACTER: {
         label: 'Entity Rows — HP Bars (Characters)',
-        description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Combat (BAB), Gear, Attr, Saves, Skills, Traits, HD, Status.',
-        example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nCombat: BAB: +2 | Ranged: +3 | Melee: +5\nGear: Volcanic Mace (+1 / 2d6+3), AC: 13 (Furs)\nAttr: STR 16 (+3), DEX 12 (+1), CON 16 (+3), INT 8 (-1), WIS 16 (+3), CHA 6 (-2)\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nHD: d10 (2/2)\nStatus: Healthy'
+        description: 'Each entity is one row with an HP bar. First line: "Name (Race/Class): cur/max HP". Sub-lines: Combat (BAB), Gear, Attr, Saves, Skills, Traits, Abilities, HD, Status.',
+        example: 'Korgath Iron-Hide (Dwarven Warrior): 32/32 HP\nCombat: BAB: +2 | Ranged: +3 | Melee: +5\nGear: Volcanic Mace (+1 / 2d6+3), AC: 13 (Furs)\nAttr: STR 16 (+3), DEX 12 (+1), CON 16 (+3), INT 8 (-1), WIS 16 (+3), CHA 6 (-2)\nSaves: Fort +6 | Ref +1 | Will +1\nSkills: Athletics +5, Intimidation +4\nTraits: Darkvision (60 ft)\nAbilities: Second Wind (1/1), Action Surge (1/1)\nHD: d10 (2/2)\nStatus: Healthy'
     },
     COMBAT: {
         label: 'Entity Rows — HP Bars (Enemies)',
-        description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Status.',
-        example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
+        description: 'Same entity-row format as Characters. Optionally starts with a "COMBAT ROUND N" header line. Each enemy: "Name (Type): cur/max HP". Sub-lines: Att/def, Saves, Abilities, Status.',
+        example: 'COMBAT ROUND 1\nSkritch (Goblin Minion): 8/8 HP\nAtt/def: Pickaxe (+3 / 1d6+1 P) | Furs (AC: 12)\nSaves: Fort +0, Ref +2, Will +0\nAbilities: Nimble Escape (disengage as bonus action)\nStatus: Healthy\n\nGrak (Goblin Minion): 8/8 HP\nAtt/def: Jagged Stone (+3 / 1d4+1 B) | Furs (AC: 12)\nStatus: Healthy'
     },
     SPELLS: {
         label: 'Spell Pips — Slot Tracker',
@@ -8594,6 +8985,12 @@ function refreshOrderList() {
                     displayTag = 'QUESTS (Legacy Mode)';
                 }
 
+                // Redirect TIME to time_24h if 24h mode is active
+                if (tag === 'TIME' && s.use24hTime) {
+                    mod = 'time_24h';
+                    displayTag = 'TIME (24h Format)';
+                }
+
                 if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
                 openPromptEditor(
                     displayTag,
@@ -8622,6 +9019,7 @@ function refreshOrderList() {
             resetBtn.onclick = () => {
                 let mod = tag.toLowerCase();
                 if (tag === 'QUESTS' && s.questLegacyMode) mod = 'quests_legacy';
+                if (tag === 'TIME' && s.use24hTime) mod = 'time_24h';
 
                 if (confirm(`Reset [${tag}] prompt to default? This will lose any custom changes.`)) {
                     if (!s.stockPrompts) s.stockPrompts = { ...DEFAULT_STOCK_PROMPTS };
@@ -8663,6 +9061,35 @@ function refreshOrderList() {
 
         item.appendChild(cb);
         item.appendChild(label);
+
+        // TIME-specific: inline 24h clock toggle
+        if (tag === 'TIME' && isStock) {
+            const pill = document.createElement('label');
+            pill.title = 'Toggle between 12-hour (AM/PM) and 24-hour time format for the [TIME] module prompt and all time displays.';
+            pill.style.cssText = 'display:inline-flex; align-items:center; gap:4px; font-size:10px; opacity:0.8; cursor:pointer; user-select:none; margin-right:4px; white-space:nowrap;';
+
+            const cb24h = document.createElement('input');
+            cb24h.type = 'checkbox';
+            cb24h.checked = !!s.use24hTime;
+            cb24h.style.cssText = 'margin:0; cursor:pointer;';
+            cb24h.onchange = () => {
+                getSettings().use24hTime = cb24h.checked;
+                saveSettings();
+                // Refresh any visible timing displays
+                if (typeof updateWorldProgressionLastFiredDisplayRef === 'function') {
+                    updateWorldProgressionLastFiredDisplayRef();
+                }
+                scheduleAutoApply();
+            };
+
+            const lbl24h = document.createElement('span');
+            lbl24h.textContent = '24h';
+
+            pill.appendChild(cb24h);
+            pill.appendChild(lbl24h);
+            item.appendChild(pill);
+        }
+
         btnGroup.appendChild(editBtn);
         if (resetBtn) btnGroup.appendChild(resetBtn);
         btnGroup.appendChild(upBtn);
@@ -8756,6 +9183,12 @@ function buildSysprompt(rawText) {
                 }
                 return `<quests>\n${instruction.trim()}\n</quests>`;
             }
+            if (tag === 'end_of_output_footer') {
+                if (s.use24hTime) {
+                    return match.replace(/\[HH:MM AM\/PM\]/g, '[HH:MM] (24-hour clock, NO AM/PM)');
+                }
+                return match;
+            }
             return match;
         });
 
@@ -8835,7 +9268,7 @@ function buildSysprompt(rawText) {
 
         // --- Version Upgrade Prompt Reset Dialog ---
         {
-            let currentVersion = '3.16.0'; // Fallback
+            let currentVersion = '3.8.5'; // Fallback
             try {
                 const manifestUrl = new URL('./manifest.json', import.meta.url);
                 const response = await fetch(manifestUrl);
@@ -8887,6 +9320,7 @@ function buildSysprompt(rawText) {
                         $('#rpg_tracker_npc_minor_words').val(sTempTracker.npcMinorWords ?? 15);
                         $('#rpg_tracker_npc_rel_bars').prop('checked', !!sTempTracker.npcRelationshipBars);
                         $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
+                        $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
                         if (typeof refreshOrderList === 'function') refreshOrderList();
 
                         // 3. Lorebook Agent
@@ -8897,7 +9331,7 @@ function buildSysprompt(rawText) {
                         for (const [id, def] of Object.entries(DEFAULT_MODULES)) {
                             if (fresh.routerModules && fresh.routerModules[id]) {
                                 if (id === 'npc') {
-                                    fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords);
+                                    fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords, fresh.ignoreNpcImportLimits);
                                 } else {
                                     fresh.routerModules[id].instruction = def.instruction;
                                 }
@@ -9077,6 +9511,7 @@ function buildSysprompt(rawText) {
                                     $('#rpg_tracker_npc_minor_words').val(sTempTracker.npcMinorWords ?? 15);
                                     $('#rpg_tracker_npc_rel_bars').prop('checked', !!sTempTracker.npcRelationshipBars);
                                     $('#rpg_tracker_npc_card_import').prop('checked', !!sTempTracker.experimentalNpcImport);
+                                    $('#rpg_tracker_ignore_npc_limits').prop('checked', !!sTempTracker.ignoreNpcImportLimits);
                                     if (typeof refreshOrderList === 'function') refreshOrderList();
                                     resetCount++;
                                     console.log('[RPG Tracker] State tracker prompts reset to defaults.');
@@ -9090,7 +9525,7 @@ function buildSysprompt(rawText) {
                                     for (const [id, def] of Object.entries(DEFAULT_MODULES)) {
                                         if (fresh.routerModules && fresh.routerModules[id]) {
                                             if (id === 'npc') {
-                                                fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords);
+                                                fresh.routerModules[id].instruction = buildNpcInstruction(fresh.npcMajorWords, fresh.npcMinorWords, fresh.ignoreNpcImportLimits);
                                             } else {
                                                 fresh.routerModules[id].instruction = def.instruction;
                                             }
@@ -9268,7 +9703,7 @@ function buildSysprompt(rawText) {
             settings.portraitAutoGenerateParty = !!$(this).prop('checked');
             saveSettings();
             if (settings.portraitAutoGenerateParty) {
-                forceCheckAutoGenerations(refreshRenderedView);
+                forceCheckAutoGenerations(refreshAll);
             }
         });
 
@@ -9276,7 +9711,15 @@ function buildSysprompt(rawText) {
             settings.portraitAutoGenerateEnemies = !!$(this).prop('checked');
             saveSettings();
             if (settings.portraitAutoGenerateEnemies) {
-                forceCheckAutoGenerations(refreshRenderedView);
+                forceCheckAutoGenerations(refreshAll);
+            }
+        });
+
+        $('#rpg_tracker_portrait_auto_npcs').prop('checked', !!settings.portraitAutoGenerateNpcs).on('change', function () {
+            settings.portraitAutoGenerateNpcs = !!$(this).prop('checked');
+            saveSettings();
+            if (settings.portraitAutoGenerateNpcs) {
+                forceCheckAutoGenerations(refreshAll);
             }
         });
 
@@ -11667,7 +12110,7 @@ RULES:
             const val = parseInt(String($(this).val() || '')) || 25;
             settings.npcMajorWords = Math.max(5, Math.min(100, val));
             if (settings.routerModules?.npc) {
-                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords);
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
             }
             saveSettings();
             if (typeof globalThis._rpgRenderAgentModules === 'function') {
@@ -11678,7 +12121,7 @@ RULES:
             const val = parseInt(String($(this).val() || '')) || 15;
             settings.npcMinorWords = Math.max(5, Math.min(100, val));
             if (settings.routerModules?.npc) {
-                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords);
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
             }
             saveSettings();
             if (typeof globalThis._rpgRenderAgentModules === 'function') {
@@ -11689,11 +12132,16 @@ RULES:
             settings.npcRelationshipBars = $(this).prop('checked');
             saveSettings();
         });
-        $('#rpg_tracker_npc_card_import').prop('checked', !!settings.experimentalNpcImport).on('change', function () {
-            settings.experimentalNpcImport = $(this).prop('checked');
+        // Note: experimentalNpcImport removed — NPC Creator button is always visible.
+        $('#rpg_tracker_ignore_npc_limits').prop('checked', !!settings.ignoreNpcImportLimits).on('change', function () {
+            settings.ignoreNpcImportLimits = $(this).prop('checked');
+            if (settings.routerModules?.npc) {
+                settings.routerModules.npc.instruction = buildNpcInstruction(settings.npcMajorWords, settings.npcMinorWords, settings.ignoreNpcImportLimits);
+            }
+
             saveSettings();
-            if (typeof refreshNpcManifest === 'function') {
-                refreshNpcManifest();
+            if (typeof globalThis._rpgRenderAgentModules === 'function') {
+                globalThis._rpgRenderAgentModules();
             }
         });
 
@@ -11869,10 +12317,14 @@ RULES:
                 const remMinutes = totalMins % 1440;
                 const h24 = Math.floor(remMinutes / 60);
                 const m = remMinutes % 60;
-                const suffix = h24 >= 12 ? 'PM' : 'AM';
-                let h12 = h24 % 12;
-                if (h12 === 0) h12 = 12;
-                return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+                if (s.use24hTime) {
+                    return `Day ${day}, ${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                } else {
+                    const suffix = h24 >= 12 ? 'PM' : 'AM';
+                    let h12 = h24 % 12;
+                    if (h12 === 0) h12 = 12;
+                    return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+                }
             }
 
             let lastReportText = 'Never';
@@ -11909,6 +12361,7 @@ RULES:
             saveSettings();
             updateWorldProgressionLastFiredDisplay();
         });
+
         $wpKeepActive.val(settings.worldProgressionKeepActive || 1).on('input', function () {
             getSettings().worldProgressionKeepActive = parseInt(String($(this).val() || '')) || 1;
             saveSettings();
@@ -12089,15 +12542,19 @@ RULES:
             const currentNextMins = currentLastMins >= 0 ? currentLastMins + intervalMinutes : intervalMinutes;
 
             function fmtHint(totalMins) {
-                if (totalMins < 0) return 'Day 1, 12:00 AM';
+                if (totalMins < 0) return s.use24hTime ? 'Day 1, 00:00' : 'Day 1, 12:00 AM';
                 const day = Math.floor(totalMins / 1440) + 1;
                 const remMinutes = totalMins % 1440;
                 const h24 = Math.floor(remMinutes / 60);
                 const m = remMinutes % 60;
-                const suffix = h24 >= 12 ? 'PM' : 'AM';
-                let h12 = h24 % 12;
-                if (h12 === 0) h12 = 12;
-                return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+                if (s.use24hTime) {
+                    return `Day ${day}, ${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                } else {
+                    const suffix = h24 >= 12 ? 'PM' : 'AM';
+                    let h12 = h24 % 12;
+                    if (h12 === 0) h12 = 12;
+                    return `Day ${day}, ${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${suffix}`;
+                }
             }
 
             const userInput = window.prompt(

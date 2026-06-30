@@ -18,6 +18,7 @@ const DEFAULT_XP_COLOR = 'linear-gradient(90deg, #0088ff, #00d4ff)';
         'saves': 'numbers',
         'status': 'pills',
         'traits': 'pills',
+        'abilities': 'pills',
         'other': 'pills',
         'resistances': 'pills',
         'res': 'pills',

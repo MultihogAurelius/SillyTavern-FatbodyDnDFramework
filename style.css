@@ -2576,16 +2576,14 @@
 
 /* ── NPC Folder Header Accent ── */
 .rt-npc-folder-hdr {
-    border-left: 3px solid #d4a940 !important;
-    background: linear-gradient(90deg, rgba(212, 169, 64, 0.08), rgba(255,255,255,0.04)) !important;
-    transition: background 0.2s ease, border-color 0.2s ease;
-}
-.rt-npc-folder-hdr:hover {
-    background: linear-gradient(90deg, rgba(212, 169, 64, 0.14), rgba(255,255,255,0.06)) !important;
+    transition: background 0.2s ease;
 }
 .rt-npc-folder-hdr .rt-npc-folder-icon {
     color: #d4a940;
     font-size: 10px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
 }
 
@@ -2790,13 +2788,8 @@
 /* ── NPC Card Actions ── */
 .rt-npc-actions {
     display: flex;
-    gap: 3px;
-    margin-top: 2px;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-}
-.rt-npc-card:hover .rt-npc-actions {
-    opacity: 1;
+    gap: 4px;
+    margin-top: 4px;
 }
 .rt-npc-action-btn {
     background: none;
@@ -2804,18 +2797,38 @@
     color: var(--rt-text-muted);
     cursor: pointer;
     font-size: 9px;
-    padding: 2px 5px;
+    padding: 2px 6px;
     border-radius: 4px;
-    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-    display: flex;
+    transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    display: inline-flex;
     align-items: center;
     gap: 3px;
     white-space: nowrap;
 }
+.rt-npc-action-btn:not(.rt-npc-view) {
+    opacity: 0.4;
+}
+.rt-npc-card:hover .rt-npc-action-btn:not(.rt-npc-view) {
+    opacity: 0.85;
+}
 .rt-npc-action-btn:hover {
-    color: var(--rt-text);
-    border-color: rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.05);
+    color: var(--rt-text) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    opacity: 1 !important;
+}
+.rt-npc-action-btn.rt-npc-view {
+    color: #d4a940;
+    border-color: rgba(212, 169, 64, 0.35);
+    background: rgba(212, 169, 64, 0.06);
+    font-weight: bold;
+    opacity: 1;
+}
+.rt-npc-action-btn.rt-npc-view:hover {
+    background: rgba(212, 169, 64, 0.18) !important;
+    border-color: #d4a940 !important;
+    color: #ecc050 !important;
+    box-shadow: 0 0 6px rgba(212, 169, 64, 0.2);
 }
 .rt-npc-action-btn.gen-portrait {
     color: #d4a940;
@@ -3048,5 +3061,127 @@
 .rt-charpicker-load-more:hover {
     background: rgba(255, 255, 255, 0.04);
     color: var(--rt-text, #eee);
+}
+/* ── NPC Creator Dialog Tabs ── */
+.rt-npc-creator-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(212, 169, 64, 0.15);
+    background: rgba(212, 169, 64, 0.03);
+    flex-shrink: 0;
+}
+.rt-npc-creator-tab {
+    flex: 1;
+    padding: 8px 6px;
+    font-size: 10px;
+    font-weight: bold;
+    text-align: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.4);
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    user-select: none;
+}
+.rt-npc-creator-tab:hover {
+    color: rgba(212, 169, 64, 0.8);
+    background: rgba(212, 169, 64, 0.04);
+}
+.rt-npc-creator-tab.active {
+    color: #d4a940;
+    border-bottom-color: #d4a940;
+    background: rgba(212, 169, 64, 0.06);
+}
+.rt-npc-creator-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.rt-npc-creator-panel.hidden {
+    display: none;
+}
+/* Freeform / general form inputs */
+.rt-npc-form-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 2px;
+    display: block;
+}
+.rt-npc-form-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    color: var(--rt-text, #eee);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.2s ease;
+    resize: vertical;
+}
+.rt-npc-form-input:focus {
+    border-color: rgba(212, 169, 64, 0.4);
+}
+.rt-npc-form-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+    font-style: italic;
+}
+.rt-npc-generate-btn {
+    background: rgba(0, 255, 170, 0.08);
+    border: 1px solid rgba(0, 255, 170, 0.25);
+    color: var(--rt-accent, #00ffaa);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    width: 100%;
+    margin-top: 4px;
+}
+.rt-npc-generate-btn:hover {
+    background: rgba(0, 255, 170, 0.15);
+    border-color: rgba(0, 255, 170, 0.45);
+}
+.rt-npc-generate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+/* Archetype grid */
+.rt-archetype-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+}
+.rt-archetype-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+    user-select: none;
+}
+.rt-archetype-chip:hover {
+    background: rgba(212, 169, 64, 0.1);
+    border-color: rgba(212, 169, 64, 0.3);
+    color: #d4a940;
+    transform: translateY(-1px);
+}
+.rt-archetype-chip.selected {
+    background: rgba(212, 169, 64, 0.15);
+    border-color: rgba(212, 169, 64, 0.5);
+    color: #ecc050;
+}
+.rt-archetype-chip-icon {
+    font-size: 14px;
+    flex-shrink: 0;
 }
 

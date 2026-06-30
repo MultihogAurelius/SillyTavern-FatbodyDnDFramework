@@ -978,8 +978,9 @@ export function buildModulesInstructionText(settings) {
 
     modulesText += "### CORE MODULES\n";
     for (const [key, prompt] of Object.entries(promptsMap)) {
-        // Never emit the quests_legacy key as its own module — it's a data slot only
+        // Never emit the quests_legacy or time_24h keys as their own modules — they are data slots only
         if (key === 'quests_legacy') continue;
+        if (key === 'time_24h') continue;
 
         if (settings.modules[key]) {
             let p = prompt;
@@ -1003,6 +1004,11 @@ export function buildModulesInstructionText(settings) {
                 } else {
                     console.log('[RPG Tracker] Quest prompt: using MODERN/JSON format (questLegacyMode=false)');
                 }
+            }
+
+            // ── Dynamic prompt swap for 24-hour Time Module ─────────────────
+            if (key === 'time' && settings.use24hTime) {
+                p = promptsMap['time_24h'] || DEFAULT_STOCK_PROMPTS.time_24h;
             }
 
             modulesText += `- [${key.toUpperCase()}]: ${p}\n`;

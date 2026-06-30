@@ -494,8 +494,8 @@ export async function runRouterPass(narrativeOutput, manualPrompt = null, custom
 7. Do NOT activate, deactivate, record, or delete entries except via CONSOLIDATE targets.
 8. Do NOT consolidate entries of different categories (e.g., do NOT merge an NPC or Location into a Quest or Event). Consolidation is strictly for true duplicates representing the exact same entity or concept (e.g., two entries for the same NPC).
 9. Do NOT merge multiple distinct chronological events into a single entry to "reduce fragmentation". Each distinct event must remain as a separate entry so it triggers on its own keywords.
-10. NEVER modify, shorten, or delete content within \`[CORE] ... [/CORE]\` blocks under any circumstances. Keep the tags and their inner content completely unchanged.
-11. For legacy NPC entries lacking these tags, identify their persistent sections (Appearance, Personality, Brief Background, Habits/Behaviors) and wrap them inside a \`[CORE] ... [/CORE]\` block to protect them from future passes. Do not include Relationship, Friendship/Rapport, or Affection/Interest lines inside the block.
+10. NEVER modify, shorten, or delete content within \`[CORE] ... [/CORE]\` blocks under any circumstances. Keep the tags and their inner content completely unchanged. The system programmatically overwrites any modifications to the CORE block with the original, so editing it is useless.
+11. For legacy NPC entries lacking these tags, identify their persistent sections (Appearance/Species, Appearance, Personality, Brief Background, Habits/Behaviors) and wrap them inside a \`[CORE] ... [/CORE]\` block to protect them from future passes. Do not include Relationship, Friendship/Rapport, or Affection/Interest lines inside the block.
 12. Compress turn-by-turn or granular combat status logs (e.g., creature HP changes, turn-by-turn action lists, temporary conditions mid-fight) into high-level updates: for long combats, preserve the initiation (who/what attacked {{user}}), a progress summary every ~5 rounds (capturing major shifts or stalemates), and the final outcome.
 13. Output your reasoning first, then the tags.`;
 
@@ -516,8 +516,8 @@ For each flagged entry:
 6. Do NOT activate, deactivate, record, or create new entries.
 7. Do NOT consolidate entries of different categories (e.g., do NOT merge an NPC or Location into a Quest or Event). Consolidation is strictly for true duplicates representing the exact same entity (e.g., two entries for the same NPC).
 8. Do NOT merge multiple distinct chronological events into a single entry to "reduce fragmentation". Each distinct historical event must remain as its own entry so it triggers on its specific keywords.
-9. NEVER modify, shorten, or delete content within \`[CORE] ... [/CORE]\` blocks under any circumstances. Keep the tags and their inner content completely unchanged.
-10. For legacy NPC entries lacking these tags, identify their persistent sections (Appearance, Personality, Brief Background, Habits/Behaviors) and wrap them inside a \`[CORE] ... [/CORE]\` block to protect them from future passes. Do not include Relationship, Friendship/Rapport, or Affection/Interest lines inside the block.
+9. NEVER modify, shorten, or delete content within \`[CORE] ... [/CORE]\` blocks under any circumstances. Keep the tags and their inner content completely unchanged. The system programmatically overwrites any modifications to the CORE block with the original, so editing it is useless.
+10. For legacy NPC entries lacking these tags, identify their persistent sections (Appearance/Species, Appearance, Personality, Brief Background, Habits/Behaviors) and wrap them inside a \`[CORE] ... [/CORE]\` block to protect them from future passes. Do not include Relationship, Friendship/Rapport, or Affection/Interest lines inside the block.
 11. Compress turn-by-turn or granular combat status logs (e.g., creature HP changes, turn-by-turn action lists, temporary conditions mid-fight) into high-level updates: for long combats, preserve the initiation (who/what attacked {{user}}), a progress summary every ~5 rounds (capturing major shifts or stalemates), and the final outcome.
 12. Call commit exactly once at the end. Do not call it per-entry.`;
 
@@ -834,7 +834,12 @@ Do NOT log appearance changes as event/update entries. The [CORE] block is the s
 
 Example:
 Thought: I see a new NPC named Barnaby in Khelt's Rust-Lantern District. I will record him and the tavern.
-[[NPC: Barnaby | A retired blacksmith with a scar on his cheek. | Barnaby, blacksmith, ally]]
+[[NPC: Barnaby | [CORE]
+Appearance/Species: A burly human blacksmith with a scar on his cheek.
+Personality: Gruff but reliable.
+Brief Background: Retired from the militia to open his own forge.
+Habits/Behaviors: Wipes his brow with a greasy rag.
+[/CORE] | Barnaby, blacksmith, ally]]
 [[LOC: Khelt :: Rust-Lantern District :: Barnaby's Forge | Barnaby's old workshop, still smelling of soot. | forge, Khelt, Rust-Lantern]]
 [[FAC: Iron Syndicate | Wary of outsiders after the forge raid; still dominant in the industrial quarter. | Founded by ex-mercenaries forty years ago; controls scrap tariffs and smuggling. Lieutenant Marna Voss handles street enforcement. | Iron Syndicate, Khelt, faction, smuggling]]`;
 
@@ -1363,7 +1368,8 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
         const [bookName, uid] = rw.id.split('::');
         const book = await ctx.loadWorldInfo(bookName);
         if (book?.entries?.[uid]) {
-            book.entries[uid].content = rw.content;
+            const originalContent = book.entries[uid].content || '';
+            book.entries[uid].content = protectCoreBlock(originalContent, rw.content);
             await ctx.saveWorldInfo(bookName, book);
             rewriteIds.push(rw.id);
             changed = true;
@@ -1399,7 +1405,8 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
         const [sBook, sUid] = op.survivor.split('::');
         const sBookData = await ctx.loadWorldInfo(sBook);
         if (sBookData?.entries?.[sUid]) {
-            sBookData.entries[sUid].content = op.content;
+            const originalContent = sBookData.entries[sUid].content || '';
+            sBookData.entries[sUid].content = protectCoreBlock(originalContent, op.content);
             await ctx.saveWorldInfo(sBook, sBookData);
             consolidateIds.push(op.survivor);
         } else {
@@ -1747,15 +1754,15 @@ async function applyAction(action, allBooks = {}, currentTime = '', breadcrumb =
             continue;
         }
         const entryContent = book.entries[uid].content || '';
-        // Replace the Appearance field value within the [CORE] block.
-        // Matches from "Appearance:" to the next known section header or [/CORE].
+        // Replace the Appearance/Species field value within the [CORE] block.
+        // Matches from "Appearance/Species:" or "Appearance:" to the next known section header or [/CORE].
         const updated = entryContent.replace(
-            /(Appearance:)[^\n]*/i,
+            /((?:Appearance\/Species|Appearance):)[^\n]*/i,
             `$1 ${newAppearance.trim()}`
         );
         if (updated === entryContent) {
             // No Appearance field found — append inside [CORE] if present, else note error
-            errors.push(`Appearance field not found inside [CORE] for ${id} — no update made.`);
+            errors.push(`Appearance/Species field not found inside [CORE] for ${id} — no update made.`);
             continue;
         }
         book.entries[uid].content = updated;
@@ -2579,6 +2586,32 @@ function deduplicateContent(existing, delta) {
 }
 
 /**
+ * Ensures that if the original content had a [CORE] ... [/CORE] block,
+ * that block is preserved exactly in the new/rewritten content.
+ * Prevents the model from shortening, modifying, or removing the CORE block.
+ * @param {string} originalContent
+ * @param {string} newContent
+ * @returns {string}
+ */
+function protectCoreBlock(originalContent, newContent) {
+    if (!originalContent || !newContent) return newContent;
+    const coreRegex = /\[CORE\]([\s\S]*?)\[\/CORE\]/i;
+    const originalCoreMatch = originalContent.match(coreRegex);
+    if (!originalCoreMatch) return newContent;
+
+    const originalCoreBlock = originalCoreMatch[0];
+    const newCoreMatch = newContent.match(coreRegex);
+    if (newCoreMatch) {
+        // Swap out the new core block with the original pristine one
+        return newContent.replace(coreRegex, originalCoreBlock);
+    } else {
+        // Prepend the original pristine core block if omitted
+        return `${originalCoreBlock}\n${newContent}`;
+    }
+}
+
+
+/**
  * Estimates token count using a ~4 chars/token heuristic.
  * Sufficient for threshold comparisons; no tokenizer dependency needed.
  */
@@ -2643,14 +2676,16 @@ function countRedundantPairs(content, threshold = 0.6) {
  */
 export function parseInWorldMinutes(timeStr) {
     if (!timeStr) return -1;
-    const m = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM),\s*Day\s*(\d+)/i);
+    const m = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?,\s*Day\s*(\d+)/i);
     if (!m) return -1;
     let hours = parseInt(m[1], 10);
     const minutes = parseInt(m[2], 10);
-    const ampm = m[3].toUpperCase();
+    const ampm = m[3] ? m[3].toUpperCase() : null;
     const day = parseInt(m[4], 10);
-    if (ampm === 'PM' && hours !== 12) hours += 12;
-    if (ampm === 'AM' && hours === 12) hours = 0;
+    if (ampm) {
+        if (ampm === 'PM' && hours !== 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+    }
     return (day - 1) * 24 * 60 + hours * 60 + minutes;
 }
 
@@ -2667,12 +2702,18 @@ function computePeriodLabel(startMinutes, endMinutes, intervalHours) {
     const minutesOfToday = endMinutes % (24 * 60);
     let hours = Math.floor(minutesOfToday / 60);
     const mins = minutesOfToday % 60;
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    let displayHours = hours % 12;
-    if (displayHours === 0) displayHours = 12;
-    const displayHoursStr = String(displayHours).padStart(2, '0');
     const displayMins = String(mins).padStart(2, '0');
-    return `Day ${day}, ${displayHoursStr}:${displayMins} ${ampm}`;
+    const s = getSettings();
+    if (s.use24hTime) {
+        const displayHoursStr = String(hours).padStart(2, '0');
+        return `Day ${day}, ${displayHoursStr}:${displayMins}`;
+    } else {
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        let displayHours = hours % 12;
+        if (displayHours === 0) displayHours = 12;
+        const displayHoursStr = String(displayHours).padStart(2, '0');
+        return `Day ${day}, ${displayHoursStr}:${displayMins} ${ampm}`;
+    }
 }
 
 /**

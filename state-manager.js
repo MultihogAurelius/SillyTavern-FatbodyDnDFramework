@@ -20,17 +20,17 @@ export const MODULE_NAME = 'rpg_tracker';
  * @param {number} minorWords
  * @returns {string}
  */
-export function buildNpcInstruction(majorWords = 25, minorWords = 15) {
+export function buildNpcInstruction(majorWords = 25, minorWords = 15, ignoreLimits = false) {
     let instruction = `Significant named characters the party interacts with (do NOT record every random enemy or nameless bartender, only characters who are somehow significant). Do NOT create an entry for {{user}}. Mention {{user}} in EVENT or QUEST entries as needed. Always use the exact macro string \`{{user}}\` when referring to the player; do NOT write the plain word "user" or "player".
 
 <CORE_FORMAT>
-IMPORTANT: The entry MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag. Wrap the immutable identity sections (Appearance, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. The Description field inside the [[ ]] tags must contain this block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
+IMPORTANT: The Description field inside the [[ ]] tags MUST start directly with the [CORE] tag. Do NOT prepend any timestamps, dates, or other text before the [CORE] tag under any circumstances (e.g. do NOT write "[4:47 PM, Day 1] [CORE]" or "[Day X, HH:MM] [CORE]"). The very first character of the Description MUST be the "[" of the "[CORE]" tag. Wrap the immutable identity sections (Appearance/Species, Personality, Brief Background, Habits/Behaviors) inside a single \`[CORE]\` and \`[/CORE]\` tag block. These sections are permanent — once written they must NOT be rewritten, overwritten, or updated through normal entry update/record operations.
 
 [CORE]
-Appearance: Key visual identifiers only — race, build, most distinctive feature, weapon/armor if relevant.
-Personality: Core temperament and primary motivation in a few words.
+Appearance/Species: Visual identifiers — species/race, build, distinctive features, weapon/armor if relevant.
+Personality: Core temperament and primary motivation.
 Brief Background: Role in the world, why they matter to the story.
-Habits/Behaviors: One or two defining behaviors or combat tendencies.
+Habits/Behaviors: Defining behaviors or combat tendencies.
 [/CORE]
 
 After the [/CORE] block, append timestamped narrative updates as usual ([Day X, HH:MM] ...).
@@ -39,18 +39,20 @@ After the [/CORE] block, append timestamped narrative updates as usual ([Day X, 
 ## APPEARANCE UPDATES
 If the NPC's physical appearance changes significantly (major injury, permanent outfit change, etc.), output:
   [[UPDATE_APPEARANCE: Book::UID | New appearance text]]
-This surgically replaces only the Appearance field inside [CORE]. Do NOT write appearance changes as event/update entries.`;
+This surgically replaces only the Appearance/Species field inside [CORE]. Do NOT write appearance changes as event/update entries.`;
 
-    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.
+    instruction += `\n\nBe concise and functional — every word should serve gameplay or characterization. Avoid adjective dumps and purple prose.`;
 
-<CORE LENGTH TARGETS>
+    if (!ignoreLimits) {
+        instruction += `\n\n<CORE LENGTH TARGETS>
 Major NPCs (recurring, plot-important): target AT LEAST ${majorWords} words per each section of [CORE].
 Minor NPCs (shopkeepers, guards, one-off encounters): target AT LEAST ${minorWords} words per each section of [CORE].
 
 Expand/extrapolate thematically if you can't otherwise meet the specified length targets.
-</CORE LENGTH TARGETS>
+</CORE LENGTH TARGETS>`;
+    }
 
-<COMBAT_GRANULARITY>
+    instruction += `\n\n<COMBAT_GRANULARITY>
 Do NOT record per-round combat updates (e.g., creature HP changes, turn-by-turn action lists, temporary conditions mid-fight). For long combats, limit updates to the initiation of combat (e.g., when they became hostile and attacked {{user}}), a high-level progress update every ~5 rounds (to capture major shifts or stalemates), and the final resolved outcome once it concludes.
 </COMBAT_GRANULARITY>`;
     return instruction;
@@ -89,7 +91,7 @@ export function getSettings() {
         agentConsoleOpen: true,
         agentModulesOpen: true,
         agentWorldOpen: false,
-        debugMode: true,
+        debugMode: false,
         connectionSource: "default",
         connectionProfileId: "",
         completionPresetId: "",
@@ -105,16 +107,18 @@ export function getSettings() {
         portraitSkipPromptDialog: false,
         portraitAutoGenerateParty: false,
         portraitAutoGenerateEnemies: false,
+        portraitAutoGenerateNpcs: false,
         pollinationsApiKey: "",
         pollinationsModel: "zimage",
         inventoryWorthMode: "hover",   // 'hover' = worth shown as tooltip only | 'display' = coin badge shown inline
-        showTotalInventoryValue: true,
         npcMajorWords: 25,
         npcMinorWords: 15,
         npcRelationshipBars: false,
         npcRelationshipValues: {},
         npcRelationshipLog: {},      // { [fullId]: [{timestamp,field,delta,newValue,source}] } — capped 50/NPC
         experimentalNpcImport: true,
+        ignoreNpcImportLimits: false,
+        use24hTime: false,
         barColors: {},
         modulePageSizes: {},
         customTheme: null,
@@ -681,8 +685,22 @@ Example: [[FAC: Iron Syndicate | ...]]  NOT  [[FAC: Khelt :: Iron Syndicate | ..
         if (s.routerModules?.npc) {
             s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords);
         }
+        // Add default settings for Auto-Generate NPC portraits (upstream)
+        if (s.portraitAutoGenerateNpcs === undefined) {
+            s.portraitAutoGenerateNpcs = false;
+        }
         s.settingsVersion = '3.16.14';
     }
+
+    // Reinforce that NPC Description must start directly with [CORE] without timestamp (v3.16.16)
+    if (!s.settingsVersion || s.settingsVersion < '3.16.16') {
+        if (s.routerModules?.npc) {
+            s.routerModules.npc.instruction = buildNpcInstruction(s.npcMajorWords, s.npcMinorWords, s.ignoreNpcImportLimits);
+        }
+        s.settingsVersion = '3.16.16';
+    }
+
+
 
     // ── MIGRATION: Update system prompts with keywords instructions (v3.2.3+) ──────
     if (s.routerSystemPromptTemplate && !s.routerSystemPromptTemplate.includes('IMPORTANT FOR KEYWORDS')) {
@@ -912,6 +930,7 @@ export function saveChatState(chatId) {
         portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
         portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
         portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
+        portraitAutoGenerateNpcs: s.portraitAutoGenerateNpcs ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",
@@ -1003,6 +1022,7 @@ export function saveProfile(name) {
         portraitSkipPromptDialog: s.portraitSkipPromptDialog ?? false,
         portraitAutoGenerateParty: s.portraitAutoGenerateParty ?? false,
         portraitAutoGenerateEnemies: s.portraitAutoGenerateEnemies ?? false,
+        portraitAutoGenerateNpcs: s.portraitAutoGenerateNpcs ?? false,
         portraitConnectionSource: s.portraitConnectionSource ?? "default",
         portraitConnectionProfileId: s.portraitConnectionProfileId || "",
         portraitCompletionPresetId: s.portraitCompletionPresetId || "",

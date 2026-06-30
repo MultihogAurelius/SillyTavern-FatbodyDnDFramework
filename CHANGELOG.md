@@ -6,6 +6,35 @@ All notable changes to the **Multihog D&D Framework** will be documented in this
 
 ### Added
 - **Relationship Bars System Rework**: Overhauled the NPC relationship bar system from a cosmetic feature into a functional, AI-driven mechanic. The narrator AI now emits inline annotations (e.g. `*(Affection: Elena +2 — sincere compliment)*`) at the point of interaction and machine tags (`[REL: Name | field | delta]`) at the end of each response. Tags are automatically parsed, deltas applied to the relationship bars (clamped ±100), and the updated values written back to lorebook NPC entries as the persistent campaign database. Context injection (`[NPC_RELATIONS]`) provides the narrator with a live snapshot of current standings for active NPCs only, keeping token usage minimal. System prompt guidance added with calibrated delta examples for both Friendship and Affection.
+- **Always Auto-Generate NPCs (Lorebook)**: Introduced a new settings toggle to automatically generate portraits in the background for new or updated NPCs created by the Lorebook Agent, aligning the behavior with existing auto-generation options for Party and Enemies.
+
+## [3.8.6] - 2026-06-28
+
+### Fixed
+- **NPC [CORE] Format Reinforcement**: Explicitly instructed the LLM to start NPC description fields directly with `[CORE]` and prohibited any prepended timestamps (e.g. `[Day X, HH:MM] [CORE]`).
+- **Improved Lorebook Agent Example**: Refactored the NPC example inside the system prompt in `router.js` to correctly demonstrate starting the description with a `[CORE]` block.
+- **Settings Migration**: Added a migration block for settings version `3.16.16` in `state-manager.js` to automatically regenerate the NPC instruction field for upgrading users.
+
+## [3.8.5] - 2026-06-28
+
+### Added
+- **24-Hour End of Output Footer**: Configured the system prompt builder (`buildSysprompt`) in `index.js` to dynamically alter the `<end_of_output_footer>` template to direct the LLM to output times in 24-hour format (`HH:MM` instead of `HH:MM AM/PM`) when the 24-hour setting is enabled.
+- **LogQuest Tool Format Instructions**: Updated the `LogQuest` function tool description in `quests.js` to dynamically format its deadline time parameters and instructions to match 24-hour clock formats when 24h mode is active.
+- **24-Hour Time Format Toggle**: Added a user configuration checkbox ("Use 24-Hour Time Format") in the extension settings menu under the TIME module row.
+- **Dynamic Prompt Customization**: Automatically swaps the instruction examples for the `[TIME]` module to the clean 24-hour format prompt variant (`time_24h`) when 24h time is enabled.
+- **Time Parsing & Formatting**: Updated the in-world time parser to support optional AM/PM parsing and consolidated all display timing helpers to respect 24-hour format.
+- **NPC Creator with Tabbed Dialog**: Added "Add NPC to Story" creator with tabs for card import, freeform, and archetype selection.
+- **Custom Archetype Input**: Added a custom archetype input that shows only when the "Custom" chip is selected.
+- **Edit Text Button in Full NPC Card**: Added an "✏️ Edit Text" button directly inside the Full NPC Card popup with live refresh of the view pane after saving.
+- **Ignore Character Limits When Importing**: Added a setting to omit the `<CORE LENGTH TARGETS>` section from the NPC prompt when importing character cards.
+- **Appearance/Species Field**: Renamed Appearance field to Appearance/Species for clarity.
+- **Programmatic CORE Block Protection**: Cleanup/consolidate tools now programmatically protect `[CORE]` blocks from modification.
+- **Portrait Settings Menu Unconditional**: Portrait settings menu now shows unconditionally on NPC portrait click.
+
+### Fixed
+- **Prevent NPC Creator Duplicates**: NPC Creator no longer duplicates existing entries.
+- **Panel Position Drift**: Fixed panel position drift on F5 / code reload.
+
 
 ## [3.16.13] - 2026-06-25
 

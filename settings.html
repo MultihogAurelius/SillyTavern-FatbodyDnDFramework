@@ -65,6 +65,13 @@
                                     title="When enabled, portraits will be automatically generated in the background for new combatants in the COMBAT block if they are not in the party and don't already have one."></i>
                             </label>
 
+                            <label class="checkbox_label" style="margin-top: 6px; padding-left: 20px;">
+                                <input id="rpg_tracker_portrait_auto_npcs" type="checkbox" />
+                                <span>Always Auto-Generate NPCs (Lorebook)</span>
+                                <i class="fa-solid fa-circle-question interactable"
+                                    title="When enabled, portraits will be automatically generated in the background for new NPCs created or updated in the lorebook if they don't already have one."></i>
+                            </label>
+
                             <div id="rpg_tracker_pollinations_group" style="margin-top: 4px; padding-left: 20px; margin-bottom: 6px;">
                                 <label style="font-size: 0.82em; opacity: 0.75; display: block; margin-bottom: 3px;">Pollinations API Key
                                     <i class="fa-solid fa-circle-question interactable"
@@ -508,7 +515,7 @@
                         <!-- NPC Settings -->
                         <div class="inline-drawer">
                             <div class="inline-drawer-toggle inline-drawer-header">
-                                <i class="fa-solid fa-user-gear" style="opacity: 0.7; margin-right: 5px;"></i><b>NPC Settings</b>
+                                <b><i class="fa-solid fa-user-gear" style="opacity: 0.7; margin-right: 5px;"></i>NPC Settings</b>
                                 <div class="inline-drawer-icon fa-solid fa-circle-down down"></div>
                             </div>
                             <div class="inline-drawer-content">
@@ -526,13 +533,14 @@
                                     </label>
 
                                     <label class="checkbox_label">
-                                        <input id="rpg_tracker_npc_card_import" type="checkbox" />
-                                        <span>Character Card Converter</span>
-                                        <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Shows the 'Add NPC from Character Card' button. This allows importing character cards into campaigns with AI review."></i>
+                                        <input id="rpg_tracker_ignore_npc_limits" type="checkbox" />
+                                        <span>Ignore Character Limits When Importing Character Cards</span>
+                                        <i class="fa-solid fa-circle-question interactable" style="font-size: 0.85em; opacity: 0.7; margin-left: 4px;" title="Omits the &lt;CORE LENGTH TARGETS&gt; section from the NPC prompt."></i>
                                     </label>
                                 </div>
                             </div>
                         </div>
+
 
                         <!-- Active Lore Injection Settings -->
                         <div class="inline-drawer">
@@ -706,6 +714,7 @@
                         </label>
                         <input id="rpg_world_progression_interval" type="text" inputmode="numeric" pattern="[0-9]*" class="text_pole" value="24" style="max-width: 100px;" title="In-world hours between World Progression reports (24 = daily)" />
                         <div style="font-size: 0.75em; opacity: 0.55; margin-top: -2px;">e.g. 24 = daily, 12 = twice/day, 8 = 3×/day</div>
+
                         <div style="font-size: 0.78em; opacity: 0.65; margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 2px;">
                             <div><b>Last report:</b> <span id="rpg_world_progression_last_report_val">—</span></div>
                             <div style="display: flex; align-items: center; gap: 6px;">
