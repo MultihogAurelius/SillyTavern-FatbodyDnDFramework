@@ -5198,26 +5198,63 @@ function createPanel() {
                             const popupDom = document.createElement('div');
                             popupDom.style.cssText = 'width:100%;box-sizing:border-box;padding:24px;text-align:left;font-family:var(--rt-font, system-ui, sans-serif);color:var(--SmartThemeBodyColor, inherit);';
 
+                            // Pre-build section HTML (avoids nested template literals confusing IDE)
+                            const sectionsInitialHtml = renderSectionsHtml(item.content)
+                                || '<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>';
+
+                            const barsBlockHtml = s.npcRelationshipBars
+                                ? '<div style="margin-top:20px;">' + barsHtml + '</div>'
+                                : '';
+
+                            const activeStyle = item.is_active
+                                ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);'
+                                : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));';
+                            const activeLabel = item.is_active ? '● Active' : '○ Inactive';
+
+                            // Build relationship history log rows (plain string concatenation)
+                            let relLogHtml = '';
+                            if (s.npcRelationshipBars) {
+                                const logEntries = (s.npcRelationshipLog && s.npcRelationshipLog[item.id] || []).slice(0, 20);
+                                if (logEntries.length > 0) {
+                                    let rows = '';
+                                    for (const e of logEntries) {
+                                        const date = new Date(e.timestamp);
+                                        const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+                                            + ', ' + date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                                        const sign = e.delta > 0 ? '+' : '';
+                                        const deltaColor = e.delta > 0 ? '#4ade80' : '#ef4444';
+                                        const srcIcon = e.source === 'manual' ? '✋' : '🤖';
+                                        const fieldLabel = e.field === 'friendship' ? '🤝' : '💗';
+                                        rows += '<tr>'
+                                            + '<td style="font-size:10px;color:var(--SmartThemeBodyColor,inherit);opacity:0.5;padding:3px 8px 3px 0;white-space:nowrap;">' + timeStr + '</td>'
+                                            + '<td style="font-size:12px;padding:3px 8px;">' + fieldLabel + '</td>'
+                                            + '<td style="font-size:13px;font-weight:bold;color:' + deltaColor + ';font-family:monospace;padding:3px 8px;">' + sign + e.delta + '</td>'
+                                            + '<td style="font-size:11px;color:var(--SmartThemeBodyColor,inherit);opacity:0.45;padding:3px 0;">' + srcIcon + ' \u2192 ' + (e.newValue >= 0 ? '+' : '') + e.newValue + '</td>'
+                                            + '</tr>';
+                                    }
+                                    relLogHtml = '<div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;margin-top:18px;">'
+                                        + '<div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📊 Relationship History</div>'
+                                        + '<table style="width:100%;border-collapse:collapse;">' + rows + '</table>'
+                                        + '</div>';
+                                }
+                            }
+
                             popupDom.innerHTML = `
                                 <div style="display:flex;gap:24px;margin-bottom:20px;align-items:flex-start;flex-wrap:wrap;">
-                                    <div style="flex-shrink:0;width:280px;">
-                                        ${portraitEl}
-                                    </div>
+                                    <div style="flex-shrink:0;width:280px;">${portraitEl}</div>
                                     <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px;">
                                         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                                             <div style="font-size:24px;font-weight:bold;color:#d4a940;line-height:1.2;">${escapeHtml(item.label)}</div>
                                             <button class="rt-npc-popup-edit-btn menu_button" style="flex-shrink:0;font-size:12px;padding:4px 12px;white-space:nowrap;">✏️ Edit Text</button>
                                         </div>
-                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;align-self:flex-start;${item.is_active ? 'background:rgba(0,255,170,0.12);color:#00ffaa;border:1px solid rgba(0,255,170,0.25);' : 'background:var(--SmartThemeBorderColor, rgba(128,128,128,0.1));color:var(--SmartThemeBodyColor, inherit);opacity:0.65;border:1px solid var(--SmartThemeBorderColor, rgba(128,128,128,0.2));'}">${item.is_active ? '● Active' : '○ Inactive'}</span>
-                                        ${s.npcRelationshipBars ? `<div style="margin-top:20px;">${barsHtml}</div>` : ''}
+                                        <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:bold;align-self:flex-start;${activeStyle}">${activeLabel}</span>
+                                        ${barsBlockHtml}
                                     </div>
                                 </div>
                                 <div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;">
                                     <!-- VIEW PANE -->
                                     <div class="rt-npc-popup-view">
-                                        <div class="rt-npc-popup-sections">
-                                            ${renderSectionsHtml(item.content) || `<div style="font-size:14px;color:var(--SmartThemeBodyColor, inherit);opacity:0.5;font-style:italic;padding:16px 0;">No structured sections found. Click Edit Text to add content.</div>`}
-                                        </div>
+                                        <div class="rt-npc-popup-sections">${sectionsInitialHtml}</div>
                                     </div>
                                     <!-- EDIT PANE -->
                                     <div class="rt-npc-popup-edit" style="display:none;flex-direction:column;gap:10px;">
@@ -5229,29 +5266,9 @@ function createPanel() {
                                         </div>
                                     </div>
                                 </div>
-                                ${(() => {
-                                    const log = (s.npcRelationshipLog?.[item.id] || []).slice(0, 20);
-                                    if (!s.npcRelationshipBars || log.length === 0) return '';
-                                    const rows = log.map(e => {
-                                        const date = new Date(e.timestamp);
-                                        const timeStr = date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + ', ' + date.toLocaleDateString([], {month:'short',day:'numeric'});
-                                        const sign = e.delta > 0 ? '+' : '';
-                                        const deltaColor = e.delta > 0 ? '#4ade80' : '#ef4444';
-                                        const srcIcon = e.source === 'manual' ? '✋' : '🤖';
-                                        const fieldLabel = e.field === 'friendship' ? '🤝' : '💗';
-                                        return `<tr>
-                                            <td style="font-size:10px;color:var(--SmartThemeBodyColor,inherit);opacity:0.5;padding:3px 8px 3px 0;white-space:nowrap;">${timeStr}</td>
-                                            <td style="font-size:12px;padding:3px 8px;">${fieldLabel}</td>
-                                            <td style="font-size:13px;font-weight:bold;color:${deltaColor};font-family:monospace;padding:3px 8px;">${sign}${e.delta}</td>
-                                            <td style="font-size:11px;color:var(--SmartThemeBodyColor,inherit);opacity:0.45;padding:3px 0;">${srcIcon} → ${e.newValue >= 0 ? '+' : ''}${e.newValue}</td>
-                                        </tr>`;
-                                    }).join('');
-                                    return `<div style="border-top:2px solid rgba(212,169,64,0.15);padding-top:18px;margin-top:18px;">
-                                        <div style="font-size:11px;font-weight:bold;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px;">📊 Relationship History</div>
-                                        <table style="width:100%;border-collapse:collapse;">${rows}</table>
-                                    </div>`;
-                                })()}
+                                ${relLogHtml}
                             `;
+
 
 
                             // Wire up in-popup edit/save/cancel
